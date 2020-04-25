@@ -24,22 +24,33 @@ orgmem	lib_base
 
 orgmem	lib_base+0x40							; executable code begins here
 system_init:
-	; Configure RAM/ROM
-	ld	a, nc100_membank_ROM
-	out	(nc100_io_membank_A), a					; Select ROM for lowest page
-	ld	a, nc100_membank_RAM|nc100_membank_16k
-	out	(nc100_io_membank_B), a					; Select RAM for next page
-	ld	a, nc100_membank_RAM|nc100_membank_32k
-	out	(nc100_io_membank_C), a					; Select RAM for next page
-	ld	a, nc100_membank_RAM|nc100_membank_48k
-	out	(nc100_io_membank_D), a					; Select RAM for next page
-
-	; Set stack pointer to the top of RAM (Yay!)
-	ld	sp, 0xFFFF
-
 	; Reset interrupts
 	xor	a							; Clear A
 	out	(nc100_io_irq_mask), a					; Clear interrupt mask
 	out	(nc100_io_irq_status), a				; Clear interrupt status flags
+
+	; Configure RAM/ROM
+	ld	a, nc100_membank_RAM|nc100_membank_48k
+	out	(nc100_io_membank_D), a					; Select RAM for next page
+	ld	a, nc100_membank_RAM|nc100_membank_32k
+	out	(nc100_io_membank_C), a					; Select RAM for next page
+
+	; We've got RAM now so set stack pointer (Yay!)
+	ld	sp, 0xFFFF
+
+	; Copy ROM to RAM
+	ld	a, nc100_membank_RAM|nc100_membank_16k
+	out	(nc100_io_membank_B), a					; Select RAM for next page
+	ld	bc, 0x0000						; Source: Page 0 (ROM)
+	ld	de, 0x4000						; Destination: Page 1 (RAM)
+	ld	hl, 0x4000						; Num. bytes: 16k
+	call	memory_copy
+
+	; RAM pages 0 & 1 are swapped.
+	; That way we can swap them back when something else is loaded
+	ld	a, nc100_membank_RAM|nc100_membank_0k
+	out	(nc100_io_membank_B), a					; Select RAM for next page
+	ld	a, nc100_membank_RAM|nc100_membank_16k
+	out	(nc100_io_membank_A), a					; Select RAM for lowest page
 
 	rst	8							; Continue boot
