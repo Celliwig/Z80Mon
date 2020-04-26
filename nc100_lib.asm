@@ -167,36 +167,53 @@ nc100_lcd_set_cursor_by_grid_with_pixel_offset:
 nc100_lcd_set_cursor_by_grid_error:
 	ret
 
-; # nc100_lcd_write_2_screen
+; # nc100_lcd_write_screen_data
 ; #################################
 ;  Copy 8 bits of data to current screen position.
-;  Has limited ability to offset from the current position.
+;  Handles pixel offset
 ;	In:	A = Screen data
-;		B = x offset (0-59)
-;		C = y offset (0-15)
-;nc100_lcd_write_2_screen:
-;	ld	de, (nc100_lcd_posx)					; Get LCD cursor X position
-;	ld	hl, (nc100_lcd_posy)					; Get LCD cursor Y position
-;	push	af							; Store screen data
-;
-;	; Check we're not off the end of the line
-;	ld	a, b							; Get X offset
-;	and	0x3f							; Limit the offset
-;	add	a, e							; Add to existing x postion
-;	ld	e, a							; Save value
-;	sub	0x3c							; -60, check if we're on the line
-;	jr	nc, nc100_lcd_write_2_screen_error
-;	; Check whether we're off the bottom of the screen
-;	ld	a, c							; Get Y offset
-;	and	0x0f							; Limit the offset
-;	add	a, l							; Add existing y position
-;	ld	l, a							; Save value
-;	sub	0x3f							; -63, check if we're off the end of the screen
-;	jr      nc, nc100_lcd_write_2_screen_error
-;
-;nc100_lcd_write_2_screen_error:
-;	pop	af							; Restore screen data
-;	ret
+;		HL = cursor address
+nc100_lcd_write_screen_data:
+	push	af							; Save screen data
+	ld	a, (nc100_lcd_pixel_offset)				; Check whether there's an offset
+	and	a
+	jr	nz, nc100_lcd_write_2_screen_split			; There's a pixel offset
+nc100_lcd_write_2_screen_single:
+	pop	af							; Restore screen data
+	jr	nc100_lcd_write_screen_actual				; No pixel offset so simply print
+nc100_lcd_write_2_screen_split:
+	pop	bc							; Restore screen data
+	ld	c, 0xff							; Init mask
+nc100_lcd_write_2_screen_split_loop:
+	rrc	b							; Rotate right without Carry
+	srl	c							; Shift right mask
+	dec	a							; Decrement pixel offset
+	jr	nz, nc100_lcd_write_2_screen_split_loop			; Continue looping if necessary
+	ld	a, c							; Copy mask
+	and	b							; Apply to screen data
+	call	nc100_lcd_write_screen_actual				; Write 1st byte
+	ld	a, c							; Copy mask
+	cpl								; Invert mask
+	and	b							; Apply to screen data
+									; Write second byte
+; # nc100_lcd_write_screen_actual
+; #################################
+;  Copy 8 bits of data to current screen position.
+;	In:	A = Screen data
+;		HL = cursor address
+nc100_lcd_write_screen_actual:
+	exx	af, af'							; Save screen data
+	; Check whether we're about to overrun screen RAM
+	ld	de, nc100_raster_start_addr
+	ld	a, d							; Load MSB raster address
+	sub	h							; Subtract MSB raster address
+	jr	nz, nc100_lcd_write_screen_actual_error			; They're not equal, so error
+	exx	af, af'							; Restore screen data
+	ld	(hl), a							; Write screen data
+	ret
+nc100_lcd_write_screen_actual_error:
+	exx	af, af'							; Restore screen data
+	ret
 
 ;; # nc100_lcd_print_char
 ;; #################################
