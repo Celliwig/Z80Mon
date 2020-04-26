@@ -10,8 +10,7 @@ nc100_raster_start_addr:		dw	0x0000			; Address of LCD raster memory
 ; Last 4 bytes of each line are not used
 nc100_raster_cursor_addr:		dw	0x0000			; Cursor position in raster memory
 ; These are words to allow loading directly into double registers
-nc100_lcd_posx:				dw	0x0000			; LCD x cursor position, with regards to memory cell (0-59)
-nc100_lcd_posy:				dw	0x0000			; LCD y cursor position (0-63)
+nc100_lcd_pos_xy:			dw	0x0000			; LCD x/y cursor position (X: 0-59/Y: 0-63)
 nc100_lcd_pixel_offset:			db	0x00			; LCD pixel position in data byte
 nc100_lcd_draw_attributes:		db	0x00			; Cursor draw attributes
 
@@ -36,9 +35,19 @@ table_mul64:
 
 ; # LCD methods
 ; ###########################################################################
-;  LCD attributes
+;  LCD draw attributes
 ;	Bit 0: 0 = Normal, 1 = Invert
 ;	Bit 1: 0 = Overwrite, 1 = Merge (xor)
+;
+; Registers:
+;  As a general rule:
+;   Fixed Registers:
+;	D = y position (0-63)
+;	E = x position/memory cell (0-59)
+;	HL = Cursor address
+;   Scratch Registers:
+;	A/A'
+;	BC
 
 ; # nc100_lcd_set_raster_addr
 ; #################################
@@ -84,8 +93,8 @@ nc100_lcd_set_attributes:
 ; #################################
 ;  Check whether the cursor co-ordinates are valid
 ;  (Don't call directly)
-;	In:	BC = y position (0-63)
-;		DE = x position/memory cell (0-59)
+;	In:	D = y position (0-63)
+;		E = x position/memory cell (0-59)
 ;	Out:	Carry flag is set when okay, Carry flag unset on error.
 nc100_lcd_calc_cursor_check:
 	; Check we're not off the end of the line
@@ -93,7 +102,7 @@ nc100_lcd_calc_cursor_check:
 	sub	0x3c							; -60, check if we're on the line
 	jr	nc, nc100_lcd_calc_cursor_check_error
 	; Check whether we're off the bottom of the screen
-	ld	a, c							; Get Y value
+	ld	a, d							; Get Y value
 	sub	0x3f							; -63, check if we're off the end of the screen
 	jr      nc, nc100_lcd_calc_cursor_check_error
 	scf								; Set Carry flag
@@ -107,36 +116,42 @@ nc100_lcd_calc_cursor_check_error:
 ; #################################
 ;  Set the cursor address using the specified co-ordinates
 ;  (Don't call directly)
-;	In:	BC = y position (0-63)
-;		DE = x position/memory cell (0-59)
+;	In:	D = y position (0-63)
+;		E = x position/memory cell (0-59)
 ;		(These value should be pre-filtered)
 ;	Out:	HL = Cursor address
 nc100_lcd_calc_cursor_addr:
-; This costs 49 clock ticks
+; This costs 57 clock ticks
 	ld	hl, table_mul64						; Load multiplication table address
+	ld	c, d
 	sla	c							; Multiple by 2
+	xor	b							; Ensure B is zero
 	add	hl, bc							; Add offset
 	ld	c, (hl)							; Load low byte
 	inc	hl							; Increment pointer
 	ld	b, (hl)							; Load high byte
 
-; This costs 66 clock ticks
-;	add	hl, hl							; Equivalent to left-shift[6]
-;	add	hl, hl							; Which is equivalent to * 64
-;	add	hl, hl
-;	add	hl, hl
-;	add	hl, hl
-;	add	hl, hl
+;; This costs 66 clock ticks
+;;	add	hl, hl							; Equivalent to left-shift[6]
+;;	add	hl, hl							; Which is equivalent to * 64
+;;	add	hl, hl
+;;	add	hl, hl
+;;	add	hl, hl
+;;	add	hl, hl
 
 	ld	hl, (nc100_raster_start_addr)				; Load start address of raster
-	add	hl, de							; x + y offsets
+	ld	l, e							; Base address + x (We can do this because BA is on a 4k boundary)
 	add	hl, bc							; base address + x + y
 	ret
+
 ; # nc100_lcd_set_cursor_by_pixel
 ; #################################
 ;  Set the cursor address using the specified pixel co-ordinates
 ;	In:	BC = y position (0-63)
 ;		DE = x position (0-479)
+;	Out:	D = y position (0-63)
+;		E = x position/memory cell (0-59)
+;		HL = Cursor address
 nc100_lcd_set_cursor_by_pixel:
 	ld	a, e							; First calculate pixel offset
 	and	0x07							; Extract pixel offset
@@ -145,13 +160,15 @@ nc100_lcd_set_cursor_by_pixel:
 	rr	e							; Shift with carry
 	rr	e							; Equivalent of right-shift[3]
 	rr	e							; Equivalent to /8
+	ld	d, c							; Set D with Y co-ordinate
 	jr	nc100_lcd_set_cursor_by_grid_with_pixel_offset
 ; # nc100_lcd_set_cursor_by_grid
 ; #################################
 ;  Set the cursor address using the specified grid co-ordinates
-;	In:	BC = y position (0-63)
-;		DE = x position (0-59)
+;	In:	D = y position (0-63)
+;		E = x position/memory cell (0-59)
 ;		L = pixel offset (0-7)
+;	Out:	Carry flag is set when okay, Carry flag unset on error.
 nc100_lcd_set_cursor_by_grid:
 	xor	l							; Zero pixel offset
 nc100_lcd_set_cursor_by_grid_with_pixel_offset:
@@ -160,8 +177,7 @@ nc100_lcd_set_cursor_by_grid_with_pixel_offset:
 	ld	a, l
 	and	0x07							; Filter pixel offset
 	ld	(nc100_lcd_pixel_offset), a				; Save pixel offset
-	ld	(nc100_lcd_posx), de					; Save x position
-	ld	(nc100_lcd_posy), bc					; Save y position
+	ld	(nc100_lcd_pos_xy), de					; Save x/y position
 	call	nc100_lcd_calc_cursor_addr				; Calculate cursor address
 	ld	(nc100_raster_cursor_addr), hl				; Store pointer to cursor location
 nc100_lcd_set_cursor_by_grid_error:
@@ -172,6 +188,8 @@ nc100_lcd_set_cursor_by_grid_error:
 ;  Copy 8 bits of data to current screen position.
 ;  Handles pixel offset
 ;	In:	A = Screen data
+;		D = y position (0-63)
+;		E = x position/memory cell (0-59)
 ;		HL = cursor address
 nc100_lcd_write_screen_data:
 	push	af							; Save screen data
@@ -200,35 +218,36 @@ nc100_lcd_write_2_screen_split_loop:
 ; #################################
 ;  Copy 8 bits of data to current screen position.
 ;	In:	A = Screen data
+;		D = y position (0-63)
+;		E = x position/memory cell (0-59)
 ;		HL = cursor address
 nc100_lcd_write_screen_actual:
 	ex	af, af'							; Save screen data
 	; Check whether we're about to overrun screen RAM
-	ld	de, (nc100_raster_start_addr)
-	ld	a, d							; Load MSB raster address
-	and	0xf0							; Extract msbs of MSB
-	ld	d, a							; Save value
-	ld	a, h
-	and	0xf0							; Extract msbs of MSB
-	sub	d							; Subtract MSB raster address
-	jr	nz, nc100_lcd_write_screen_actual_error			; They're not equal, so error
+	ld	bc, (nc100_raster_start_addr)
+	ld	a, b							; Load MSB raster address
+	xor	h							; XOR MSB of raster cursor address with MSB raster start address,
+									; top 4 bits should be zero if we're within range
+	and	0xf0							; Filter lsbs
+	jr	nz, nc100_lcd_write_screen_actual_error
+nc100_lcd_write_screen_actual_attrib:
 	ld	a, (nc100_lcd_draw_attributes)				; Get draw attributes
-	ld	d, a
+	ld	c, a							; Save attributes
 	ex	af, af'							; Restore screen data
-nc100_lcd_write_screen_actual_test_invert:
-	bit	0, d							; Test invert flag
-	jr	z, nc100_lcd_write_screen_actual_test_merge		; Skip invert
+nc100_lcd_write_screen_actual_attrib_invert:
+	bit	0, c							; Test invert flag
+	jr	z, nc100_lcd_write_screen_actual_attrib_merge		; Skip invert
 	cpl								; Invert screen data
-nc100_lcd_write_screen_actual_test_merge:
-	bit	1, d							; Test merge flag
+nc100_lcd_write_screen_actual_attrib_merge:
+	bit	1, c							; Test merge flag
 	jr	z, nc100_lcd_write_screen_actual_write			; Skip merge
-	ld	e, (hl)							; Read existing data
-	bit	0, d							; If normal - OR, if inverted - AND
-	jr	nz, nc100_lcd_write_screen_actual_test_merge_AND
-	or	e							; Merge: OR
+	ld	b, (hl)							; Read existing data
+	bit	0, c							; If normal - OR, if inverted - AND
+	jr	nz, nc100_lcd_write_screen_actual_attrib_merge_AND
+	or	b							; Merge: OR
 	jr	nc100_lcd_write_screen_actual_write
-nc100_lcd_write_screen_actual_test_merge_AND:
-	and	e							; Merge: AND
+nc100_lcd_write_screen_actual_attrib_merge_AND:
+	and	b							; Merge: AND
 nc100_lcd_write_screen_actual_write:
 	ld	(hl), a							; Write screen data
 	ret
