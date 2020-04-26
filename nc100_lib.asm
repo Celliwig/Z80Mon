@@ -59,6 +59,112 @@ nc100_lcd_clear_screen_loop:
 	jr	nz, nc100_lcd_clear_screen_loop
 	ret
 
+; # nc100_lcd_set_attributes
+; #################################
+;  Sets the attributes that draw operations use
+;	In:	A = Attributes value
+nc100_lcd_set_attributes:
+	ld	(nc100_lcd_draw_attributes), a				; Save attributes value
+	ret
+
+; # nc100_lcd_calc_cursor_addr
+; #################################
+;  Set the cursor address using the specified co-ordinates
+;  (Don't call directly)
+;	In:	DE = x position/memory cell (0-59)
+;		HL = y position (0-63)
+;		(These value should be pre-filtered)
+;	Out:	HL = Cursor address
+;		Carry flag is set when okay, Carry flag unset on error.
+nc100_lcd_calc_cursor_addr:
+	ld	a, e							; Check we're not try to select a memory cell
+	and	0x3c							; off the end of the line
+	sub	0x3c
+	jr	z, nc100_lcd_set_cursor_error				; Trying to select a memory cell >=60 which is off the line
+	ld	bc, (nc100_raster_start_addr)				; Load start address of raster
+	add	hl, hl							; Equivalent to left-shift[6]
+	add	hl, hl							; Which is equivalent to * 64
+	add	hl, hl
+	add	hl, hl
+	add	hl, hl
+	add	hl, hl
+	add	hl, de							; x + y offsets
+	add	hl, bc							; base address + x + y
+	scf								; Set Carry flag
+	ret
+nc100_lcd_set_cursor_error:
+	scf								; Set Carry flag
+	ccf								; So we can clear if (complement actually)
+	ret
+; # nc100_lcd_set_cursor_by_pixel
+; #################################
+;  Set the cursor address using the specified pixel co-ordinates
+;	In:	DE = x position (0-479)
+;		HL = y position (0-63)
+nc100_lcd_set_cursor_by_pixel:
+	ld	a, e							; First calculate pixel offset
+	and	0x07							; Extract pixel offset
+	ld	(nc100_lcd_pixel_offset), a				; Save pixel offset
+	srl	d							; Shift lsb of D in to Carry
+	rr	e							; Shift with carry
+	rr	e							; Equivalent of right-shift[3]
+	rr	e							; Equivalent to /8
+	ld	a,e
+	and	0x3f							; We only want 6 bits
+	ld	e, a							; Save value
+	xor	d							; Ensure D is zero
+	ld	(nc100_lcd_posx), de					; Save x position
+	ld	a, l							; Filter y position
+	and	0x3f							; We only want 6 bits
+	ld	l, a							; Save value
+	xor	h							; Ensure H is zero
+	ld	(nc100_lcd_posy), hl					; Save y position
+	call	nc100_lcd_calc_cursor_addr				; Calculate cursor address
+	jr	nc, nc100_lcd_set_cursor_by_pixel_error			; If that failed, skip save
+	ld	(nc100_raster_cursor_addr), hl				; Store pointer to cursor location
+nc100_lcd_set_cursor_by_pixel_error:
+	ret
+; # nc100_lcd_set_cursor_by_grid
+; #################################
+;  Set the cursor address using the specified grid co-ordinates
+;	In:	DE = x position (0-59)
+;		HL = y position (0-63)
+nc100_lcd_set_cursor_by_grid:
+	xor	a							; Zero pixel offset
+	ld	(nc100_lcd_pixel_offset), a				; Save pixel offset
+	ld	a,e							; X position
+	and	0x3f							; We only want 6 bits (<64)
+	ld	e, a							; Save value
+	xor	d							; Ensure D is zero
+	ld	(nc100_lcd_posx), de					; Save x position
+	ld	a, l							; Y position
+	and	0x3f							; We only want 6 bits (<64)
+	ld	l, a							; Save value
+	xor	h							; Ensure H is zero
+	ld	(nc100_lcd_posy), hl					; Save y position
+	call	nc100_lcd_calc_cursor_addr				; Calculate cursor address
+	jr	nc, nc100_lcd_set_cursor_by_pixel_error			; If that failed, skip save
+	ld	(nc100_raster_cursor_addr), hl				; Store pointer to cursor location
+nc100_lcd_set_cursor_by_grid_error:
+	ret
+
+; # nc100_lcd_write_2_screen
+; #################################
+;  Copy 8 bits of data to current screen position
+;	In:	A = Screen data
+;		DE = x offset (0-59)
+;		HL = y offset (0-63)
+nc100_lcd_write_2_screen:
+	ld	de, (nc100_lcd_posx)					; Get LCD cursor X position
+	ld	hl, (nc100_lcd_posy)					; Get LCD cursor Y position
+	ld	xi, (nc100_raster_cursor_addr)				; Get cursor address
+
+	ld	a, e							; Check we're not try to select a memory cell
+	and	0x3c							; off the end of the line
+	sub	0x3c
+	jr	z, nc100_lcd_set_cursor_error				; Trying to select a memory cell >=60 which is off the line
+
+
 ;; # nc100_lcd_print_char
 ;; #################################
 ;;  Prints a character to lcd
@@ -85,88 +191,6 @@ nc100_lcd_clear_screen_loop:
 ;;nc100_lcd_print_char_6x8_loop:
 ;
 ;	ret
-
-; # nc100_lcd_copy_2_screen
-; #################################
-;  Copy 8 bits of data to current screen position
-;	In:	A = Screen data
-;nc100_lcd_copy_2_screen:
-;	ld	hl, (nc100_lcd_posx)					; Get LCD cursor X position
-
-; # nc100_lcd_set_attributes
-; #################################
-;  Sets the attributes that draw operations use
-;	In:	A = Attributes value
-nc100_lcd_set_attributes:
-	ld	(nc100_lcd_draw_attributes), a				; Save attributes value
-	ret
-
-; # nc100_lcd_set_cursor_by_pixel
-; #################################
-;  Set the cursor address using the specified pixel co-ordinates
-;	In:	DE = x position (0-479)
-;		HL = y position (0-63)
-nc100_lcd_set_cursor_by_pixel:
-	ld	a, e							; First calculate pixel offset
-	and	0x07							; Extract pixel offset
-	ld	(nc100_lcd_pixel_offset), a				; Save pixel offset
-	srl	d							; Shift lsb of D in to Carry
-	rr	e							; Shift with carry
-	rr	e							; Equivalent of right-shift[3]
-	rr	e							; Equivalent to /8
-	ld	a,e
-	and	0x3f							; We only want 6 bits
-	ld	e, a							; Save value
-	xor	d							; Ensure D is zero
-	ld	(nc100_lcd_posx), de					; Save x position
-	ld	a, l							; Filter y position
-	and	0x3f							; We only want 6 bits
-	ld	l, a							; Save value
-	xor	h							; Ensure H is zero
-	ld	(nc100_lcd_posy), hl					; Save y position
-	jr	nc100_lcd_set_cursor
-; # nc100_lcd_set_cursor_by_grid
-; #################################
-;  Set the cursor address using the specified grid co-ordinates
-;	In:	DE = x position (0-59)
-;		HL = y position (0-63)
-nc100_lcd_set_cursor_by_grid:
-	xor	a							; Zero pixel offset
-	ld	(nc100_lcd_pixel_offset), a				; Save pixel offset
-	ld	a,e							; X position
-	and	0x3f							; We only want 6 bits (<64)
-	ld	e, a							; Save value
-	xor	d							; Ensure D is zero
-	ld	(nc100_lcd_posx), de					; Save x position
-	ld	a, l							; Y position
-	and	0x3f							; We only want 6 bits (<64)
-	ld	l, a							; Save value
-	xor	h							; Ensure H is zero
-	ld	(nc100_lcd_posy), hl					; Save y position
-; # nc100_lcd_set_cursor
-; #################################
-;  Set the cursor address using the specified co-ordinates
-;  (Don't call directly)
-;	In:	DE = x position/memory cell (0-59)
-;		HL = y position (0-63)
-;		These value should be prefiltered
-nc100_lcd_set_cursor:
-	ld	a, e							; Check we're not try to select a memory cell
-	and	0x3c							; off the end of the line
-	sub	0x3c
-	jr	z, nc100_lcd_set_cursor_error				; Trying to select a memory cell >=60 which is off the line
-	ld	bc, (nc100_raster_start_addr)				; Load start address of raster
-	add	hl, hl							; Equivalent to left-shift[6]
-	add	hl, hl							; Which is equivalent to * 64
-	add	hl, hl
-	add	hl, hl
-	add	hl, hl
-	add	hl, hl
-	add	hl, de							; x + y offsets
-	add	hl, bc							; base address + x + y
-	ld	(nc100_raster_cursor_addr), hl				; Store pointer to cursor location
-nc100_lcd_set_cursor_error:
-	ret
 
 ; # Commands
 ; ###########################################################################
@@ -226,6 +250,10 @@ system_init:
 	ld	a, 0x00							; Set inverted attributes
 	call	nc100_lcd_set_attributes
 	call	nc100_lcd_clear_screen					; Clear screen memory
+
+	ld	de, 0x0							; Set cursor
+	ld	hl, 0x0
+	call	nc100_lcd_set_cursor_by_grid
 
 	ld	hl, 0xe000
 	ld	(hl), 0xff
