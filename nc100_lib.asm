@@ -212,7 +212,24 @@ nc100_lcd_write_screen_actual:
 	and	0xf0							; Extract msbs of MSB
 	sub	d							; Subtract MSB raster address
 	jr	nz, nc100_lcd_write_screen_actual_error			; They're not equal, so error
+	ld	a, (nc100_lcd_draw_attributes)				; Get draw attributes
+	ld	d, a
 	ex	af, af'							; Restore screen data
+nc100_lcd_write_screen_actual_test_invert:
+	bit	0, d							; Test invert flag
+	jr	z, nc100_lcd_write_screen_actual_test_merge		; Skip invert
+	cpl								; Invert screen data
+nc100_lcd_write_screen_actual_test_merge:
+	bit	1, d							; Test merge flag
+	jr	z, nc100_lcd_write_screen_actual_write			; Skip merge
+	ld	e, (hl)							; Read existing data
+	bit	0, d							; If normal - OR, if inverted - AND
+	jr	nz, nc100_lcd_write_screen_actual_test_merge_AND
+	or	e							; Merge: OR
+	jr	nc100_lcd_write_screen_actual_write
+nc100_lcd_write_screen_actual_test_merge_AND:
+	and	e							; Merge: AND
+nc100_lcd_write_screen_actual_write:
 	ld	(hl), a							; Write screen data
 	ret
 nc100_lcd_write_screen_actual_error:
@@ -301,7 +318,7 @@ system_init:
 	ld	hl, 0xe000						; Set screen at RAM top, below stack
 	call	nc100_lcd_set_raster_addr
 
-	ld	a, 0x00							; Set inverted attributes
+	ld	a, 0x01							; Set inverted attributes
 	call	nc100_lcd_set_attributes
 	call	nc100_lcd_clear_screen					; Clear screen memory
 
