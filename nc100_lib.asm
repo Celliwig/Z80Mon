@@ -116,9 +116,9 @@ nc100_lcd_calc_cursor_addr:
 	ld	hl, table_mul64						; Load multiplication table address
 	sla	c							; Multiple by 2
 	add	hl, bc							; Add offset
-	ld	b, (hl)							; Load high byte
-	inc	hl							; Increment pointer
 	ld	c, (hl)							; Load low byte
+	inc	hl							; Increment pointer
+	ld	b, (hl)							; Load high byte
 
 ; This costs 66 clock ticks
 ;	add	hl, hl							; Equivalent to left-shift[6]
@@ -202,17 +202,21 @@ nc100_lcd_write_2_screen_split_loop:
 ;	In:	A = Screen data
 ;		HL = cursor address
 nc100_lcd_write_screen_actual:
-	exx	af, af'							; Save screen data
+	ex	af, af'							; Save screen data
 	; Check whether we're about to overrun screen RAM
-	ld	de, nc100_raster_start_addr
+	ld	de, (nc100_raster_start_addr)
 	ld	a, d							; Load MSB raster address
-	sub	h							; Subtract MSB raster address
+	and	0xf0							; Extract msbs of MSB
+	ld	d, a							; Save value
+	ld	a, h
+	and	0xf0							; Extract msbs of MSB
+	sub	d							; Subtract MSB raster address
 	jr	nz, nc100_lcd_write_screen_actual_error			; They're not equal, so error
-	exx	af, af'							; Restore screen data
+	ex	af, af'							; Restore screen data
 	ld	(hl), a							; Write screen data
 	ret
 nc100_lcd_write_screen_actual_error:
-	exx	af, af'							; Restore screen data
+	ex	af, af'							; Restore screen data
 	ret
 
 ;; # nc100_lcd_print_char
@@ -301,17 +305,13 @@ system_init:
 	call	nc100_lcd_set_attributes
 	call	nc100_lcd_clear_screen					; Clear screen memory
 
-	ld	de, 0x0							; Set cursor
-	ld	hl, 0x0
-	call	nc100_lcd_set_cursor_by_grid
+	ld	de, 0x0001						; Set X cursor
+	ld	bc, 0x000b						; Set Y cursor
+	ld	l, 0x0							; Set pixel offset
+	call	nc100_lcd_set_cursor_by_grid_with_pixel_offset
 
-	ld	hl, 0xe000
-	ld	(hl), 0xff
-	inc	hl
-	ld	(hl), 0xff
-	inc	hl
-	ld	(hl), 0xff
-	inc	hl
-	ld	(hl), 0xff
+	ld	a, 0xff							; Screen data
+	ld	hl, (nc100_raster_cursor_addr)				; Get cursor address
+	call	nc100_lcd_write_screen_data
 
 	rst	8							; Continue boot
