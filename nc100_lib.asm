@@ -266,32 +266,58 @@ nc100_lcd_write_screen_actual_error:
 	ex	af, af'							; Restore screen data
 	ret
 
-;; # nc100_lcd_print_char
-;; #################################
-;;  Prints a character to lcd
-;;	In:	A = ASCII character
-;nc100_lcd_print_char_6x8:
-;
-;	ld	hl, nc100_font_6x8					; Get font data offset
-;	and	0xef							; Remove character msb
-;	sub	0x20							; Remove offset to ' ' from character
-;	ld	de, 0x0006						; Font data size
-;nc100_lcd_print_char_6x8_font_calc_offset:
-;	and	a
-;	jr	z, nc100_lcd_print_char_6x8_font_copy_init		; Check whether we have the character we want
-;	add	hl, de							; Skip one set of character font data
-;	dec	a							; Decrement to check next character
-;	jr	nc100_lcd_print_char_6x8_font_calc_offset		; Check next character
-;nc100_lcd_print_char_6x8_font_copy_init:
-;	ld	ix, (nc100_raster_start_addr)				; Load raster memory address
-;	ld	de, (nc100_raster_start_addr)				; Calculate raster memory end address
-;	ld	bc, 0x3fff
-;	add	de, bc
-;	ld	b, 6							; Number of bytes to copy
-;
-;;nc100_lcd_print_char_6x8_loop:
-;
-;	ret
+; # Font (6x8) methods
+; ###########################################################################
+
+; # nc100_lcd_print_glyph_f68
+; #################################
+;  Prints a character to lcd (char must be <128)
+;	In:	A = ASCII character
+nc100_lcd_print_char_6x8:
+	ld	de, (nc100_lcd_pos_xy)					; Load cursor X/Y position
+	ld	hl, (nc100_raster_cursor_addr)				; Load cursor address
+
+	ld	ix, nc100_font_6x8					; Get font data address
+	and	0xef							; Remove character msb
+	sub	0x20							; Remove offset to ' ' from character
+	sla	a							; x2 result
+	ld	c, a							; Create offset to glyph data
+	ld	b, 0
+	add	ix, bc							; Add offset to glyph data (offset*2)
+	add	ix, bc							; Add offset to glyph data (offset*4)
+	add	ix, bc							; Add offset to glyph data (offset*6)
+
+	ld	a, (ix+0)
+	call	nc100_lcd_write_screen_data				; Write glyph data (0)
+	ld	bc, 0x40						; Offset to the same position in the next line
+	add	hl, bc
+	ld	a, (ix+1)
+	call	nc100_lcd_write_screen_data				; Write glyph data (1)
+	ld	bc, 0x40						; Offset to the same position in the next line
+	add	hl, bc
+	ld	a, (ix+2)
+	call	nc100_lcd_write_screen_data				; Write glyph data (2)
+	ld	bc, 0x40						; Offset to the same position in the next line
+	add	hl, bc
+	ld	a, (ix+3)
+	call	nc100_lcd_write_screen_data				; Write glyph data (3)
+	ld	bc, 0x40						; Offset to the same position in the next line
+	add	hl, bc
+	ld	a, (ix+4)
+	call	nc100_lcd_write_screen_data				; Write glyph data (4)
+	ld	bc, 0x40						; Offset to the same position in the next line
+	add	hl, bc
+	ld	a, (ix+5)
+	call	nc100_lcd_write_screen_data				; Write glyph data (5)
+
+	; Increment position
+	inc	e							; Increment x position
+	ld	(nc100_lcd_pos_xy), de					; Save cursor X/Y position
+	ld	hl, (nc100_raster_cursor_addr)				; Load cursor address
+	inc	hl
+	ld	(nc100_raster_cursor_addr), hl				; Save cursor position
+
+	ret
 
 ; # Commands
 ; ###########################################################################
@@ -352,12 +378,57 @@ system_init:
 	call	nc100_lcd_set_attributes
 	call	nc100_lcd_clear_screen					; Clear screen memory
 
-	ld	de, 0x0b01						; Set Y/X cursor
-	ld	l, 0x0							; Set pixel offset
-	call	nc100_lcd_set_cursor_by_grid_with_pixel_offset
-
-	ld	a, 0xff							; Screen data
-	ld	hl, (nc100_raster_cursor_addr)				; Get cursor address
-	call	nc100_lcd_write_screen_data
+	ld	a, 'A'
+	call	nc100_lcd_print_char_6x8
+	ld	a, 'B'
+	call	nc100_lcd_print_char_6x8
+	ld	a, 'C'
+	call	nc100_lcd_print_char_6x8
+	ld	a, 'D'
+	call	nc100_lcd_print_char_6x8
+	ld	a, 'E'
+	call	nc100_lcd_print_char_6x8
+	ld	a, 'F'
+	call	nc100_lcd_print_char_6x8
+	ld	a, 'G'
+	call	nc100_lcd_print_char_6x8
+	ld	a, 'H'
+	call	nc100_lcd_print_char_6x8
+	ld	a, 'I'
+	call	nc100_lcd_print_char_6x8
+	ld	a, 'J'
+	call	nc100_lcd_print_char_6x8
+	ld	a, 'K'
+	call	nc100_lcd_print_char_6x8
+	ld	a, 'L'
+	call	nc100_lcd_print_char_6x8
+	ld	a, 'M'
+	call	nc100_lcd_print_char_6x8
+	ld	a, 'a'
+	call	nc100_lcd_print_char_6x8
+	ld	a, 'b'
+	call	nc100_lcd_print_char_6x8
+	ld	a, 'c'
+	call	nc100_lcd_print_char_6x8
+	ld	a, 'd'
+	call	nc100_lcd_print_char_6x8
+	ld	a, 'e'
+	call	nc100_lcd_print_char_6x8
+	ld	a, 'f'
+	call	nc100_lcd_print_char_6x8
+	ld	a, 'g'
+	call	nc100_lcd_print_char_6x8
+	ld	a, 'h'
+	call	nc100_lcd_print_char_6x8
+	ld	a, 'i'
+	call	nc100_lcd_print_char_6x8
+	ld	a, 'j'
+	call	nc100_lcd_print_char_6x8
+	ld	a, 'k'
+	call	nc100_lcd_print_char_6x8
+	ld	a, 'l'
+	call	nc100_lcd_print_char_6x8
+	ld	a, 'm'
+	call	nc100_lcd_print_char_6x8
 
 	rst	8							; Continue boot
