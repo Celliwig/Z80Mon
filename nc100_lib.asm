@@ -35,17 +35,22 @@ table_mul64:
 
 ; # LCD methods
 ; ###########################################################################
+;  LCD basic specification:
+; 	140x64 LCD Display.
+;	Each line is comprised of 64 bytes, end 4 bytes are unused.
+;	64 * 64 = 4096 bytes for the raster buffer (Must be boundary aligned).
+;
 ;  LCD draw attributes
 ;	Bit 0: 0 = Normal, 1 = Invert
 ;	Bit 1: 0 = Overwrite, 1 = Merge (xor)
 ;
-; Registers:
-;  As a general rule:
-;   Fixed Registers:
+;  Registers:
+;   As a general rule:
+;    Fixed Registers:
 ;	D = y position (0-63)
 ;	E = x position/memory cell (0-59)
 ;	HL = Cursor address
-;   Scratch Registers:
+;    Scratch Registers:
 ;	A/A'
 ;	BC
 
@@ -79,6 +84,8 @@ nc100_lcd_clear_screen_loop:
 	ld	a, d							; Check bytes left
 	or	e
 	jr	nz, nc100_lcd_clear_screen_loop
+	ld	de, 0x0000						; Set cursor position (0,0)
+	call	nc100_lcd_set_cursor_by_grid
 	ret
 
 ; # nc100_lcd_set_attributes
@@ -152,6 +159,7 @@ nc100_lcd_calc_cursor_addr:
 ;	Out:	D = y position (0-63)
 ;		E = x position/memory cell (0-59)
 ;		HL = Cursor address
+;		Carry flag is set when okay, Carry flag unset on error.
 nc100_lcd_set_cursor_by_pixel:
 	ld	a, e							; First calculate pixel offset
 	and	0x07							; Extract pixel offset
@@ -168,7 +176,10 @@ nc100_lcd_set_cursor_by_pixel:
 ;	In:	D = y position (0-63)
 ;		E = x position/memory cell (0-59)
 ;		L = pixel offset (0-7)
-;	Out:	Carry flag is set when okay, Carry flag unset on error.
+;	Out:	D = y position (0-63)
+;		E = x position/memory cell (0-59)
+;		HL = Cursor address
+;		Carry flag is set when okay, Carry flag unset on error.
 nc100_lcd_set_cursor_by_grid:
 	ld	l, 0							; Zero pixel offset
 nc100_lcd_set_cursor_by_grid_with_pixel_offset:
