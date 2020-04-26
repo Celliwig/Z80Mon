@@ -125,7 +125,7 @@ nc100_lcd_calc_cursor_addr:
 	ld	hl, table_mul64						; Load multiplication table address
 	ld	c, d
 	sla	c							; Multiple by 2
-	xor	b							; Ensure B is zero
+	ld	b, 0							; Ensure B is zero
 	add	hl, bc							; Add offset
 	ld	c, (hl)							; Load low byte
 	inc	hl							; Increment pointer
@@ -170,7 +170,7 @@ nc100_lcd_set_cursor_by_pixel:
 ;		L = pixel offset (0-7)
 ;	Out:	Carry flag is set when okay, Carry flag unset on error.
 nc100_lcd_set_cursor_by_grid:
-	xor	l							; Zero pixel offset
+	ld	l, 0							; Zero pixel offset
 nc100_lcd_set_cursor_by_grid_with_pixel_offset:
 	call	nc100_lcd_calc_cursor_check				; Check co-ordinates
 	jr	nc, nc100_lcd_set_cursor_by_grid_error			; If that failed, skip save
@@ -341,8 +341,7 @@ system_init:
 	call	nc100_lcd_set_attributes
 	call	nc100_lcd_clear_screen					; Clear screen memory
 
-	ld	de, 0x0001						; Set X cursor
-	ld	bc, 0x000b						; Set Y cursor
+	ld	de, 0x0b01						; Set Y/X cursor
 	ld	l, 0x0							; Set pixel offset
 	call	nc100_lcd_set_cursor_by_grid_with_pixel_offset
 
