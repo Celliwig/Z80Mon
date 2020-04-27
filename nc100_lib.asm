@@ -327,8 +327,9 @@ nc100_lcd_write_screen_actual_error:
 ; #################################
 ;  Prints a character to lcd (char must be <128)
 ;	In:	A = ASCII character
+;		D = y position (0-63)
+;		E = x position/memory cell (0-59)
 nc100_lcd_print_glyph_8x8:
-	ld	de, (nc100_lcd_pos_xy)					; Load cursor X/Y position
 	ld	hl, (nc100_raster_cursor_addr)				; Load cursor address
 
 	ld	ix, nc100_font_8x8					; Get font data address
@@ -377,25 +378,81 @@ nc100_lcd_print_glyph_8x8:
 	inc	e							; Increment x position
 	ld	a, 60							; Maximum number of characters per line
 	sub	e							; Max char - X pos
-	jr	c, nc100_lcd_print_glyph_8x8_newline
-	jr	z, nc100_lcd_print_glyph_8x8_newline
+	jr	c, nc100_lcd_print_lf_8x8
+	jr	z, nc100_lcd_print_lf_8x8
 	ld	(nc100_lcd_pos_xy), de					; Save cursor X/Y position
 	ld	hl, (nc100_raster_cursor_addr)				; Load cursor address
 	inc	hl
 	ld	(nc100_raster_cursor_addr), hl				; Save cursor position
 	jr	nc100_lcd_print_glyph_8x8_exit
-nc100_lcd_print_glyph_8x8_newline:
+	call	nc100_lcd_set_cursor_by_grid				; Set cursor position
+nc100_lcd_print_glyph_8x8_exit:
+	ret
+
+; # nc100_lcd_print_cr_8x8
+; #################################
+;  Resets cursors X position.
+;	In:	D = y position (0-63)
+;		E = x position/memory cell (0-59)
+nc100_lcd_print_cr_8x8:
+	ld	e, 0							; Reset X position
+	call	nc100_lcd_set_cursor_by_grid
+	ret
+
+; # nc100_lcd_print_lf_8x8
+; #################################
+;  Increments position by one character line, reset X position.
+;	In:	D = y position (0-63)
+;		E = x position/memory cell (0-59)
+nc100_lcd_print_lf_8x8:
 	ld	e, 0							; Reset X position
 	ld	a, d							; Get Y position
 	add	0x08							; Add 8 lines
 	ld	d, a							; Save Y position
 	sub	0x40							; Y position - 64
-	jr	c, nc100_lcd_print_glyph_8x8_set_position
+	jr	c, nc100_lcd_print_lf_8x8_set_position
 ;	xor	a
 	ld	d, a							; Reset Y position
-nc100_lcd_print_glyph_8x8_set_position:
+nc100_lcd_print_lf_8x8_set_position:
 	call	nc100_lcd_set_cursor_by_grid				; Set cursor position
-nc100_lcd_print_glyph_8x8_exit:
+	ret
+
+; # Console routines
+; ###########################################################################
+; # nc100_console_linefeed
+; #################################
+nc100_console_linefeed:
+	jr	nc100_lcd_print_lf_8x8
+
+; # nc100_console_carriage_return
+; #################################
+nc100_console_carriage_return:
+	jr	nc100_lcd_print_cr_8x8
+
+; # nc100_console_char_out
+; #################################
+;  Copy character to selected output device
+;	In:	A = ASCII character
+nc100_console_char_out:
+	exx								; Swap out registers
+	ld	de, (nc100_lcd_pos_xy)					; Load cursor X/Y position
+nc100_console_char_out_check_lf:
+	cp	0x0a							; Check for LF (line feed)
+	jr	nz, nc100_console_char_out_check_cr
+	call	nc100_console_linefeed
+	jr	nc100_console_char_out_exit
+nc100_console_char_out_check_cr:
+	cp	0x0d							; Check for CR (carriage return)
+	jr	nz, nc100_console_char_out_print_glyph
+	call	nc100_console_carriage_return
+	jr	nc100_console_char_out_exit
+nc100_console_char_out_print_glyph:
+	call	nc100_lcd_print_glyph_8x8
+nc100_console_char_out_exit:
+	exx								; Swap back registers
+	ret
+
+nc100_console_char_in:
 	ret
 
 ; # Commands
@@ -432,7 +489,8 @@ system_init:
 	out	(nc100_io_membank_C), a					; Select RAM for next page
 
 	; We've got RAM now so set stack pointer (Yay!)
-	ld	sp, 0x0000						; So first object wil be pushed to 0xFFFF
+	; Set below screen RAM
+	ld	sp, 0xf000						; So first object wil be pushed to 0xEFFF
 
 	; Copy ROM to RAM
 	ld	a, nc100_membank_RAM|nc100_membank_16k
@@ -450,208 +508,17 @@ system_init:
 	out	(nc100_io_membank_A), a					; Select RAM for lowest page
 
 	; Setup screen
-	ld	hl, 0xe000						; Set screen at RAM top, below stack
+	ld	hl, 0xf000						; Set screen at RAM top, above stack
 	call	nc100_lcd_set_raster_addr
 
 	ld	a, 0x01							; Set inverted attributes
 	call	nc100_lcd_set_attributes
 	call	nc100_lcd_clear_screen					; Clear screen memory
 
-	ld	a, 'A'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'B'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'C'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'D'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'E'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'F'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'G'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'H'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'I'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'J'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'K'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'L'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'M'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'N'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'O'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'P'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'Q'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'R'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'S'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'T'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'U'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'V'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'W'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'X'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'Y'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'Z'
-	call	nc100_lcd_print_glyph_8x8
-
-
-	ld	a, 'a'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'b'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'c'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'd'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'e'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'f'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'g'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'h'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'i'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'j'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'k'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'l'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'm'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'n'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'o'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'p'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'q'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'r'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 's'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 't'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'u'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'v'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'w'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'x'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'y'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, 'z'
-	call	nc100_lcd_print_glyph_8x8
-
-	ld	a, '0'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, '1'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, '2'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, '3'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, '4'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, '5'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, '6'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, '7'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, '8'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, '9'
-	call	nc100_lcd_print_glyph_8x8
-
-	ld	a, '¬'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, '`'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, '!'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, '"'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, '£'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, '$'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, '%'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, '^'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, '&'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, '*'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, '('
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, ')'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, '-'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, '_'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, '='
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, '+'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, '['
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, '{'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, ']'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, '}'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, ';'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, ':'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, '''
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, '@'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, '#'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, '~'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, ','
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, '<'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, '.'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, '>'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, '/'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, '?'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, '\\'
-	call	nc100_lcd_print_glyph_8x8
-	ld	a, '|'
-	call	nc100_lcd_print_glyph_8x8
+	; Replace dummy console routines
+	ld	bc, nc100_console_char_out
+	ld	(monlib_console_out+1), bc
+	ld	bc, nc100_console_char_in
+	ld	(monlib_console_in+1), bc
 
 	rst	8							; Continue boot
