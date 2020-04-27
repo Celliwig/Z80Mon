@@ -1,3 +1,5 @@
+include	"nc100_io.asm"
+
 ; # Defines
 ; ###########################################################################
 nc100_lib_base:				equ	mem_base+0x1000		; nc100_lib offset
@@ -19,6 +21,8 @@ orgmem	nc100_lib_base
 ; ###########################################################################
 nc100_font_6x8:
 	include	'font_6x8.asm'
+nc100_font_8x8:
+	include	'font_8x8.asm'
 
 ; # Table data
 ; ###########################################################################
@@ -266,26 +270,77 @@ nc100_lcd_write_screen_actual_error:
 	ex	af, af'							; Restore screen data
 	ret
 
-; # Font (6x8) methods
+; # Font methods
 ; ###########################################################################
 
-; # nc100_lcd_print_glyph_f68
+;; # nc100_lcd_print_glyph_f68
+;; #################################
+;;  Prints a character to lcd (char must be <128)
+;;	In:	A = ASCII character
+;nc100_lcd_print_char_6x8:
+;	ld	de, (nc100_lcd_pos_xy)					; Load cursor X/Y position
+;	ld	hl, (nc100_raster_cursor_addr)				; Load cursor address
+;
+;	ld	ix, nc100_font_6x8					; Get font data address
+;	and	0xef							; Remove character msb
+;	sub	0x20							; Remove offset to ' ' from character
+;	sla	a							; x2 result
+;	ld	c, a							; Create offset to glyph data
+;	ld	b, 0
+;	add	ix, bc							; Add offset to glyph data (offset*2)
+;	add	ix, bc							; Add offset to glyph data (offset*4)
+;	add	ix, bc							; Add offset to glyph data (offset*6)
+;
+;	ld	a, (ix+0)
+;	call	nc100_lcd_write_screen_data				; Write glyph data (0)
+;	ld	bc, 0x40						; Offset to the same position in the next line
+;	add	hl, bc
+;	ld	a, (ix+1)
+;	call	nc100_lcd_write_screen_data				; Write glyph data (1)
+;	ld	bc, 0x40						; Offset to the same position in the next line
+;	add	hl, bc
+;	ld	a, (ix+2)
+;	call	nc100_lcd_write_screen_data				; Write glyph data (2)
+;	ld	bc, 0x40						; Offset to the same position in the next line
+;	add	hl, bc
+;	ld	a, (ix+3)
+;	call	nc100_lcd_write_screen_data				; Write glyph data (3)
+;	ld	bc, 0x40						; Offset to the same position in the next line
+;	add	hl, bc
+;	ld	a, (ix+4)
+;	call	nc100_lcd_write_screen_data				; Write glyph data (4)
+;	ld	bc, 0x40						; Offset to the same position in the next line
+;	add	hl, bc
+;	ld	a, (ix+5)
+;	call	nc100_lcd_write_screen_data				; Write glyph data (5)
+;
+;	; Increment position
+;	inc	e							; Increment x position
+;	ld	(nc100_lcd_pos_xy), de					; Save cursor X/Y position
+;	ld	hl, (nc100_raster_cursor_addr)				; Load cursor address
+;	inc	hl
+;	ld	(nc100_raster_cursor_addr), hl				; Save cursor position
+;
+;	ret
+
+; # nc100_lcd_print_glyph_8x8
 ; #################################
 ;  Prints a character to lcd (char must be <128)
 ;	In:	A = ASCII character
-nc100_lcd_print_char_6x8:
+nc100_lcd_print_glyph_8x8:
 	ld	de, (nc100_lcd_pos_xy)					; Load cursor X/Y position
 	ld	hl, (nc100_raster_cursor_addr)				; Load cursor address
 
-	ld	ix, nc100_font_6x8					; Get font data address
-	and	0xef							; Remove character msb
+	ld	ix, nc100_font_8x8					; Get font data address
 	sub	0x20							; Remove offset to ' ' from character
 	sla	a							; x2 result
 	ld	c, a							; Create offset to glyph data
 	ld	b, 0
-	add	ix, bc							; Add offset to glyph data (offset*2)
-	add	ix, bc							; Add offset to glyph data (offset*4)
-	add	ix, bc							; Add offset to glyph data (offset*6)
+	sla	c							; x2 (original x 4)
+	rl	b
+	sla	c							; x2 (original x 8)
+	rl	b
+	add	ix, bc							; Add offset to glyph data
 
 	ld	a, (ix+0)
 	call	nc100_lcd_write_screen_data				; Write glyph data (0)
@@ -309,14 +364,38 @@ nc100_lcd_print_char_6x8:
 	add	hl, bc
 	ld	a, (ix+5)
 	call	nc100_lcd_write_screen_data				; Write glyph data (5)
+	ld	bc, 0x40						; Offset to the same position in the next line
+	add	hl, bc
+	ld	a, (ix+6)
+	call	nc100_lcd_write_screen_data				; Write glyph data (5)
+	ld	bc, 0x40						; Offset to the same position in the next line
+	add	hl, bc
+	ld	a, (ix+7)
+	call	nc100_lcd_write_screen_data				; Write glyph data (5)
 
 	; Increment position
 	inc	e							; Increment x position
+	ld	a, 60							; Maximum number of characters per line
+	sub	e							; Max char - X pos
+	jr	c, nc100_lcd_print_glyph_8x8_newline
+	jr	z, nc100_lcd_print_glyph_8x8_newline
 	ld	(nc100_lcd_pos_xy), de					; Save cursor X/Y position
 	ld	hl, (nc100_raster_cursor_addr)				; Load cursor address
 	inc	hl
 	ld	(nc100_raster_cursor_addr), hl				; Save cursor position
-
+	jr	nc100_lcd_print_glyph_8x8_exit
+nc100_lcd_print_glyph_8x8_newline:
+	ld	e, 0							; Reset X position
+	ld	a, d							; Get Y position
+	add	0x08							; Add 8 lines
+	ld	d, a							; Save Y position
+	sub	0x40							; Y position - 64
+	jr	c, nc100_lcd_print_glyph_8x8_set_position
+;	xor	a
+	ld	d, a							; Reset Y position
+nc100_lcd_print_glyph_8x8_set_position:
+	call	nc100_lcd_set_cursor_by_grid				; Set cursor position
+nc100_lcd_print_glyph_8x8_exit:
 	ret
 
 ; # Commands
@@ -379,56 +458,200 @@ system_init:
 	call	nc100_lcd_clear_screen					; Clear screen memory
 
 	ld	a, 'A'
-	call	nc100_lcd_print_char_6x8
+	call	nc100_lcd_print_glyph_8x8
 	ld	a, 'B'
-	call	nc100_lcd_print_char_6x8
+	call	nc100_lcd_print_glyph_8x8
 	ld	a, 'C'
-	call	nc100_lcd_print_char_6x8
+	call	nc100_lcd_print_glyph_8x8
 	ld	a, 'D'
-	call	nc100_lcd_print_char_6x8
+	call	nc100_lcd_print_glyph_8x8
 	ld	a, 'E'
-	call	nc100_lcd_print_char_6x8
+	call	nc100_lcd_print_glyph_8x8
 	ld	a, 'F'
-	call	nc100_lcd_print_char_6x8
+	call	nc100_lcd_print_glyph_8x8
 	ld	a, 'G'
-	call	nc100_lcd_print_char_6x8
+	call	nc100_lcd_print_glyph_8x8
 	ld	a, 'H'
-	call	nc100_lcd_print_char_6x8
+	call	nc100_lcd_print_glyph_8x8
 	ld	a, 'I'
-	call	nc100_lcd_print_char_6x8
+	call	nc100_lcd_print_glyph_8x8
 	ld	a, 'J'
-	call	nc100_lcd_print_char_6x8
+	call	nc100_lcd_print_glyph_8x8
 	ld	a, 'K'
-	call	nc100_lcd_print_char_6x8
+	call	nc100_lcd_print_glyph_8x8
 	ld	a, 'L'
-	call	nc100_lcd_print_char_6x8
+	call	nc100_lcd_print_glyph_8x8
 	ld	a, 'M'
-	call	nc100_lcd_print_char_6x8
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, 'N'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, 'O'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, 'P'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, 'Q'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, 'R'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, 'S'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, 'T'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, 'U'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, 'V'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, 'W'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, 'X'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, 'Y'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, 'Z'
+	call	nc100_lcd_print_glyph_8x8
+
+
 	ld	a, 'a'
-	call	nc100_lcd_print_char_6x8
+	call	nc100_lcd_print_glyph_8x8
 	ld	a, 'b'
-	call	nc100_lcd_print_char_6x8
+	call	nc100_lcd_print_glyph_8x8
 	ld	a, 'c'
-	call	nc100_lcd_print_char_6x8
+	call	nc100_lcd_print_glyph_8x8
 	ld	a, 'd'
-	call	nc100_lcd_print_char_6x8
+	call	nc100_lcd_print_glyph_8x8
 	ld	a, 'e'
-	call	nc100_lcd_print_char_6x8
+	call	nc100_lcd_print_glyph_8x8
 	ld	a, 'f'
-	call	nc100_lcd_print_char_6x8
+	call	nc100_lcd_print_glyph_8x8
 	ld	a, 'g'
-	call	nc100_lcd_print_char_6x8
+	call	nc100_lcd_print_glyph_8x8
 	ld	a, 'h'
-	call	nc100_lcd_print_char_6x8
+	call	nc100_lcd_print_glyph_8x8
 	ld	a, 'i'
-	call	nc100_lcd_print_char_6x8
+	call	nc100_lcd_print_glyph_8x8
 	ld	a, 'j'
-	call	nc100_lcd_print_char_6x8
+	call	nc100_lcd_print_glyph_8x8
 	ld	a, 'k'
-	call	nc100_lcd_print_char_6x8
+	call	nc100_lcd_print_glyph_8x8
 	ld	a, 'l'
-	call	nc100_lcd_print_char_6x8
+	call	nc100_lcd_print_glyph_8x8
 	ld	a, 'm'
-	call	nc100_lcd_print_char_6x8
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, 'n'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, 'o'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, 'p'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, 'q'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, 'r'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, 's'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, 't'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, 'u'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, 'v'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, 'w'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, 'x'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, 'y'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, 'z'
+	call	nc100_lcd_print_glyph_8x8
+
+	ld	a, '0'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, '1'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, '2'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, '3'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, '4'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, '5'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, '6'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, '7'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, '8'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, '9'
+	call	nc100_lcd_print_glyph_8x8
+
+	ld	a, '¬'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, '`'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, '!'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, '"'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, '£'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, '$'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, '%'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, '^'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, '&'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, '*'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, '('
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, ')'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, '-'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, '_'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, '='
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, '+'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, '['
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, '{'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, ']'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, '}'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, ';'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, ':'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, '''
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, '@'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, '#'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, '~'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, ','
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, '<'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, '.'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, '>'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, '/'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, '?'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, '\\'
+	call	nc100_lcd_print_glyph_8x8
+	ld	a, '|'
+	call	nc100_lcd_print_glyph_8x8
 
 	rst	8							; Continue boot
