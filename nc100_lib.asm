@@ -563,6 +563,10 @@ system_init:
 	ld	bc, nc100_console_char_in
 	ld	(monlib_console_in+1), bc
 
+	; Configure z80Mon variables
+	ld	bc, 0x4000
+	ld	(z80mon_current_addr), bc				; Set monitor's current address: 0x4000
+
 	rst	8							; Continue boot
 
 
