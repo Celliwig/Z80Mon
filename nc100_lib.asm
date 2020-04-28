@@ -15,6 +15,9 @@ nc100_raster_cursor_addr:		dw	0x0000			; Cursor position in raster memory
 nc100_lcd_pos_xy:			dw	0x0000			; LCD x/y cursor position (X: 0-59/Y: 0-63)
 nc100_lcd_pixel_offset:			db	0x00			; LCD pixel position in data byte
 nc100_lcd_draw_attributes:		db	0x00			; Cursor draw attributes
+									; 0 - 0 = Normal, 1 = Invert
+									; 1 - 0 = Copy over, 1 = Merge
+									; 7 - 0 = LF resets to (0,0), 1 = Scrolls screen
 
 orgmem	nc100_lib_base
 ; # Font data
@@ -384,8 +387,6 @@ nc100_lcd_print_glyph_8x8:
 	ld	hl, (nc100_raster_cursor_addr)				; Load cursor address
 	inc	hl
 	ld	(nc100_raster_cursor_addr), hl				; Save cursor position
-	jr	nc100_lcd_print_glyph_8x8_exit
-	call	nc100_lcd_set_cursor_by_grid				; Set cursor position
 nc100_lcd_print_glyph_8x8_exit:
 	ret
 
@@ -405,16 +406,53 @@ nc100_lcd_print_cr_8x8:
 ;	In:	D = y position (0-63)
 ;		E = x position/memory cell (0-59)
 nc100_lcd_print_lf_8x8:
+	ld	a, (nc100_lcd_draw_attributes)				; Get draw attributes
+	ld	b, a							; Save draw attributes to B
 	ld	e, 0							; Reset X position
 	ld	a, d							; Get Y position
 	add	0x08							; Add 8 lines
 	ld	d, a							; Save Y position
 	sub	0x40							; Y position - 64
 	jr	c, nc100_lcd_print_lf_8x8_set_position
+	bit	7, b							; Test scroll bit
+	jr	nz, nc100_lcd_print_lf_8x8_scroll_screen
 ;	xor	a
 	ld	d, a							; Reset Y position
+	jr	nc100_lcd_print_lf_8x8_set_position
+nc100_lcd_print_lf_8x8_scroll_screen:
+	sub	0x08							; Undo previous add
+	call	nc100_lcd_scroll_8x8					; Scroll screen up
 nc100_lcd_print_lf_8x8_set_position:
 	call	nc100_lcd_set_cursor_by_grid				; Set cursor position
+	ret
+
+; # nc100_lcd_scroll_8x8
+; #################################
+;  Scrolls entire screen memory up 1 character line
+;	In:	D = y position (0-63)
+;		E = x position/memory cell (0-59)
+nc100_lcd_scroll_8x8:
+	push	de							; Save existing data
+	push	hl
+	ld	hl, (nc100_raster_start_addr)				; Source address
+	ld	bc, 0x0200						; 512 = 64 * 8
+	add	hl, bc
+	ld	de, (nc100_raster_start_addr)				; Destination address
+	ld	bc, 0x0e00						; Number of bytes to copy
+	ldir
+	push	de							; Copy destination address
+	pop	hl							; to HL register
+	ld	de, 0x0000						; Clear byte count
+nc100_lcd_scroll_8x8_clear_line:
+	xor	a							; Clear A
+	call	nc100_lcd_write_screen_actual
+	inc	hl							; Increment pointer
+	inc	de							; Increment byte count
+	ld	a, d
+	cp	0x02							; See if 512 bytes have been cleared
+	jr	nz, nc100_lcd_scroll_8x8_clear_line
+	pop	hl							; Restore data
+	pop	de
 	ret
 
 ; # Console routines
@@ -511,7 +549,10 @@ system_init:
 	ld	hl, 0xf000						; Set screen at RAM top, above stack
 	call	nc100_lcd_set_raster_addr
 
-	ld	a, 0x01							; Set inverted attributes
+	xor	a							; Clear attributes
+	set	0, a							; Set inverted attributes
+	;set	1, a							; Overwrite
+	set	7, a							; Scroll screen
 	call	nc100_lcd_set_attributes
 	call	nc100_lcd_clear_screen					; Clear screen memory
 
