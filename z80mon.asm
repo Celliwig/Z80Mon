@@ -916,7 +916,6 @@ startup_final:
 
 	jp	main_menu				; Enter main menu
 
-
 ; # stop_loop
 ; #################################
 ;  Emulator function, halt doesn't work
@@ -930,6 +929,38 @@ stop_loop:
 ; # Dictionary of common words
 ; #################################
 ;  This is the dictionary of 128 words used by print_cstr.
+; 0 - to		32 - abort		64 - internal		 96 - support
+; 1 - location		33 - you		65 - complete		 97 - write
+; 2 - program		34 - the		66 - an			 98 - up
+; 3 - memory		35 - is			67 - header		 99 - stack
+; 4 - hex		36 - and		68 - register		100 - press
+; 5 - unexpected	37 - interrupt		69 - must		101 - see
+; 6 - run		38 - in			70 - line		102 - reset
+; 7 - new		39 - be			71 - found		103 - pointer
+; 8 - jump		40 - with		72 - quit		104 - fixed
+; 9 - file		41 - as			73 - type		105 - detection
+;10 - download		42 - code		74 - which		106 - may
+;11 - bytes		43 - will		75 - erase		107 - has
+;12 - esc		44 - from		76 - step		108 - assemble
+;13 - information	45 - that		77 - provide		109 - clear
+;14 - this		46 - at			78 - so			110 - configure
+;15 - start		47 - used		79 - single		111 - data
+;16 - rom		48 - if			80 - should		112 - change
+;17 - receive		49 - by			81 - list		113 - allow
+;18 - ram		50 - value		82 - search		114 - written
+;19 - upload		51 - not		83 - eprom		115 - interface
+;20 - paulmon		52 - for		84 - next		116 - install
+;21 - or		53 - baud		85 - more		117 - checksum
+;22 - of		54 - when		86 - available		118 - instruction
+;23 - no		55 - rate		87 - help		119 - unchanged
+;24 - intel		56 - can		88 - edit		120 - paul
+;25 - flash		57 - are		89 - well		121 - transfer
+;26 - external		58 - use		90 - user		122 - time
+;27 - errors		59 - serial		91 - dump		123 - any
+;28 - editing		60 - auto		92 - delays		124 - skip
+;29 - digits		61 - port		93 - these		125 - name
+;30 - command		62 - all		94 - terminal		126 - stoffregen
+;31 - begin		63 - make		95 - system		127 - print
 common_words:
 	db	0x82, 0x90, 0xE8, 0x23, 0x86, 0x05, 0x4C, 0xF8
 	db	0x44, 0xB3, 0xB0, 0xB1, 0x48, 0x5F, 0xF0, 0x11
