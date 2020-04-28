@@ -3,6 +3,7 @@ include	"nc100_io.asm"
 ; # Defines
 ; ###########################################################################
 nc100_lib_base:				equ	mem_base+0x1000		; nc100_lib offset
+nc100_cmd_base:				equ	nc100_lib_base+0x1000	; nc100_lib commands offset
 
 ; # Library variable storage
 ; ###########################################################################
@@ -502,7 +503,7 @@ nc100_console_char_in:
 ; #                                                                         #
 ; ###########################################################################
 
-orgmem	nc100_lib_base+0x1000
+orgmem	nc100_cmd_base
 	db	0xA5,0xE5,0xE0,0xA5					; signiture bytes
 	db	249,',',0,0						; id (249=init)
 	db	0,0,0,0							; prompt code vector
@@ -513,7 +514,7 @@ orgmem	nc100_lib_base+0x1000
 	db	255,255,255,255						; length and checksum (255=unused)
 	db	"System init",0
 
-orgmem	nc100_lib_base+0x1040						; executable code begins here
+orgmem	nc100_cmd_base+0x40						; executable code begins here
 system_init:
 	; Reset interrupts
 	xor	a							; Clear A
@@ -563,3 +564,25 @@ system_init:
 	ld	(monlib_console_in+1), bc
 
 	rst	8							; Continue boot
+
+
+; ###########################################################################
+; #                                                                         #
+; #                            Startup Command                              #
+; #                                                                         #
+; ###########################################################################
+
+orgmem	nc100_cmd_base+0x1000
+	db	0xA5,0xE5,0xE0,0xA5					; signiture bytes
+	db	253,',',0,0						; id (249=init)
+	db	0,0,0,0							; prompt code vector
+	db	0,0,0,0							; reserved
+	db	0,0,0,0							; reserved
+	db	0,0,0,0							; reserved
+	db	0,0,0,0							; user defined
+	db	255,255,255,255						; length and checksum (255=unused)
+	db	"Startup Command",0
+
+orgmem	nc100_cmd_base+0x1040						; executable code begins here
+startup_cmd:
+	rst	16							; Continue boot
