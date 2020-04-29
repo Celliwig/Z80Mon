@@ -78,6 +78,7 @@ nc100_lcd_set_raster_addr:
 ; #################################
 ;  Clear LCD raster memory
 nc100_lcd_clear_screen:
+	exx								; Swap out registers
 	ld	hl, (nc100_raster_start_addr)				; Load raster memory address
 	ld	de, 0x1000						; Num. bytes to clear
 	ld	b, 0x00							; Set normal screen clear value
@@ -94,6 +95,7 @@ nc100_lcd_clear_screen_loop:
 	jr	nz, nc100_lcd_clear_screen_loop
 	ld	de, 0x0000						; Set cursor position (0,0)
 	call	nc100_lcd_set_cursor_by_grid
+	exx								; Swap back registers
 	ret
 
 ; # nc100_lcd_set_attributes
@@ -496,10 +498,68 @@ nc100_console_char_in:
 
 ; # Interrupt handlers
 ; ###########################################################################
+; # interrupt_set_mask_enabled
+; #################################
+;  Enable given interrupts (register is write only)
+;  Should probably disable interrupts before calling this
+;	In:	A = ORed list of interrupts to enable
+interrupt_set_mask_enabled:
+	out	(nc100_io_irq_mask), a					; Set mask configuration
+	ret
+
+; # interrupt_source_check
+; #################################
+;  Check whether a source produced an interrupt
+;	In:	A = interrupt to check
+;	Out:	Z flag set if interrupt source pending
+interrupt_source_check:
+	ld	b, a							; Save interrupt source
+	in	a, (nc100_io_irq_status)				; Get current interrupt source status
+	and	b							; Get the status of the interrupt
+	ret
+
+; # interrupt_source_clear
+; #################################
+;  Clear interrupt source flag
+;  Write 0 to clear a 0, who does this???
+;	In:	A = interrupt to check
+interrupt_source_clear:
+	cpl								; Produce a bit mask from the interrupt source
+	out	(nc100_io_irq_status), a				; Apply bit mask to clear flag
+	ret
+
+; # interrupt_handler_keyboard
+; #################################
+;  Keyboard interrupt handler
+;  Every 10ms the keyboard is scanned and an interrupt is generate.
+interrupt_handler_keyboard:
+
+	ld	a, nc100_irq_key_scan
+	jp	interrupt_source_clear					; Clear keyboard interrupt
+
 ; # interrupt_handler
 ; #################################
 ;  Maskable interrupt handler
 interrupt_handler:
+	di								; Disable interrupts
+	push	af							; Save registers
+	push	bc
+	push	de
+	push	hl
+	push	ix
+	push	iy
+
+	ld	a, nc100_irq_key_scan					; Is this a keyboard interrupt
+	call	interrupt_source_check
+	call	z, interrupt_handler_keyboard
+
+	pop	iy							; Restore registers
+	pop	ix
+	pop	hl
+	pop	de
+	pop	bc
+	pop	af
+	ei								; Enable interrupts
 	reti
 
 ; # nm_interrupt_handler
@@ -585,6 +645,10 @@ system_init:
 	ld	bc, nm_interrupt_handler
 	ld	(z80_nm_interrupt_handler), a				; Write JP instruction
 	ld	(z80_nm_interrupt_handler+1), bc			; Write address of non-maskable interrupt handler
+
+	ld	a, nc100_irq_key_scan					; Enable keyboard interrupts
+	call	interrupt_set_mask_enabled
+	ei								; Enable interrupts
 
 	; Configure z80Mon variables
 	ld	bc, 0x4000

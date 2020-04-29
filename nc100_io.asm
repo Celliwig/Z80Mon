@@ -60,14 +60,14 @@
 
 ; # Memory Card Wait States (0x20)
 ; ###########################################################################
-	nc100_memcard_wait_mask:	equ	1 << 7		; 1 = Memory cards slower than 200ns, 0 = Memory card faster than 200ns
+	nc100_memcard_wait:		equ	1 << 7		; 1 = Memory cards slower than 200ns, 0 = Memory card faster than 200ns
 
 ; # Misc Config A (0x30)
 ; ###########################################################################
-	nc100_memcard_register_mask:	equ	1 << 7		; 1 = Common register, 0 = Attributes register
-	nc100_parallel_strobe_mask:	equ	1 << 6		; Controls parallel port strobe signal
-	nc100_serial_line_driver_mask:	equ	1 << 4		; Controls serial line driver uPD4711 (1 = Off, 0 = On)
-	nc100_serial_clk_rst_mask:	equ	1 << 3		; Serial clock/reset: 1 = Device off, 0 = Device on
+	nc100_memcard_register:		equ	1 << 7		; 1 = Common register, 0 = Attributes register
+	nc100_parallel_strobe:		equ	1 << 6		; Controls parallel port strobe signal
+	nc100_serial_line_driver:	equ	1 << 4		; Controls serial line driver uPD4711 (1 = Off, 0 = On)
+	nc100_serial_clk_rst:		equ	1 << 3		; Serial clock/reset: 1 = Device off, 0 = Device on
 	nc100_serial_baud_mask:		equ	7		; Bit mask for serial baud selection
 	nc100_serial_baud_150:		equ	0		; Serial baud rates
 	nc100_serial_baud_300:		equ	1
@@ -81,20 +81,20 @@
 ; # Interrupt Request Mask (0x60)
 ; # Interrupt Request Mask (0x90)
 ; ###########################################################################
-	nc100_irq_key_scan_mask:	equ	1 << 3		; Keyboard interrupt
-	nc100_irq_parallel_ack_mask:	equ	1 << 2		; Parallel port received an ACK
-	nc100_irq_tx_ready_mask:	equ	1 << 1		; Serial port is ready to transmit
-	nc100_irq_rx_ready_mask:	equ	1 << 0		; Serial port is ready to receive
+	nc100_irq_key_scan:		equ	1 << 3		; Keyboard interrupt
+	nc100_irq_parallel_ack:		equ	1 << 2		; Parallel port received an ACK
+	nc100_irq_tx_ready:		equ	1 << 1		; Serial port is ready to transmit
+	nc100_irq_rx_ready:		equ	1 << 0		; Serial port is ready to receive
 
 ; # Power control (0x70)
 ; ###########################################################################
-	nc100_power_off_mask:		equ	1 << 0		; 1 = no effect, 0 = power off
+	nc100_power_off:		equ	1 << 0		; 1 = no effect, 0 = power off
 
 ; # Misc Status A (0xA0)
 ; ###########################################################################
-	nc100_memcard_present_mask:	equ	1 << 7		; 0 = Present, 1 = Not present
-	nc100_memcard_write_prot_mask:	equ	1 << 6		; 0 = Read/Writable, 1 = Read only
-	nc100_volt_in_mask:		equ	1 << 5		; 1 if voltage in okay (>= 4V)
+	nc100_memcard_present:		equ	1 << 7		; 0 = Present, 1 = Not present
+	nc100_memcard_write_prot:	equ	1 << 6		; 0 = Read/Writable, 1 = Read only
+	nc100_volt_in:			equ	1 << 5		; 1 if voltage in okay (>= 4V)
 	nc100_volt_memcard_battery:	equ	1 << 4		; 1 if battery okay
 	nc100_volt_alkaline_battery:	equ	1 << 3		; 0 if on batteries okay (>= 3.2V)
 	nc100_volt_lithium_cell:	equ	1 << 2		; 0 if onboard backup battery okay (>= 2.7V)
