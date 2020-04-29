@@ -70,11 +70,19 @@ orgmem	mem_base+0x30
 
 ; RST 56 / Mode 1 maskable interrupt
 orgmem	mem_base+0x38
-	ds	8
+z80_interrupt_handler:
+	reti						; RETI added to ignore maskable interrupt
+	reti						; Additional library may overwrite
+	reti						; With actual interrupt handler
+	reti
 
 ; NMI
 orgmem	mem_base+0x66
-	ds	8
+z80_nm_interrupt_handler:
+	retn						; RETN added to ignore non-maskable interrupt
+	retn						; Additional library may overwrite
+	retn						; With actual interrupt handler
+	retn
 
 ; # Subroutine Jump Table
 ; ###########################################################################

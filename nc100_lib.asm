@@ -494,6 +494,20 @@ nc100_console_char_out_exit:
 nc100_console_char_in:
 	ret
 
+; # Interrupt handlers
+; ###########################################################################
+; # interrupt_handler
+; #################################
+;  Maskable interrupt handler
+interrupt_handler:
+	reti
+
+; # nm_interrupt_handler
+; #################################
+;  Non-maskable interrupt handler
+nm_interrupt_handler:
+	retn
+
 ; # Commands
 ; ###########################################################################
 
@@ -562,6 +576,15 @@ system_init:
 	ld	(monlib_console_out+1), bc
 	ld	bc, nc100_console_char_in
 	ld	(monlib_console_in+1), bc
+
+	; Add interrupt handlers
+	ld	a, 0xc3							; JP instruction
+	ld	bc, interrupt_handler
+	ld	(z80_interrupt_handler), a				; Write JP instruction
+	ld	(z80_interrupt_handler+1), bc				; Write address of interrupt handler
+	ld	bc, nm_interrupt_handler
+	ld	(z80_nm_interrupt_handler), a				; Write JP instruction
+	ld	(z80_nm_interrupt_handler+1), bc			; Write address of non-maskable interrupt handler
 
 	; Configure z80Mon variables
 	ld	bc, 0x4000
