@@ -122,6 +122,10 @@ monlib_string_length:
 ; ###########################################################################
 z80mon_current_addr:
 	dw	0x1000
+z80mon_temp1:
+	dw	0x0000
+z80mon_temp2:
+	dw	0x0000
 
 ; # Monitor
 ; ###########################################################################
@@ -496,6 +500,115 @@ dictionary_get_next_nibble_top:
 	and	0x0f
 	res	7, b					; Select bottom nibble on the next read
 	ret
+
+; # print_registers
+; #################################
+;  Print out the contents of all registers (without altering them!)
+print_registers:
+	ld	(z80mon_temp1), sp			; Save stack pointer address
+	ex	(sp), hl				; Swap HL <-> return address
+	ld	(z80mon_temp2), hl			; Save return address
+	ex	(sp), hl				; Swap return address <-> HL
+
+	push	af					; Make a copy of all registers
+	push	bc					; Need to restore them later
+	push	de
+	push	hl
+	ex	af, af'					; Swap AF for shadow registers
+	exx						; Swap for shadow registers
+	push	af					; Make a copy of all registers
+	push	bc					; Need to restore them later
+	push	de
+	push	hl
+	push	ix
+	push	iy
+
+	; Now push a copy of everything on to the stack to print (in the order we're going to read)
+	push	iy
+	push	hl
+	push	de
+	push	bc
+	push	af
+	ex	af, af'
+	exx
+	push	ix
+	push	hl
+	push	de
+	push	bc
+	push	af
+
+	; Print registers
+	ld	hl, str_reg_af1
+	call	print_str
+	pop	bc
+	call	print_hex16
+	ld	hl, str_reg_bc1
+	call	print_str
+	pop	bc
+	call	print_hex16
+	ld	hl, str_reg_de1
+	call	print_str
+	pop	bc
+	call	print_hex16
+	ld	hl, str_reg_hl1
+	call	print_str
+	pop	bc
+	call	print_hex16
+	ld	hl, str_reg_ix
+	call	print_str
+	pop	bc
+	call	print_hex16
+	call	print_newline
+
+	; Print shadow registers
+	ld	hl, str_reg_af2
+	call	print_str
+	pop	bc
+	call	print_hex16
+	ld	hl, str_reg_bc2
+	call	print_str
+	pop	bc
+	call	print_hex16
+	ld	hl, str_reg_de2
+	call	print_str
+	pop	bc
+	call	print_hex16
+	ld	hl, str_reg_hl2
+	call	print_str
+	pop	bc
+	call	print_hex16
+	ld	hl, str_reg_iy
+	call	print_str
+	pop	bc
+	call	print_hex16
+	call	print_newline
+
+	; Print additional registers
+	ld	hl, str_reg_sra
+	call	print_str
+	ld	bc, (z80mon_temp2)
+	call	print_hex16
+	ld	hl, str_reg_sp
+	call	print_str
+	ld	bc, (z80mon_temp1)
+	call	print_hex16
+	call	print_newline
+
+	pop	iy					; Restore shadow register contents
+	pop	ix
+	pop	hl
+	pop	de
+	pop	bc
+	pop	af
+	exx						; Exchange
+	ex	af, af'
+	pop	hl					; Restore register contents
+	pop	de
+	pop	bc
+	pop	af
+
+	ret
+
 
 ; # String routines
 ; ###########################################################################
@@ -1018,6 +1131,20 @@ common_words:
 
 ; # List of strings
 ; #################################
+; Strings used to dump register contents
+str_reg_af1:		db	" AF =&",0
+str_reg_af2:		db	" AF'=&",0
+str_reg_bc1:		db	" BC =&",0
+str_reg_bc2:		db	" BC'=&",0
+str_reg_de1:		db	" DE =&",0
+str_reg_de2:		db	" DE'=&",0
+str_reg_hl1:		db	" HL =&",0
+str_reg_hl2:		db	" HL'=&",0
+str_reg_ix:		db	" IX =&",0
+str_reg_iy:		db	" IY =&",0
+str_reg_sp:		db	" SP =&",0
+str_reg_sra:		db	" SRA =&",0
+
 ;; Welcome string
 ;str_logon1:		db	"Welcome",128," z80Mon v0.1",13,14
 ; Welcome string
