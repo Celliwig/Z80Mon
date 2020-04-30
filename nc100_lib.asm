@@ -881,12 +881,6 @@ system_init:
 	ld	bc, 0x4000
 	ld	(z80mon_current_addr), bc				; Set monitor's current address: 0x4000
 
-test_loop:
-	call	nc100_lcd_clear_screen
-	ld	a, (nc100_keyboard_raw_keycode)
-	call	monlib_print_hex8
-	jr	test_loop
-
 	rst	8							; Continue boot
 
 
