@@ -961,3 +961,23 @@ orgmem	nc100_cmd_base+0x1000
 orgmem	nc100_cmd_base+0x1040						; executable code begins here
 startup_cmd:
 	rst	16							; Continue boot
+
+; ###########################################################################
+; #                                                                         #
+; #                             System Config                               #
+; #                                                                         #
+; ###########################################################################
+
+orgmem  nc100_cmd_base+0x2000
+	db	0xA5,0xE5,0xE0,0xA5					; signiture bytes
+	db	254,'!',0,0						; id (254=cmd)
+	db	0,0,0,0							; prompt code vector
+	db	0,0,0,0							; reserved
+	db	0,0,0,0							; reserved
+	db	0,0,0,0							; reserved
+	db	0,0,0,0							; user defined
+	db	255,255,255,255						; length and checksum (255=unused)
+	db	"System config",0
+
+orgmem  nc100_cmd_base+0x2040
+setup_cmd:
