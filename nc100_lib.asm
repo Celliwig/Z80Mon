@@ -613,6 +613,27 @@ interrupt_handler_keyboard:
 ;	Control key: 6 + 8 + 7 + 7 + 8 + 12 + 4 + 4 = 56
 interrupt_handler_keyboard_loop:
 	in	b, (c)							; Get keyboard buffer
+
+	; Bypass bitchecks where no bits are set
+	ld	a, b
+	and	a							; Check whether bits are all zero
+	jr	nz, interrupt_handler_keyboard_loop_bit0		; Only check bits if some are set
+	ld	a, 8							; Increment HL by 8 (which would happen if executing main body)
+	add	a, l							; Doesn't require additional 16 bit reg
+	ld	l, a							; Ticks = 27
+	ld	a, 0
+	adc	a, h
+	ld	h, a
+
+;	inc	hl							; Increment HL by 8
+;	inc	hl							; All other 16 bit registers in use
+;	inc	hl							; Ticks = 48
+;	inc	hl
+;	inc	hl
+;	inc	hl
+;	inc	hl
+;	inc	hl
+	jp	interrupt_handler_keyboard_loop_port_check
 interrupt_handler_keyboard_loop_bit0:
 	inc	hl							; Increment raw keymap pointer
 	bit	0, b							; Test bit 0
@@ -859,6 +880,12 @@ system_init:
 	; Configure z80Mon variables
 	ld	bc, 0x4000
 	ld	(z80mon_current_addr), bc				; Set monitor's current address: 0x4000
+
+test_loop:
+	call	nc100_lcd_clear_screen
+	ld	a, (nc100_keyboard_raw_keycode)
+	call	monlib_print_hex8
+	jr	test_loop
 
 	rst	8							; Continue boot
 
