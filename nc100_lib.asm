@@ -20,8 +20,11 @@ nc100_lcd_draw_attributes:		db	0x00			; Cursor draw attributes
 									; 1 - 0 = Copy over, 1 = Merge
 									; 7 - 0 = LF resets to (0,0), 1 = Scrolls screen
 
+nc100_keyboard_raw_keycode_prev:	db	0x00			; Previous raw keycode returned from interrupt handler
 nc100_keyboard_raw_keycode:		db	0x00			; Raw keycode returned from interrupt handler (Possibly amalgam of characters)
+nc100_keyboard_raw_control_prev:	db	0x00			; Previous raw control keys from interrupt handler
 nc100_keyboard_raw_control:		db	0x00			; Raw control keys from interrupt handler
+nc100_keyboard_controller_state:	db	0x00			; Persistent information (capslock, etc)
 nc100_keyboard_raw_character_count:	db	0x00			; Number of character (not control!) keys depressed
 
 orgmem	nc100_lib_base
@@ -465,11 +468,11 @@ nc100_lcd_scroll_8x8_clear_line:
 ; # Keyboard routines
 ; ###########################################################################
 ; Control key codes
-nc100_key_shift:			equ		0x81		; Shift key
-nc100_key_function:			equ		0x82		; Function key
-nc100_key_control:			equ		0x84		; Control key
-nc100_key_stop:				equ		0x88		; Stop key
-nc100_key_capslock:			equ		0x90		; Capslock key
+nc100_key_capslock:			equ		0x81		; Capslock key
+nc100_key_shift:			equ		0x82		; Shift key
+nc100_key_function:			equ		0x84		; Function key
+nc100_key_control:			equ		0x88		; Control key
+nc100_key_stop:				equ		0x90		; Stop key
 nc100_key_symbol:			equ		0xa0		; Symbol key
 nc100_key_menu:				equ		0xc0		; Menu key
 
@@ -497,6 +500,52 @@ nc100_keyboard_raw_keytable:
 		db		'8', '-', ']', '[', "'", 'I', 'J', ','
 		db		'0', '9', nc100_key_backspace, 'P', ';', 'L', 'O', '.'
 
+nc100_keyboard_controller_capslock_key:	equ		1 << 0		; Bit: capslock key state: 1 = Down, 0 = Up
+nc100_keyboard_controller_capslock_on:	equ		1 << 1		; Bit: capslock state: 1 = On, 0 = Off
+
+; # nc100_keyboard_char_in
+; #################################
+;  Returns a character from the keyboard if one is depressed
+;	Out:	A = ASCII character code
+;	Carry flag set if character valid
+nc100_keyboard_char_in:
+	ld	bc, (nc100_keyboard_raw_control)			; B = nc100_keyboard_raw_control, C = nc100_keyboard_raw_control_prev
+	ld	de, (nc100_keyboard_raw_keycode)			; D = nc100_keyboard_raw_keycode, E = nc100_keyboard_raw_keycode_prev
+	ld	hl, (nc100_keyboard_raw_character_count)		; H = nc100_keyboard_raw_character_count, L = nc100_keyboard_controller_state
+
+nc100_keyboard_char_in_capslock_update:
+	ld	a, b							; Diff current/previous control key state
+	xor	c
+	and	nc100_key_capslock					; Check Capslock state
+	jr	z, nc100_keyboard_char_in_check				; Skip if no change
+	xor	a							; Clear A
+	bit	0, l							; Check capslock key state
+	jr	z, nc100_keyboard_char_in_capslock_update_end
+	or	nc100_keyboard_controller_capslock_on			; Add capslock on flag
+nc100_keyboard_char_in_capslock_update_end:
+	or	nc100_keyboard_controller_capslock_key			; Add capslock key state flag
+	xor	l							; Flip flag(s) state
+	ld	l, a							; Save controller state
+	ld	(nc100_keyboard_controller_state), l			; Really save controller state
+
+nc100_keyboard_char_in_check:
+	ld	a, h							; Get character count
+	cp	1							; Check there's only 1 character
+	jr	nz, nc100_keyboard_char_in_none				; If no character, return
+
+	ld	a, d							; Load character code
+	and	e							; Check if key changed
+	jr	z, nc100_keyboard_char_in_none
+	ld	a, d							; Reload character value
+
+	ld	(nc100_keyboard_raw_control_prev), b			; Update the previous state variables
+	ld	(nc100_keyboard_raw_keycode_prev), d
+	scf								; Set Carry flag (valid character)
+	ret
+nc100_keyboard_char_in_none:
+	scf								; Clear Carry flag (invalid character)
+	ccf
+	ret
 
 ; # Console routines
 ; ###########################################################################
@@ -533,8 +582,13 @@ nc100_console_char_out_exit:
 	exx								; Swap back registers
 	ret
 
+; # nc100_console_char_in
+; #################################
+;  Returns a character from the keyboard if one is depressed
+;	Out:    A = ASCII character code
+;	Carry flag set if character valid
 nc100_console_char_in:
-	ret
+	jp	nc100_keyboard_char_in
 
 ; # Interrupt handlers
 ; ###########################################################################
