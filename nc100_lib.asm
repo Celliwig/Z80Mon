@@ -509,6 +509,7 @@ nc100_keyboard_controller_capslock_on:	equ		1 << 1		; Bit: capslock state: 1 = O
 ;	Out:	A = ASCII character code
 ;	Carry flag set if character valid
 nc100_keyboard_char_in:
+	exx								; Swap in shadow registers
 	ld	bc, (nc100_keyboard_raw_control)			; B = nc100_keyboard_raw_control, C = nc100_keyboard_raw_control_prev
 	ld	de, (nc100_keyboard_raw_keycode)			; D = nc100_keyboard_raw_keycode, E = nc100_keyboard_raw_keycode_prev
 	ld	hl, (nc100_keyboard_raw_character_count)		; H = nc100_keyboard_raw_character_count, L = nc100_keyboard_controller_state
@@ -540,9 +541,11 @@ nc100_keyboard_char_in_check:
 
 	ld	(nc100_keyboard_raw_control_prev), b			; Update the previous state variables
 	ld	(nc100_keyboard_raw_keycode_prev), d
+	exx								; Swap out shadow registers
 	scf								; Set Carry flag (valid character)
 	ret
 nc100_keyboard_char_in_none:
+	exx								; Swap out shadow registers
 	scf								; Clear Carry flag (invalid character)
 	ccf
 	ret
