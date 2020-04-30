@@ -121,8 +121,8 @@ monlib_string_length:
 ;	ljmp	prgm
 ;	ljmp	erall
 ;	ljmp	module_find
-;cin_filter_h:
-;	ljmp	cin_filter
+;input_character_filter_h:
+;	ljmp	input_character_filter
 ;	ajmp	asc2hex
 ;	ljmp	erblock
 
@@ -158,10 +158,10 @@ dummy_char_out:
 	ret
 
 ; # Print routines
-;
+; ###########################################################################
 ; Note: will not alter any registers other than AF.
 ; Shadow registers fair game.
-; ###########################################################################
+;
 ; # print_spacex2
 ; #################################
 ;  Print double space
@@ -655,6 +655,132 @@ string_length_end:
 	pop	hl
 	ret
 
+; # Input routines
+; ###########################################################################
+character_code_escape:		equ	0x1b		; Escape ASCII code
+
+; # input_character_filter
+; #################################
+;  Routine replaces character sequences for up/down/left/right & PageUp/PageDown
+;  with values noted below.
+;	Return Value	Key		Escape Sequence
+;	11 (^K)		Up		1B 5B 41
+;	10 (^J)		Down		1B 5B 42
+;	21 (^U)		Right		1B 5B 43
+;	8 (^H)		Left		1B 5B 44
+;	25 (^Y)		PageUp		1B 5B 35 7E
+;	26 (^Z)		PageDown	1B 5B 36 7E
+;
+;	Out:	A = ASCII character code
+;	Carry flag set is character value
+input_character_filter:
+	call	monlib_console_in			; Get character if there is one
+;	jnc	input_character_filter_end		; No character available, so finish
+;
+;	cp	character_code_escape			; Compare character to Escape character
+;	jr	nz, input_character_filter_end		; It's not, so finish
+
+	; Need serial port!!!
+	; So just pass through
+
+input_character_filter_end:
+	ret
+
+
+;input_character_filter:
+;	jnb	ri, cinf1
+;	lcall	cin
+;	cjne	a, #esc_char, cinf_end
+;	;if esc was already in sbuf, just ignore it
+;cinf1:
+;	lcall	cin
+;	cjne	a, #esc_char, cinf_end
+;cinf2:
+;	acall	cinf_wait
+;	jb	ri, cinf4
+;	mov	a, #esc_char
+;	ret			;an ordinary ESC
+;
+;cinf4:	;if we get here, it's a control code, since a character
+;	;was received shortly after receiving an ESC character
+;	lcall	cin
+;	cjne	a, #'[', cinf_consume
+;	acall	cinf_wait
+;	jnb	ri, input_character_filter
+;	lcall	cin
+;cinf5a:
+;	cjne	a, #'A', cinf5b
+;	mov	a, #11
+;	ret
+;cinf5b:
+;	cjne	a, #'B', cinf5c
+;	mov	a, #10
+;	ret
+;cinf5c:
+;	cjne	a, #'C', cinf5d
+;	mov	a, #21
+;	ret
+;cinf5d:
+;	cjne	a, #'D', cinf5e
+;	mov	a, #8
+;	ret
+;cinf5e:
+;	cjne	a, #0x35, cinf5f
+;	sjmp	cinf8
+;cinf5f:
+;	cjne	a, #0x36, cinf5g
+;	sjmp	cinf8
+;cinf5g:
+;	sjmp	cinf_consume		;unknown escape sequence
+;
+;cinf8:	;when we get here, we've got the sequence for pageup/pagedown
+;	;but there's one more incoming byte to check...
+;	push	acc
+;	acall	cinf_wait
+;	jnb	ri, cinf_restart
+;	lcall	cin
+;	cjne	a, #0x7E, cinf_notpg
+;	pop	acc
+;	add	a, #228
+;cinf_end:
+;	ret
+;cinf_restart:
+;	pop	acc
+;	sjmp	input_character_filter
+;cinf_notpg:
+;	pop	acc
+;;unrecognized escape... eat up everything that's left coming in
+;;quickly, then begin looking again
+;cinf_consume:
+;	acall	cinf_wait
+;	jnb	ri, input_character_filter
+;	lcall	cin
+;	cjne	a, #esc_char, cinf_consume
+;	sjmp	cinf2
+;
+;;this thing waits for a character to be received for approx
+;;4 character transmit time periods.  It returns immedately
+;;or after the entire wait time.	 It does not remove the character
+;;from the buffer, so ri should be checked to see if something
+;;actually did show up while it was waiting
+;	.equ	char_delay, 4		;number of char xmit times to wait
+;cinf_wait:
+;	mov	a, r2
+;	push	acc
+;	mov	r2, #char_delay*5
+;cinfw2:
+;	mov	a, th0
+;cinfw3:
+;	jb	ri, cinfw4
+;	inc	a
+;	jnz	cinfw3
+;	djnz	r2, cinfw2
+;cinfw4:
+;	pop	acc
+;	mov	r2, a
+;	ret
+
+
 ; # Memory routines
 ; ###########################################################################
 ; # memory_copy
@@ -855,7 +981,7 @@ main_menu:
 ;	acall	pstr
 ;
 ;;now we're finally past the prompt, so let's get some input
-;	acall	cin_filter_h	;get the input, finally
+;	acall	input_character_filter_h	;get the input, finally
 ;	cjne	a, #':', menu0
 ;	acall	dnld_now
 ;	sjmp	menu
@@ -1346,7 +1472,7 @@ erfr_err: 		db	31,133,155,13,14
 ;ghex:
 ;ghex8:	clr	psw.5
 ;ghex8c:
-;	acall	cin_filter_h	;get first digit
+;	acall	input_character_filter_h	;get first digit
 ;	acall	char_2_upper
 ;	cjne	a, #27, ghex8f
 ;ghex8d: setb	c
@@ -1363,7 +1489,7 @@ erfr_err: 		db	31,133,155,13,14
 ;	xch	a, r2		;r2 will hold hex value of 1st digit
 ;	acall	cout
 ;ghex8j:
-;	acall	cin_filter_h	;get second digit
+;	acall	input_character_filter_h	;get second digit
 ;	acall	char_2_upper
 ;	cjne	a, #27, ghex8k
 ;	sjmp	ghex8d
@@ -1399,7 +1525,7 @@ erfr_err: 		db	31,133,155,13,14
 ;	clr	psw.5
 ;
 ;ghex16c:
-;	acall	cin_filter_h
+;	acall	input_character_filter_h
 ;	acall	char_2_upper
 ;	cjne	a, #27, ghex16d
 ;	setb	c		;handle esc key
@@ -1978,7 +2104,7 @@ erfr_err: 		db	31,133,155,13,14
 ;	acall	cout
 ;	mov	dptr, #prompt4
 ;	acall	pcstr_h
-;	acall	cin_filter_h
+;	acall	input_character_filter_h
 ;	cjne	a, #27, run4aa	;they they hit <ESC>
 ;	ajmp	newline
 ;run4aa: mov	r3, a
@@ -2244,7 +2370,7 @@ erfr_err: 		db	31,133,155,13,14
 ;	acall	get_mem
 ;	mov	dptr, #sure
 ;	acall	pcstr_h
-;	acall	cin_filter_h
+;	acall	input_character_filter_h
 ;	acall	char_2_upper
 ;	cjne	a, #'Y', abort_it
 ;	acall	newline2
@@ -2283,7 +2409,7 @@ erfr_err: 		db	31,133,155,13,14
 ;	acall	cout_sp
 ;	mov	dptr, #sure
 ;	acall	pcstr_h
-;	acall	cin_filter_h
+;	acall	input_character_filter_h
 ;	acall	char_2_upper
 ;	cjne	a, #'Y', abort_it
 ;	acall	newline2
@@ -2663,114 +2789,4 @@ erfr_err: 		db	31,133,155,13,14
 ;	mov	pcon, #0x80	;configure built-in uart
 ;	mov	scon, #0x52
 ;	setb	tr1		;start the baud rate timer
-;	ret
-;
-;
-;
-;;---------------------------------------------------------;
-;;							  ;
-;;     More subroutines, but less frequent used, so	  ;
-;;     they're down here in the second 2k page.		  ;
-;;							  ;
-;;---------------------------------------------------------;
-;
-;
-;
-;;this twisted bit of code looks for escape sequences for
-;;up, down, left, right, pageup, and pagedown, as well
-;;as ordinary escape and ordinary characters.  Escape
-;;sequences are required to arrive with each character
-;;nearly back-to-back to the others, otherwise the characters
-;;are treated as ordinary user keystroaks.  cin_filter
-;;returns a single byte when it sees the multi-byte escape
-;;sequence, as shown here.
-;
-;; return value	 key	      escape sequence
-;;   11 (^K)	 up	      1B 5B 41
-;;   10 (^J)	 down	      1B 5B 42
-;;   21 (^U)	 right	      1B 5B 43
-;;    8 (^H)	 left	      1B 5B 44
-;;   25 (^Y)	 page up      1B 5B 35 7E
-;;   26 (^Z)	 page down    1B 5B 36 7E
-;
-;.equ	esc_char, 27
-;
-;cin_filter:
-;	jnb	ri, cinf1
-;	lcall	cin
-;	cjne	a, #esc_char, cinf_end
-;	;if esc was already in sbuf, just ignore it
-;cinf1:	lcall	cin
-;	cjne	a, #esc_char, cinf_end
-;cinf2:	acall	cinf_wait
-;	jb	ri, cinf4
-;	mov	a, #esc_char
-;	ret			;an ordinary ESC
-;
-;cinf4:	;if we get here, it's a control code, since a character
-;	;was received shortly after receiving an ESC character
-;	lcall	cin
-;	cjne	a, #'[', cinf_consume
-;	acall	cinf_wait
-;	jnb	ri, cin_filter
-;	lcall	cin
-;cinf5a: cjne	a, #'A', cinf5b
-;	mov	a, #11
-;	ret
-;cinf5b: cjne	a, #'B', cinf5c
-;	mov	a, #10
-;	ret
-;cinf5c: cjne	a, #'C', cinf5d
-;	mov	a, #21
-;	ret
-;cinf5d: cjne	a, #'D', cinf5e
-;	mov	a, #8
-;	ret
-;cinf5e: cjne	a, #0x35, cinf5f
-;	sjmp	cinf8
-;cinf5f: cjne	a, #0x36, cinf5g
-;	sjmp	cinf8
-;cinf5g: sjmp	cinf_consume		;unknown escape sequence
-;
-;cinf8:	;when we get here, we've got the sequence for pageup/pagedown
-;	;but there's one more incoming byte to check...
-;	push	acc
-;	acall	cinf_wait
-;	jnb	ri, cinf_restart
-;	lcall	cin
-;	cjne	a, #0x7E, cinf_notpg
-;	pop	acc
-;	add	a, #228
-;cinf_end: ret
-;cinf_restart:
-;	pop	acc
-;	sjmp	cin_filter
-;cinf_notpg:
-;	pop	acc
-;;unrecognized escape... eat up everything that's left coming in
-;;quickly, then begin looking again
-;cinf_consume:
-;	acall	cinf_wait
-;	jnb	ri, cin_filter
-;	lcall	cin
-;	cjne	a, #esc_char, cinf_consume
-;	sjmp	cinf2
-;
-;;this thing waits for a character to be received for approx
-;;4 character transmit time periods.  It returns immedately
-;;or after the entire wait time.	 It does not remove the character
-;;from the buffer, so ri should be checked to see if something
-;;actually did show up while it was waiting
-;	.equ	char_delay, 4		;number of char xmit times to wait
-;cinf_wait:
-;	mov	a, r2
-;	push	acc
-;	mov	r2, #char_delay*5
-;cinfw2: mov	a, th0
-;cinfw3: jb	ri, cinfw4
-;	inc	a
-;	jnz	cinfw3
-;	djnz	r2, cinfw2
-;cinfw4: pop	acc
-;	mov	r2, a
 ;	ret
