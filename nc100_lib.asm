@@ -85,7 +85,6 @@ nc100_lcd_set_raster_addr:
 ; #################################
 ;  Clear LCD raster memory
 nc100_lcd_clear_screen:
-	exx								; Swap out registers
 	ld	hl, (nc100_raster_start_addr)				; Load raster memory address
 	ld	de, 0x1000						; Num. bytes to clear
 	ld	b, 0x00							; Set normal screen clear value
@@ -102,7 +101,6 @@ nc100_lcd_clear_screen_loop:
 	jr	nz, nc100_lcd_clear_screen_loop
 	ld	de, 0x0000						; Set cursor position (0,0)
 	call	nc100_lcd_set_cursor_by_grid
-	exx								; Swap back registers
 	ret
 
 ; # nc100_lcd_set_attributes
@@ -418,7 +416,6 @@ nc100_lcd_print_cr_8x8:
 nc100_lcd_print_lf_8x8:
 	ld	a, (nc100_lcd_draw_attributes)				; Get draw attributes
 	ld	b, a							; Save draw attributes to B
-	ld	e, 0							; Reset X position
 	ld	a, d							; Get Y position
 	add	0x08							; Add 8 lines
 	ld	d, a							; Save Y position
@@ -427,12 +424,16 @@ nc100_lcd_print_lf_8x8:
 	bit	7, b							; Test scroll bit
 	jr	nz, nc100_lcd_print_lf_8x8_scroll_screen
 ;	xor	a
-	ld	d, a							; Reset Y position
-	jr	nc100_lcd_print_lf_8x8_set_position
+;	ld	d, a							; Reset Y position
+;	jr	nc100_lcd_print_lf_8x8_set_position
+	jp	nc100_lcd_clear_screen
 nc100_lcd_print_lf_8x8_scroll_screen:
+	ld	a, d
 	sub	0x08							; Undo previous add
+	ld	d, a
 	call	nc100_lcd_scroll_8x8					; Scroll screen up
 nc100_lcd_print_lf_8x8_set_position:
+	ld	e, 0							; Reset X position
 	call	nc100_lcd_set_cursor_by_grid				; Set cursor position
 	ret
 
@@ -495,7 +496,7 @@ nc100_keyboard_raw_keytable:
 		db		'3', '2', 'Q', 'W', 'E', 0x00, 'S', 'D'
 		db		'4', 0x00, 'Z', 'X', 'A', 0x00, 'R', 'F'
 		db		0x00, 0x00, 'B', 'V', 'T', 'Y', 'G', 'C'
-		db		'6', nc100_key_down, nc100_key_delete, nc100_key_right, '#', '/', 'H', 'N'
+		db		'6', nc100_key_down, nc100_key_delete, nc100_key_right, '#', '?', 'H', 'N'
 		db		'=', '7', '\\', nc100_key_up, nc100_key_menu, 'U', 'M', 'K'
 		db		'8', '-', ']', '[', "'", 'I', 'J', ','
 		db		'0', '9', nc100_key_backspace, 'P', ';', 'L', 'O', '.'
