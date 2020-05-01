@@ -637,7 +637,6 @@ print_registers:
 
 	ret
 
-
 ; # String routines
 ; ###########################################################################
 ; # char_2_upper
@@ -652,6 +651,33 @@ char_2_upper:
 	jr	nc, char_2_upper_end
 	add	224
 char_2_upper_end:
+	ret
+
+; # char_2_hex
+; #################################
+;  Converts (if possible) a character (A-Z/0-9) to hex value
+;	In:	A = ASCII character
+;	Out:	A = Hex value
+;		Carry set if value valid, not otherwise
+char_2_hex:
+	add	a, 208
+	jr	nc, char_2_hex_not
+	add	a, 246
+	jr	c, char_2_hex_maybe
+	add	a, 10
+	scf						; Set Carry flag
+	ret
+char_2_hex_maybe:
+	add	a, 249
+	jr	nc, char_2_hex_not
+	add	a, 250
+	jr	c, char_2_hex_not
+	add	a, 16
+	scf						; Set Carry flag
+	ret
+char_2_hex_not:
+	scf						; Clear Carry flag
+	ccf
 	ret
 
 ; # string_length
@@ -677,7 +703,10 @@ string_length_end:
 
 ; # Input routines
 ; ###########################################################################
-character_code_escape:		equ	0x1b		; Escape ASCII code
+character_code_backspace:		equ	0x08	; Backspace ASCII code
+character_code_carriage_return:		equ	0x0d	; CR ASCII code
+character_code_escape:			equ	0x1b	; Escape ASCII code
+character_code_delete:			equ	0x7f	; Delete ASCII code
 
 ; # input_character_filter
 ; #################################
@@ -800,6 +829,140 @@ input_character_filter_end:
 ;	mov	r2, a
 ;	ret
 
+
+;;clearing ti before reading sbuf takes care of the case where
+;;interrupts may be enabled... if an interrupt were to happen
+;;between those two instructions, the serial port will just
+;;wait a while, but in the other order and the character could
+;;finish transmitting (during the interrupt routine) and then
+;;ti would be cleared and never set again by the hardware, causing
+;;the next call to cout to hang forever!
+;
+;	;get 2 digit hex number from serial port
+;	; c = set if ESC pressed, clear otherwise
+;	; psw.5 = set if return w/ no input, clear otherwise
+;ghex:
+;ghex8:	clr	psw.5
+;ghex8c:
+;	acall	input_character_filter_h	;get first digit
+;	acall	char_2_upper
+;	cjne	a, #27, ghex8f
+;ghex8d: setb	c
+;	clr	a
+;	ret
+;ghex8f: cjne	a, #13, ghex8h
+;	setb	psw.5
+;	clr	c
+;	clr	a
+;	ret
+;ghex8h: mov	r2, a
+;	acall	asc2hex
+;	jc	ghex8c
+;	xch	a, r2		;r2 will hold hex value of 1st digit
+;	acall	cout
+;ghex8j:
+;	acall	input_character_filter_h	;get second digit
+;	acall	char_2_upper
+;	cjne	a, #27, ghex8k
+;	sjmp	ghex8d
+;ghex8k: cjne	a, #13, ghex8m
+;	mov	a, r2
+;	clr	c
+;	ret
+;ghex8m: cjne	a, #8, ghex8p
+;ghex8n: acall	cout
+;	sjmp	ghex8c
+;ghex8p: cjne	a, #21, ghex8q
+;	sjmp	ghex8n
+;ghex8q: mov	r3, a
+;	acall	asc2hex
+;	jc	ghex8j
+;	xch	a, r3
+;	acall	cout
+;	mov	a, r2
+;	swap	a
+;	orl	a, r3
+;	clr	c
+;	ret
+
+; # input_hex16
+; #################################
+;  Routine to enter up to 4 digit hexadecimal number
+;	Out:	DE = Hex value
+;		Carry flag set if value valid
+input_hex16:
+	ld	b, 0x00					; Digit count
+
+input_hex16_get_char:
+	call	input_character_filter			; Get character
+	call	char_2_upper
+input_hex16_process_char:
+	call	c, a					; Copy character
+
+	cp	character_code_escape			; Check whether character is escape key
+	jr	z, input_hex16_abort
+	cp	character_code_backspace		; Check whether character is backspace key
+	jr	z, input_hex16_delete_digit
+	cp	character_code_delete			; Check whether character is delete key
+	jr	z, input_hex16_delete_digit
+	cp	character_code_carriage_return		; Check whether character is CR key
+	jr	z, input_hex16_complete
+
+	ld	a, b					; Check that number of digits <= 4
+	sub	0x04
+	jr	nc, input_hex16_get_char		; Already have 4 digits, so just loop
+	ld	a, c					; Reload character
+	call	char_2_hex				; Convert ASCII to hex
+	jr	nc, input_hex16_get_char		; Character not valid hex digit so loop
+	push	af					; Push hex value on to stack
+	inc	b					; Increment digit count
+	ld	a, c					; Reload character
+	call	monlib_console_out			; Output character
+	jr	input_hex16_get_char
+input_hex16_delete_digit:
+	ld	a, b					; Check if there are digits to delete
+	cp	0x00
+	jr	z, input_hex16_get_char			; No existing digits, so just wait for next character
+	ld	a, c					; Reload character
+	call	monlib_console_out			; Update display
+	pop	af					; Pop digit from stack
+	dec	b					; Decrement digit count
+	jr	input_hex16_get_char
+input_hex16_abort:
+	xor	a					; Clear A
+	cp	b					; Check if there's anything to remove from the stack
+	jr	z, input_hex16_abort_end		; Nothing to pop, so finish
+input_hex16_abort_loop:
+	pop	af					; Pop digit
+	djnz	input_hex16_abort_loop			; Keep looping until all digits removed
+input_hex16_abort_end:
+	ld	de, 0x0000				; Zero register
+	scf						; Clear Carry flag
+	ccf
+	ret
+input_hex16_complete:
+	ld	de, 0x0000				; Zero register
+	xor	a					; Clear A
+	cp	b					; Check if there's anything to remove from the stack
+	jr	z, input_hex16_complete_end		; Nothing to pop, so finish
+input_hex16_complete_loop:
+	; Make some room for a nibble
+	sla	e					; Left shift into Carry LSB (bit 1)
+	rla	d					; Left shift using Carry MSB
+	sla	e					; Left shift into Carry LSB (bit 2)
+	rla	d					; Left shift using Carry MSB
+	sla	e					; Left shift into Carry LSB (bit 3)
+	rla	d					; Left shift using Carry MSB
+	sla	e					; Left shift into Carry LSB (bit 4)
+	rla	d					; Left shift using Carry MSB
+	; Add digit
+	pop	af					; Pop digit
+	or	e					; OR bits from E (LSB) and digit
+	ld	e, a					; Move combined digit back to LSB
+	djnz	input_hex16_complete_loop		; Keep looping until all digits removed
+input_hex16_complete_end:
+	scf						; Set Carry flag
+	ret
 
 ; # Memory routines
 ; ###########################################################################
@@ -1056,6 +1219,21 @@ command_help_external_commands_loop:
 command_help_end:
 	jp	print_newline					; Print newline and return
 
+; # command_location_new
+; #################################
+;  Sets the monitor pointer to where default operations are performed
+command_location_new:
+	ld	hl, str_prompt6
+	call	print_cstr
+
+	jp	print_newlinex2
+
+;        acall   ghex16
+;        jc      abort2
+;        jb      psw.5, abort2
+;        acall   dptrtor6r7
+;        ajmp    newline2
+
 ; # menu_main
 ; #################################
 ;  Implements interactive menu
@@ -1134,13 +1312,25 @@ menu_main_builtin_list_modules:
 	jp	module_list_commands			; Run command
 menu_main_builtin_dump_registers:
 	cp	command_key_regdump			; Check if dump registers key
-	jr	nz, menu_main_builtin_run		; If not, next command
+	jr	nz, menu_main_builtin_location_new	; If not, next command
 	ld	hl, str_tag_regdump
 	call	print_cstr				; Print message
 	jp	print_registers				; Run command
-menu_main_builtin_run:
+menu_main_builtin_location_new:
+	cp	command_key_new_locat			; Check if new location key
+	jr	nz, menu_main_builtin_jump		; If not, next command
+	ld	hl, str_tag_nloc
+	call	print_cstr				; Print message
+	jp	command_location_new			; Run command
 
-;menu1d:
+menu_main_builtin_jump:
+
+;	cjne	a, #jump_key, menu1i
+;	mov	dptr, #jump_cmd
+;	acall	pcstr_h
+;	ajmp	jump
+
+menu_main_builtin_run:
 ;	cjne	a, #run_key, menu1e
 ;	mov	dptr, #run_cmd
 ;	acall	pcstr_h
@@ -1156,15 +1346,7 @@ menu_main_builtin_run:
 ;	acall	pcstr_h
 ;	ajmp	upld
 ;menu1g:
-;	cjne	a, #nloc_key, menu1h
-;	mov	dptr, #nloc_cmd
-;	acall	pcstr_h
-;	ajmp	nloc
 ;menu1h:
-;	cjne	a, #jump_key, menu1i
-;	mov	dptr, #jump_cmd
-;	acall	pcstr_h
-;	ajmp	jump
 ;menu1i:
 ;	cjne	a, #dump_key, menu1j
 ;	mov	dptr, #dump_cmd
@@ -1531,173 +1713,6 @@ erfr_err: 		db	31,133,155,13,14
 ;dptrtor6r7:
 ;	mov	r6, dpl
 ;	mov	r7, dph
-;	ret
-;
-;;clearing ti before reading sbuf takes care of the case where
-;;interrupts may be enabled... if an interrupt were to happen
-;;between those two instructions, the serial port will just
-;;wait a while, but in the other order and the character could
-;;finish transmitting (during the interrupt routine) and then
-;;ti would be cleared and never set again by the hardware, causing
-;;the next call to cout to hang forever!
-;
-;	;get 2 digit hex number from serial port
-;	; c = set if ESC pressed, clear otherwise
-;	; psw.5 = set if return w/ no input, clear otherwise
-;ghex:
-;ghex8:	clr	psw.5
-;ghex8c:
-;	acall	input_character_filter_h	;get first digit
-;	acall	char_2_upper
-;	cjne	a, #27, ghex8f
-;ghex8d: setb	c
-;	clr	a
-;	ret
-;ghex8f: cjne	a, #13, ghex8h
-;	setb	psw.5
-;	clr	c
-;	clr	a
-;	ret
-;ghex8h: mov	r2, a
-;	acall	asc2hex
-;	jc	ghex8c
-;	xch	a, r2		;r2 will hold hex value of 1st digit
-;	acall	cout
-;ghex8j:
-;	acall	input_character_filter_h	;get second digit
-;	acall	char_2_upper
-;	cjne	a, #27, ghex8k
-;	sjmp	ghex8d
-;ghex8k: cjne	a, #13, ghex8m
-;	mov	a, r2
-;	clr	c
-;	ret
-;ghex8m: cjne	a, #8, ghex8p
-;ghex8n: acall	cout
-;	sjmp	ghex8c
-;ghex8p: cjne	a, #21, ghex8q
-;	sjmp	ghex8n
-;ghex8q: mov	r3, a
-;	acall	asc2hex
-;	jc	ghex8j
-;	xch	a, r3
-;	acall	cout
-;	mov	a, r2
-;	swap	a
-;	orl	a, r3
-;	clr	c
-;	ret
-;
-;
-;
-;
-;	;carry set if esc pressed
-;	;psw.5 set if return pressed w/ no input
-;ghex16:
-;	mov	r2, #0		;start out with 0
-;	mov	r3, #0
-;	mov	r4, #4		;number of digits left
-;	clr	psw.5
-;
-;ghex16c:
-;	acall	input_character_filter_h
-;	acall	char_2_upper
-;	cjne	a, #27, ghex16d
-;	setb	c		;handle esc key
-;	clr	a
-;	mov	dph, a
-;	mov	dpl, a
-;	ret
-;ghex16d:cjne	a, #8, ghex16f
-;	sjmp	ghex16k
-;ghex16f:cjne	a, #127, ghex16g  ;handle backspace
-;ghex16k:cjne	r4, #4, ghex16e	  ;have they entered anything yet?
-;	sjmp	ghex16c
-;ghex16e:acall	cout
-;	acall	ghex16y
-;	inc	r4
-;	sjmp	ghex16c
-;ghex16g:cjne	a, #13, ghex16i	  ;return key
-;	mov	dph, r3
-;	mov	dpl, r2
-;	cjne	r4, #4, ghex16h
-;	clr	a
-;	mov	dph, a
-;	mov	dpl, a
-;	setb	psw.5
-;ghex16h:clr	c
-;	ret
-;ghex16i:mov	r5, a		  ;keep copy of original keystroke
-;	acall	asc2hex
-;	jc	ghex16c
-;	xch	a, r5
-;	lcall	cout
-;	mov	a, r5
-;	push	acc
-;	acall	ghex16x
-;	pop	acc
-;	add	a, r2
-;	mov	r2, a
-;	clr	a
-;	addc	a, r3
-;	mov	r3, a
-;	djnz	r4, ghex16c
-;	clr	c
-;	mov	dpl, r2
-;	mov	dph, r3
-;	ret
-;
-;ghex16x:  ;multiply r3-r2 by 16 (shift left by 4)
-;	mov	a, r3
-;	swap	a
-;	anl	a, #11110000b
-;	mov	r3, a
-;	mov	a, r2
-;	swap	a
-;	anl	a, #00001111b
-;	orl	a, r3
-;	mov	r3, a
-;	mov	a, r2
-;	swap	a
-;	anl	a, #11110000b
-;	mov	r2, a
-;	ret
-;
-;ghex16y:  ;divide r3-r2 by 16 (shift right by 4)
-;	mov	a, r2
-;	swap	a
-;	anl	a, #00001111b
-;	mov	r2, a
-;	mov	a, r3
-;	swap	a
-;	anl	a, #11110000b
-;	orl	a, r2
-;	mov	r2, a
-;	mov	a, r3
-;	swap	a
-;	anl	a, #00001111b
-;	mov	r3, a
-;	ret
-;
-;
-;	;carry set if invalid input
-;asc2hex:
-;	add	a, #208
-;	jnc	hex_not
-;	add	a, #246
-;	jc	hex_maybe
-;	add	a, #10
-;	clr	c
-;	ret
-;hex_maybe:
-;	add	a, #249
-;	jnc	hex_not
-;	add	a, #250
-;	jc	hex_not
-;	add	a, #16
-;	clr	c
-;	ret
-;hex_not:setb	c
 ;	ret
 ;
 ;
@@ -2391,15 +2406,6 @@ erfr_err: 		db	31,133,155,13,14
 ;	sjmp	clrm3
 ;
 ;;---------------------------------------------------------;
-;
-;nloc:
-;	mov	dptr, #prompt6
-;	acall	pcstr_h
-;	acall	ghex16
-;	jc	abort2
-;	jb	psw.5, abort2
-;	acall	dptrtor6r7
-;	ajmp	newline2
 ;
 ;;---------------------------------------------------------;
 ;
