@@ -527,7 +527,7 @@ nc100_keyboard_char_in_capslock_update_end:
 	or	nc100_keyboard_controller_capslock_key			; Add capslock key state flag
 	xor	l							; Flip flag(s) state
 	ld	l, a							; Save controller state
-	ld	(nc100_keyboard_controller_state), l			; Really save controller state
+	ld	(nc100_keyboard_controller_state), a			; Really save controller state
 
 nc100_keyboard_char_in_check:
 	ld	a, h							; Get character count
@@ -539,8 +539,10 @@ nc100_keyboard_char_in_check:
 	jr	z, nc100_keyboard_char_in_none
 	ld	a, d							; Reload character value
 
-	ld	(nc100_keyboard_raw_control_prev), b			; Update the previous state variables
-	ld	(nc100_keyboard_raw_keycode_prev), d
+	ld	a, b
+	ld	(nc100_keyboard_raw_control_prev), a			; Update the previous state variable
+	ld	a, d
+	ld	(nc100_keyboard_raw_keycode_prev), a			; Update the previous state variable
 	exx								; Swap out shadow registers
 	scf								; Set Carry flag (valid character)
 	ret
@@ -947,7 +949,7 @@ system_init:
 ; #                                                                         #
 ; ###########################################################################
 
-orgmem	nc100_cmd_base+0x1000
+orgmem	nc100_cmd_base+0x0100
 	db	0xA5,0xE5,0xE0,0xA5					; signiture bytes
 	db	253,',',0,0						; id (249=init)
 	db	0,0,0,0							; prompt code vector
@@ -958,7 +960,7 @@ orgmem	nc100_cmd_base+0x1000
 	db	255,255,255,255						; length and checksum (255=unused)
 	db	"Startup Command",0
 
-orgmem	nc100_cmd_base+0x1040						; executable code begins here
+orgmem	nc100_cmd_base+0x0140						; executable code begins here
 startup_cmd:
 	rst	16							; Continue boot
 
@@ -968,7 +970,7 @@ startup_cmd:
 ; #                                                                         #
 ; ###########################################################################
 
-orgmem  nc100_cmd_base+0x2000
+orgmem  nc100_cmd_base+0x0500
 	db	0xA5,0xE5,0xE0,0xA5					; signiture bytes
 	db	254,'!',0,0						; id (254=cmd)
 	db	0,0,0,0							; prompt code vector
@@ -979,5 +981,5 @@ orgmem  nc100_cmd_base+0x2000
 	db	255,255,255,255						; length and checksum (255=unused)
 	db	"System config",0
 
-orgmem  nc100_cmd_base+0x2040
+orgmem  nc100_cmd_base+0x0540
 setup_cmd:
