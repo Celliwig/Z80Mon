@@ -1126,7 +1126,7 @@ menu_main_builtin_help:
 	cp	command_key_help			; Check if help key
 	jr	nz, menu_main_builtin_list_modules	; If not, next command
 	ld	hl, str_tag_help2
-	call	print_str				; Print message
+	call	print_cstr				; Print message
 	jp	command_help				; Run command
 menu_main_builtin_list_modules:
 
@@ -1188,15 +1188,9 @@ menu_main_builtin_list_modules:
 ;	acall	pcstr_h
 ;	ljmp	intm
 ;menu1n:
-;
-;    ;invalid input, no commands to run...
-;menu_end:			;at this point, we have not found
-;	ajmp	newline		;anything to run, so we give up.
-;				;remember, we pushed menu, so newline
-;				;will just return to menu.
-;
 
-	jp	stop_loop
+menu_main_end:
+	jp	print_newline				; This will return to menu_main
 
 ; # Startup routines
 ; ###########################################################################
@@ -1266,10 +1260,7 @@ startup_final:
 
 	call	module_list_commands			; Print included commands
 
-;	jp	menu_main				; Enter main menu
-
-	call	command_help
-	jp	stop_loop
+	jp	menu_main				; Enter main menu
 
 ; # stop_loop
 ; #################################
