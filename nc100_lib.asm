@@ -7,7 +7,7 @@ nc100_cmd_base:				equ	nc100_lib_base+0x1000	; nc100_lib commands offset
 
 ; # Library variable storage
 ; ###########################################################################
-orgmem	mon_base-0x1f
+orgmem	mon_base-0x20
 nc100_raster_start_addr:		dw	0x0000			; Address of LCD raster memory
 ; Possibly move these into the raster memory
 ; Last 4 bytes of each line are not used
@@ -509,10 +509,9 @@ nc100_keyboard_controller_capslock_on:	equ		1 << 1		; Bit: capslock state: 1 = O
 ;	Out:	A = ASCII character code
 ;	Carry flag set if character valid
 nc100_keyboard_char_in:
-	exx								; Swap in shadow registers
-	ld	bc, (nc100_keyboard_raw_control)			; B = nc100_keyboard_raw_control, C = nc100_keyboard_raw_control_prev
-	ld	de, (nc100_keyboard_raw_keycode)			; D = nc100_keyboard_raw_keycode, E = nc100_keyboard_raw_keycode_prev
-	ld	hl, (nc100_keyboard_raw_character_count)		; H = nc100_keyboard_raw_character_count, L = nc100_keyboard_controller_state
+	ld	bc, (nc100_keyboard_raw_control_prev)			; B = nc100_keyboard_raw_control, C = nc100_keyboard_raw_control_prev
+	ld	de, (nc100_keyboard_raw_keycode_prev)			; D = nc100_keyboard_raw_keycode, E = nc100_keyboard_raw_keycode_prev
+	ld	hl, (nc100_keyboard_controller_state)			; H = nc100_keyboard_raw_character_count, L = nc100_keyboard_controller_state
 
 nc100_keyboard_char_in_capslock_update:
 	ld	a, b							; Diff current/previous control key state
@@ -527,7 +526,7 @@ nc100_keyboard_char_in_capslock_update_end:
 	or	nc100_keyboard_controller_capslock_key			; Add capslock key state flag
 	xor	l							; Flip flag(s) state
 	ld	l, a							; Save controller state
-	ld	(nc100_keyboard_controller_state), a			; Really save controller state
+	ld	(nc100_keyboard_controller_state), hl			; Really save controller state
 
 nc100_keyboard_char_in_check:
 	ld	a, h							; Get character count
@@ -535,19 +534,17 @@ nc100_keyboard_char_in_check:
 	jr	nz, nc100_keyboard_char_in_none				; If no character, return
 
 	ld	a, d							; Load character code
-	and	e							; Check if key changed
+	xor	e							; Check if key changed
 	jr	z, nc100_keyboard_char_in_none
 	ld	a, d							; Reload character value
 
-	ld	a, b
-	ld	(nc100_keyboard_raw_control_prev), a			; Update the previous state variable
-	ld	a, d
-	ld	(nc100_keyboard_raw_keycode_prev), a			; Update the previous state variable
-	exx								; Swap out shadow registers
+	ld	e, d							; Update previous state information
+	ld	c, b
+	ld	(nc100_keyboard_raw_control_prev), bc			; Update the previous state variable
+	ld	(nc100_keyboard_raw_keycode_prev), de			; Update the previous state variable
 	scf								; Set Carry flag (valid character)
 	ret
 nc100_keyboard_char_in_none:
-	exx								; Swap out shadow registers
 	scf								; Clear Carry flag (invalid character)
 	ccf
 	ret
@@ -593,7 +590,12 @@ nc100_console_char_out_exit:
 ;	Out:    A = ASCII character code
 ;	Carry flag set if character valid
 nc100_console_char_in:
-	jp	nc100_keyboard_char_in
+	exx
+nc100_console_char_in_loop:
+	call	nc100_keyboard_char_in
+	jr	nc, nc100_console_char_in_loop
+	exx
+	ret
 
 ; # Interrupt handlers
 ; ###########################################################################
