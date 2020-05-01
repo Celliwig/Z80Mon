@@ -189,9 +189,9 @@ print_newlinex2:					; Print two newlines
 ; #################################
 ;  Print a new line
 print_newline:
-	ld	a, 0x0d
+	ld	a, character_code_carriage_return
 	call	monlib_console_out
-	ld	a, 0x0a
+	ld	a, character_code_linefeed
 	call	monlib_console_out
 	ret
 

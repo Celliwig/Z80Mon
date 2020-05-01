@@ -570,12 +570,12 @@ nc100_console_char_out:
 	exx								; Swap out registers
 	ld	de, (nc100_lcd_pos_xy)					; Load cursor X/Y position
 nc100_console_char_out_check_lf:
-	cp	0x0a							; Check for LF (line feed)
+	cp	character_code_linefeed					; Check for LF (line feed)
 	jr	nz, nc100_console_char_out_check_cr
 	call	nc100_console_linefeed
 	jr	nc100_console_char_out_exit
 nc100_console_char_out_check_cr:
-	cp	0x0d							; Check for CR (carriage return)
+	cp	character_code_carriage_return				; Check for CR (carriage return)
 	jr	nz, nc100_console_char_out_print_glyph
 	call	nc100_console_carriage_return
 	jr	nc100_console_char_out_exit
