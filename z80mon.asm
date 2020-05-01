@@ -528,6 +528,13 @@ dictionary_get_next_nibble_top:
 	res	7, b					; Select bottom nibble on the next read
 	ret
 
+; # print_abort
+; #################################
+;  Print the abort string
+print_abort:
+	ld	hl, str_abort
+	jp	print_cstr
+
 ; # print_registers
 ; #################################
 ;  Print out the contents of all registers (without altering them!)
@@ -897,7 +904,7 @@ input_hex16_get_char:
 	call	input_character_filter			; Get character
 	call	char_2_upper
 input_hex16_process_char:
-	call	c, a					; Copy character
+	ld	c, a					; Copy character
 
 	cp	character_code_escape			; Check whether character is escape key
 	jr	z, input_hex16_abort
@@ -942,24 +949,36 @@ input_hex16_abort_end:
 	ret
 input_hex16_complete:
 	ld	de, 0x0000				; Zero register
+	ld	c, b					; Swap number of digits
+	ld	b, 4					; Total number of shifts
 	xor	a					; Clear A
-	cp	b					; Check if there's anything to remove from the stack
+	cp	c					; Check if there's anything to remove from the stack
 	jr	z, input_hex16_complete_end		; Nothing to pop, so finish
 input_hex16_complete_loop:
 	; Make some room for a nibble
-	sla	e					; Left shift into Carry LSB (bit 1)
-	rla	d					; Left shift using Carry MSB
-	sla	e					; Left shift into Carry LSB (bit 2)
-	rla	d					; Left shift using Carry MSB
-	sla	e					; Left shift into Carry LSB (bit 3)
-	rla	d					; Left shift using Carry MSB
-	sla	e					; Left shift into Carry LSB (bit 4)
-	rla	d					; Left shift using Carry MSB
+	srl	d					; Right shift into Carry MSB (bit 1)
+	rr	e
+	srl	d					; Right shift into Carry MSB (bit 2)
+	rr	e
+	srl	d					; Right shift into Carry MSB (bit 3)
+	rr	e
+	srl	d					; Right shift into Carry MSB (bit 4)
+	rr	e
+
+	xor	a					; Clear A
+	cp	c					; Check whether we have all the digits
+	jr	z, input_hex16_complete_check_remainder
 	; Add digit
 	pop	af					; Pop digit
-	or	e					; OR bits from E (LSB) and digit
-	ld	e, a					; Move combined digit back to LSB
-	djnz	input_hex16_complete_loop		; Keep looping until all digits removed
+	sla	a					; Shit digit in to upper nibble
+	sla	a
+	sla	a
+	sla	a
+	or	d					; OR bits from D (LSB) and shifted digit
+	ld	d, a					; Save combined digit
+	dec	c					; Decrement digit count
+input_hex16_complete_check_remainder:
+	djnz	input_hex16_complete_loop		; Keep looping until all digits moved
 input_hex16_complete_end:
 	scf						; Set Carry flag
 	ret
@@ -1217,22 +1236,18 @@ command_help_external_commands_loop:
 	jr	command_help_external_commands_loop	; Loop around again
 
 command_help_end:
-	jp	print_newline					; Print newline and return
+	jp	print_newline				; Print newline and return
 
 ; # command_location_new
 ; #################################
 ;  Sets the monitor pointer to where default operations are performed
 command_location_new:
-	ld	hl, str_prompt6
+	ld	hl, str_prompt6				; Print location prompt
 	call	print_cstr
-
-	jp	print_newlinex2
-
-;        acall   ghex16
-;        jc      abort2
-;        jb      psw.5, abort2
-;        acall   dptrtor6r7
-;        ajmp    newline2
+	call	input_hex16				; Get value
+	jp	nc, print_abort				; If escaped, print abort message
+	ld	(z80mon_current_addr), de		; Save value
+	jp	print_newline
 
 ; # menu_main
 ; #################################
@@ -1288,7 +1303,6 @@ menu_main_external_commands_exec:
 ;        command_key_run:                equ     '@'             ; Run program
 ;        command_key_download:           equ     'D'             ; Download
 ;        command_key_upload:             equ     'U'             ; Upload
-;        command_key_new_locat:          equ     'N'             ; New memory location
 ;        command_key_jump:               equ     'J'             ; Jump to memory location
 ;        command_key_hexdump:            equ     'H'             ; Hex dump memory
 ;        command_key_edit:               equ     'E'             ; Edit memory
@@ -1577,7 +1591,8 @@ str_prompt3:		db	134,202,130,'(',0					; run which program(
 str_prompt4:		db	"),",149,140,128,200,": ",0				; ), or esc to quit:
 str_prompt5:		db	31,151,130,195,"s",199,166,131,","
 			db	186," JUMP",128,134,161,"r",130,13,14			; No program headers found in memory, use JUMP to run your program
-str_prompt6:		db	13,13,31,135,131,129,": ",0				; \n\nNew memory location:
+;str_prompt6:		db	13,13,31,135,131,129,": ",0				; \n\nNew memory location: (OLD)
+str_prompt6:		db	13,31,135,131,129,": ",0				; \nNew memory location:
 str_prompt7:		db	31,228,251," key: ",0					; Press any key:
 str_prompt8:		db	13,13,31,136,128,131,129," (",0				; \n\nJump to memory location (
 ;str_prompt9:		db	13,13,31,130,31,253,0					; \n\nProgram Name (OLD)
@@ -1606,9 +1621,9 @@ str_tag_clrm: 		db	31,237,131,0						; Clear memory
 
 str_help1:		db	13,13,"Standard",31,158,"s",14				; \n\nStandard Commands
 str_help2:		db	31,218,31,244,"ed",31,158,"s",14			; User Installed Commands
+;str_abort:		db	" ",31,158,31,160,"!",13,14				;  Command Abort!\n\n
+str_abort:		db	" ",31,158,31,160,"!",14				;  Command Abort!\n
 
-
-abort:			db	" ",31,158,31,160,"!",13,14
 beg_str:		db	"First",31,129,": ",0
 end_str:		db	"Last",31,129,":",32,32,0
 sure:			db	31,185,161," sure?",0
