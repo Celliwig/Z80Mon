@@ -25,7 +25,7 @@ command_key_clrmem:	equ	'C'			; Clear memory
 ; # ASCII character codes
 ; ###########################################################################
 character_code_backspace:		equ	0x08	; Backspace ASCII code
-character_code_tab			equ	0x09	; TAB ASCII code
+character_code_tab:			equ	0x09	; TAB ASCII code
 character_code_linefeed:		equ	0x0a	; Line Feed ASCII code
 character_code_carriage_return:		equ	0x0d	; Carriage Return ASCII code
 character_code_escape:			equ	0x1b	; Escape ASCII code

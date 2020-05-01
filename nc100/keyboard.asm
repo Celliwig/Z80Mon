@@ -78,6 +78,10 @@ nc100_keyboard_char_in_check:
 	scf								; Set Carry flag (valid character)
 	ret
 nc100_keyboard_char_in_none:
+	ld	e, d							; Update previous state information
+	ld	c, b
+	ld	(nc100_keyboard_raw_control_prev), bc			; Update the previous state variable
+	ld	(nc100_keyboard_raw_keycode_prev), de			; Update the previous state variable
 	scf								; Clear Carry flag (invalid character)
 	ccf
 	ret
