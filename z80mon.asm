@@ -26,17 +26,17 @@
 	mem_srch_end:		equ	0xFFFF		; Address to stop search
 	mon_base:		equ	0x0100		; Monitor base address
 
-	key_help:		equ	'?'		; Help screen
-	key_dir:		equ	'M'		; Directory list
-	key_run:		equ	'@'		; Run program
-	key_download:		equ	'D'		; Download
-	key_upload:		equ	'U'		; Upload
-	key_new_locat:		equ	'N'		; New memory location
-	key_jump:		equ	'J'		; Jump to memory location
-	key_hexdump:		equ	'H'		; Hex dump memory
-	key_regdump:		equ	'R'		; Dump register data
-	key_edit:		equ	'E'		; Edit memory
-	key_clrmem:		equ	'C'		; Clear memory
+	command_key_help:	equ	'?'		; Help screen
+	command_key_listm:	equ	'M'		; Directory list
+	command_key_run:	equ	'@'		; Run program
+	command_key_download:	equ	'D'		; Download
+	command_key_upload:	equ	'U'		; Upload
+	command_key_new_locat:	equ	'N'		; New memory location
+	command_key_jump:	equ	'J'		; Jump to memory location
+	command_key_hexdump:	equ	'H'		; Hex dump memory
+	command_key_regdump:	equ	'R'		; Dump register data
+	command_key_edit:	equ	'E'		; Edit memory
+	command_key_clrmem:	equ	'C'		; Clear memory
 
 ; # Architecture Jump Table
 ; ###########################################################################
@@ -183,6 +183,25 @@ print_spaces_n:
 	jr	nz, print_spaces_n
 print_spaces_n_exit:
 	ret
+
+; # print_dash
+; #################################
+;  Print '-'
+print_dash:
+	ld	a, '-'
+	jp	monlib_console_out
+; # print_dash_spaces
+; #################################
+;  Print ' - '
+print_dash_spaces:
+	call	print_space
+	call	print_dash
+	jr	print_space
+
+;cout_sp:acall	cout
+;	ajmp	space
+;	nop
+;
 
 ; # print_newlinex2
 ; #################################
@@ -810,6 +829,7 @@ memory_copy:
 ;		IX = Return address
 ;  	Out:	BC = location of next module
 ;		A = module type, or unset if no module found
+;		Carry flag is set on success, Carry flag is unset on failure
 module_find:
 	ld	l, 0x0					; Make sure we are on a boundary
 	ld	b, h					; Copy HL -> BC
@@ -832,6 +852,7 @@ module_find:
 	jr	nz, module_find_next			; Not equal, so check next range
 	inc	hl					; Increment pointer
 	ld	a, (hl)					; Get module type
+	scf						; Set Carry flag
 	jp	(ix)					; Resume execution from where we left off
 module_find_next:
 	ld	a, d					; Get end address MSB
@@ -841,24 +862,29 @@ module_find_next:
 	jr	module_find				; Repeat search
 module_find_end:
 	xor	a					; Clear A to indicate no module
+	scf						; Clear Carry flag
+	ccf
 	jp	(ix)					; Resume execution from where we left off
 
 ; # module_search
 ; #################################
 ;  Finds the next header in the external memory.
 ;	In:	A = Module type to search for
+;		HL = Address to start searching from
 ;	Out:	HL = location of next module
 ;		Carry flag is set on success, Carry flag is unset on failure
 module_search:
-	ld	hl, mem_srch_start			; Set search start
 	ld	de, mem_srch_end			; Set search end
+	inc	d					; Increment search end address (so as to search up to and including)
 	ld	ix, module_search_reenter		; Set return address
 	ex	af, af'					; Swap out module type
 module_search_next:
+	ld	a, d					; Copy end search pointer MSB for compare
+	cp	h					; Check whether we are at the end of the search space
+	jr	z, module_search_failed			; We've reached the end, so we've failed to find a module
 	jr	module_find
 module_search_reenter:
-	cp	0x00					; Check if we have a module
-	jr	z, module_search_failed			; If not, return
+	jr	nc, module_search_failed		; No module, exit
 	ld	h, b					; Copy BC -> HL
 	ld	l, c
 	ld	b, a					; Copy module type
@@ -866,9 +892,6 @@ module_search_reenter:
 	cp	b					; Check module type
 	jr	z, module_search_end			; If they're the same, return
 	ex	af, af'					; Swap out module type
-	ld	a, d					; Copy end search pointer MSB for compare
-	cp	h					; Check whether we are at the end of the search space
-	jr	z, module_search_failed			; We've reached the end, so we've failed to find a module
 	inc	h					; Increment pointer MSB
 	jr	module_search_next			; Continue search
 module_search_end:
@@ -957,10 +980,85 @@ module_list_commands_exit:
 
 ; # Main routines
 ; ###########################################################################
-; # main_menu
+
+; # command_help_line_print
+; #################################
+;  Prints a line of help text
+;	In:	B = Command key
+;		HL = Command help string
+command_help_line_print:
+	call	print_spacex2
+	ld	a, b
+	call	monlib_console_out
+	call	print_dash_spaces
+	call	print_cstr
+	jp	print_newline
+
+; # command_help
+; #################################
+;  Prints help text
+command_help:
+command_help_internal_commands:
+	ld	hl, str_help1
+	call	print_cstr
+
+	ld	b, command_key_help
+	ld	hl, str_tag_help1
+	call	command_help_line_print
+	ld	b, command_key_listm
+	;ld	hl, str_tag_listm
+	call	command_help_line_print
+	ld	b, command_key_run
+	;ld	hl, str_tag_run
+	call	command_help_line_print
+	ld	b, command_key_download
+	;ld	hl, str_tag_dnld
+	call	command_help_line_print
+	ld	b, command_key_upload
+	;ld	hl, str_tag_upld
+	call	command_help_line_print
+	ld	b, command_key_new_locat
+	;ld	hl, str_tag_nloc
+	call	command_help_line_print
+	ld	b, command_key_jump
+	;ld	hl, str_tag_jump
+	call	command_help_line_print
+	ld	b, command_key_hexdump
+	;ld	hl, str_tag_dump
+	call	command_help_line_print
+	ld	b, command_key_regdump
+	;ld	hl, str_tag_regdump
+	call	command_help_line_print
+	ld	b, command_key_clrmem
+	;ld	hl, str_tag_clrm
+	call	command_help_line_print
+
+command_help_external_commands:
+	ld	hl, str_help2
+	call	print_cstr
+	ld	hl, mem_srch_start			; Set search start
+command_help_external_commands_loop:
+	ld	a, 0xfe					; Search for external command
+	call	module_search
+	jr	nc, command_help_end			; No command found so finish
+	call	print_spacex2
+	ld	l, 0x05					; Offset to module command character
+	ld	a, (hl)					; Get module command character
+	call	monlib_console_out			; Print character
+	call	print_dash_spaces
+	ld	l, 0x20					; Offset to module name
+	call	print_str				; Print module name
+	call	print_newline
+	inc	h					; Increment module search start address
+	jr	command_help_external_commands_loop	; Loop around again
+
+command_help_end:
+	jp	print_newline					; Print newline and return
+
+; # menu_main
 ; #################################
 ;  Implements interactive menu
-main_menu:
+menu_main:
 	; First we print out the prompt, which isn't as simple
 	; as it may seem, since external code can add to the
 	; prompt, so we've got to find and execute all of 'em.
@@ -971,96 +1069,99 @@ main_menu:
 	;ld	hl, str_prompt2				; Second part of the prompt
 	call	print_str
 
-;	mov	dptr, #prompt1	  ;give 'em the first part of prompt
-;	acall	pcstr_h
-;	mov	a, r7
-;	acall	phex
-;	mov	a, r6
-;	acall	phex
-;	;mov	 dptr, #prompt2
-;	acall	pstr
-;
-;;now we're finally past the prompt, so let's get some input
-;	acall	input_character_filter_h	;get the input, finally
-;	cjne	a, #':', menu0
-;	acall	dnld_now
-;	sjmp	menu
-;menu0:	acall	char_2_upper
-;
-;;push return address onto stack so we can just jump to the program
-;	mov	b, #(menu & 255)  ;we push the return address now,
-;	push	b		  ;to save code later...
-;	mov	b, #(menu >> 8)	  ;if bogus input, just ret for
-;	push	b		  ;another prompt.
-;
-;
-;
-;;first we'll look through memory for a program header that says
-;;it's a user installed command which matches what the user pressed
-;
-;;user installed commands need to avoid changing R6/R7, which holds
-;;the memory pointer.  The stack pointer can't be changed obviously.
-;;all the other general purpose registers should be available for
-;;user commands to alter as they wish.
-;
-;menux:	mov	b, a		;now search for external commands...
-;	mov	dptr, #bmem
-;menux1: acall	module_find
-;	jnc	menuxend	   ;searched all the commands?
-;	mov	dpl, #4
-;	clr	a
-;	movc	a,@a+dptr
-;	cjne	a, #254, menux2	 ;only FE is an ext command
-;	inc	dpl
-;	clr	a
-;	movc	a,@a+dptr
-;	cjne	a, b, menux2	  ;only run if they want it
-;	acall	space
-;	mov	dpl, #32
-;	acall	pstr		   ;print command name
-;	acall	newline
-;	mov	dpl, #64
-;	clr	a
-;	jmp	@a+dptr		;take a leap of faith and jump to it!
-;menux2: inc	dph
-;	mov	a, dph
-;	cjne	a, #((emem+1) >> 8) & 255, menux1
-;menuxend:
-;	mov	a, b
-;
-;
-;;since we didn't find a user installed command, use the builtin ones
-;
-;menu1a:
-;menu1b:	cjne	a, #help_key, menu1c
-;	mov	dptr, #help_cmd2
-;	acall	pcstr_h
-;	ajmp	help
-;menu1c: cjne	a, #dir_key, menu1d
+	call	input_character_filter			; Get character input
+
+;	cp	':'					; Check for ':' from pushing a HEX file from a terminal
+;	jr	nz, menu_main_push_address
+;	call	dnld_now
+;	jr	menu_main
+
+menu_main_push_address:
+	call	char_2_upper				; Convert to uppercase to simplify matching
+	ld	bc, menu_main
+	push	bc					; Push menu_main address to stack to make returning easier
+	push	af					; Save command character
+
+menu_main_external_commands:
+	ld	hl, mem_srch_start			; Set search start
+menu_main_external_commands_loop:
+	ld	a, 0xfe					; Search for startup application
+	call	module_search
+	jr	nc, menu_main_builtin_commands		; No command found so procede with builtin commands
+	pop	bc					; Restore command character
+	ld	l, 0x05					; Offset to module command character
+	ld	a, (hl)					; Get module command character
+	cp	b					; Are they the same character?
+	jr	z, menu_main_external_commands_exec	; Execute external command
+	push	bc					; Store command character again
+	inc	h					; Increment module search start address
+	jr	menu_main_external_commands_loop	; Loop around again
+menu_main_external_commands_exec:
+	call	print_space
+	ld	l, 0x20					; Offset to module command name
+	call	print_str				; Print module command name
+	call	print_newline
+	ld	l, 0x40					; Offset to module code
+	xor	a
+	jp	(hl)
+
+;/////////////////////////////////////////////////////////////////////////////////////////////////
+;        command_key_help:               equ     '?'             ; Help screen
+;        command_key_listm:              equ     'M'             ; Directory list
+;        command_key_run:                equ     '@'             ; Run program
+;        command_key_download:           equ     'D'             ; Download
+;        command_key_upload:             equ     'U'             ; Upload
+;        command_key_new_locat:          equ     'N'             ; New memory location
+;        command_key_jump:               equ     'J'             ; Jump to memory location
+;        command_key_hexdump:            equ     'H'             ; Hex dump memory
+;        command_key_regdump:            equ     'R'             ; Dump register data
+;        command_key_edit:               equ     'E'             ; Edit memory
+;        command_key_clrmem:             equ     'C'             ; Clear memory
+;/////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+menu_main_builtin_commands:
+	pop	af					; Restore command character
+menu_main_builtin_help:
+	cp	command_key_help			; Check if help key
+	jr	nz, menu_main_builtin_list_modules	; If not, next command
+	ld	hl, str_tag_help2
+	call	print_str				; Print message
+	jp	command_help				; Run command
+menu_main_builtin_list_modules:
+
+;menu1c:
+;	cjne	a, #dir_key, menu1d
 ;	mov	dptr, #dir_cmd
 ;	acall	pcstr_h
 ;	ajmp	dir	(module_list_commands)
-;menu1d: cjne	a, #run_key, menu1e
+;menu1d:
+;	cjne	a, #run_key, menu1e
 ;	mov	dptr, #run_cmd
 ;	acall	pcstr_h
 ;	ajmp	run
-;menu1e: cjne	a, #dnld_key, menu1f
+;menu1e:
+;	cjne	a, #dnld_key, menu1f
 ;	mov	dptr, #dnld_cmd
 ;	acall	pcstr_h
 ;	ajmp	dnld
-;menu1f: cjne	a, #upld_key, menu1g
+;menu1f:
+;	cjne	a, #upld_key, menu1g
 ;	mov	dptr, #upld_cmd
 ;	acall	pcstr_h
 ;	ajmp	upld
-;menu1g: cjne	a, #nloc_key, menu1h
+;menu1g:
+;	cjne	a, #nloc_key, menu1h
 ;	mov	dptr, #nloc_cmd
 ;	acall	pcstr_h
 ;	ajmp	nloc
-;menu1h: cjne	a, #jump_key, menu1i
+;menu1h:
+;	cjne	a, #jump_key, menu1i
 ;	mov	dptr, #jump_cmd
 ;	acall	pcstr_h
 ;	ajmp	jump
-;menu1i: cjne	a, #dump_key, menu1j
+;menu1i:
+;	cjne	a, #dump_key, menu1j
 ;	mov	dptr, #dump_cmd
 ;	acall	pcstr_h
 ;	ajmp	dump
@@ -1069,17 +1170,20 @@ main_menu:
 ;;	mov	dptr, #edit_cmd
 ;;	acall	pcstr_h
 ;;	ajmp	edit
-;menu1k: cjne	a, #clrm_key, menu1l
+;menu1k:
+;	cjne	a, #clrm_key, menu1l
 ;	mov	dptr, #clrm_cmd
 ;	acall	pcstr_h
 ;	ajmp	clrm
-;menu1l: cjne	a, #erfr_key, menu1m
+;menu1l:
+;	cjne	a, #erfr_key, menu1m
 ;	mov	a, #has_flash
 ;	jz	menu_end
 ;	mov	dptr, #erfr_cmd
 ;	acall	pcstr_h
 ;	ajmp	erfr
-;menu1m: cjne	a, #intm_key, menu1n
+;menu1m:
+;	cjne	a, #intm_key, menu1n
 ;	mov	dptr, #intm_cmd
 ;	acall	pcstr_h
 ;	ljmp	intm
@@ -1138,6 +1242,7 @@ startup_cold_end:
 ; It's assumed that a stack is available at this point
 startup_warm:
 	ld	a, #253					; Search for startup application
+	ld	hl, mem_srch_start			; Set search start
 	call	module_search
 	jr	nc, startup_warm_end			; No module found, so finish
 
@@ -1161,7 +1266,10 @@ startup_final:
 
 	call	module_list_commands			; Print included commands
 
-	jp	main_menu				; Enter main menu
+;	jp	menu_main				; Enter main menu
+
+	call	command_help
+	jp	stop_loop
 
 ; # stop_loop
 ; #################################
@@ -1279,50 +1387,47 @@ str_reg_iy:		db	" IY =&",0
 str_reg_sp:		db	" SP =&",0
 str_reg_sra:		db	" SRA =&",0
 
-;; Welcome string
-;str_logon1:		db	"Welcome",128," z80Mon v0.1",13,14
-; Welcome string
-str_logon1:		db	"Welcome",128," z80Mon v0.1",14
-; Documentation string
+;str_logon1:		db	"Welcome",128," z80Mon v0.1",13,14			; Welcome string (OLD)
+str_logon1:		db	"Welcome",128," z80Mon v0.1",14				; Welcome string
 str_logon2:	 	db	32,32,"See",148,"2.DOC,",148,"2.EQU",164
-			db	148,"2.HDR",180,213,141,".",14
-;; Paulmon2 Loc:
-;str_prompt1:		db	148,"2 Loc:",0
-; Paulmon2 Loc:
-str_prompt1:		db	"z80Mon:",0
-;  > abort run which program(
-str_prompt2:		db	" >", 160						; must follow after prompt1
-; run which program(
-str_prompt3:		db	134,202,130,'(',0
-; ), or esc to quit:
-str_prompt4:		db	"),",149,140,128,200,": ",0
-; No program headers found in memory, use JUMP to run your program
+			db	148,"2.HDR",180,213,141,".",14				; Documentation string
+
+;str_prompt1:		db	148,"2 Loc:",0						; Paulmon2 Loc: (OLD)
+str_prompt1:		db	"z80Mon:",0						; z80Mon:
+str_prompt2:		db	" >", 160						;  > abort run which program(	(must follow after prompt1)
+str_prompt3:		db	134,202,130,'(',0					; run which program(
+str_prompt4:		db	"),",149,140,128,200,": ",0				; ), or esc to quit:
 str_prompt5:		db	31,151,130,195,"s",199,166,131,","
-			db	186," JUMP",128,134,161,"r",130,13,14
-; \n\nNew memory location:
-str_prompt6:		db	13,13,31,135,131,129,": ",0
-; Press any key:
-str_prompt7:		db	31,228,251," key: ",0
-; \n\nJump to memory location (
-str_prompt8:		db	13,13,31,136,128,131,129," (",0
-;; \n\nProgram Name
-;str_prompt9:		db	13,13,31,130,31,253,0
-; Program Name
-str_prompt9:		db	31,130,31,253,0
-; Location      Type
-str_prompt9b:		db	31,129,32,32,32,32,32,31,201,14				; must follow prompt9
-; ) New Value:
-str_prompt10:		db	") ",31,135,31,178,": ",0
-; External command
-str_type1:		db	31,154,158,0
-; Program
-str_type2:		db	31,130,0
-; Init
-str_type3:		db	"Init",0
-; Start Up Code
-str_type4:		db	31,143,31,226,31,170,0
-; ???
-str_type5:		db	"???",0
+			db	186," JUMP",128,134,161,"r",130,13,14			; No program headers found in memory, use JUMP to run your program
+str_prompt6:		db	13,13,31,135,131,129,": ",0				; \n\nNew memory location:
+str_prompt7:		db	31,228,251," key: ",0					; Press any key:
+str_prompt8:		db	13,13,31,136,128,131,129," (",0				; \n\nJump to memory location (
+;str_prompt9:		db	13,13,31,130,31,253,0					; \n\nProgram Name (OLD)
+str_prompt9:		db	31,130,31,253,0						; Program Name
+str_prompt9b:		db	31,129,32,32,32,32,32,31,201,14				; Location      Type	 (must follow prompt9)
+str_prompt10:		db	") ",31,135,31,178,": ",0				; ) New Value:
+str_type1:		db	31,154,158,0						; External command
+str_type2:		db	31,130,0						; Program
+str_type3:		db	"Init",0						; Init
+str_type4:		db	31,143,31,226,31,170,0					; Start Up Code
+str_type5:		db	"???",0							; ???
+
+str_tag_help2:		db	31,215,0						; Help
+str_tag_help1: 		db	31,142,215,209,0					; This help list (these 11 _cmd string must be in order)
+str_tag_listm:  	db	31,209,130,"s",0					; List Programs
+str_tag_run:  		db	31,134,130,0						; Run Program
+str_tag_dnld: 		db	31,138,0						; Download
+str_tag_upld: 		db	31,147,0						; Upload
+str_tag_nloc: 		db	31,135,129,0						; New Location
+str_tag_jump: 		db	31,136,128,131,129,0					; Jump to memory location
+;str_tag_dump: 		db	31,132,219,154,131,0					; Hex dump external memory (OLD)
+str_tag_dump: 		db	31,132,219,131,0					; Hex dump memory
+str_tag_regdump: 	db	31,219,31,196,0						; Dump Registers
+;str_tag_edit: 		db	31,156,154,146,0					; Editing external ram
+str_tag_clrm: 		db	31,237,131,0						; Clear memory
+
+str_help1:		db	13,13,"Standard",31,158,"s",14				; \n\nStandard Commands
+str_help2:		db	31,218,31,244,"ed",31,158,"s",14			; User Installed Commands
 
 
 abort:			db	" ",31,158,31,160,"!",13,14
@@ -1349,20 +1454,6 @@ dnlds13:		db	31,151,155," detected",13,14
 runs1:			db	13,134,"ning",130,":",13,14
 uplds3: 		db	13,13,"Sending",31,152,132,137,172,32,32,0
 uplds4: 		db	" ",128,32,32,0		;must follow uplds3
-help1txt:		db	13,13,"Standard",31,158,"s",14
-help2txt:		db	31,218,31,244,"ed",31,158,"s",14
-help_cmd2:		db	31,215,0
-help_cmd: 		db	31,142,215,209,0					; these 11 _cmd string must be in order
-dir_cmd:  		db	31,209,130,"s",0
-run_cmd:  		db	31,134,130,0
-dnld_cmd: 		db	31,138,0
-upld_cmd: 		db	31,147,0
-nloc_cmd: 		db	31,135,129,0
-jump_cmd: 		db	31,136,128,131,129,0
-dump_cmd: 		db	31,132,219,154,131,0
-intm_cmd: 		db	31,132,219,192,131,0
-edit_cmd: 		db	31,156,154,146,0
-clrm_cmd: 		db	31,237,131,0
 erfr_cmd: 		db	31,203,153,144,0
 erfr_ok:  		db	31,153,144,203,'d',13,14
 erfr_err: 		db	31,133,155,13,14
@@ -1445,18 +1536,6 @@ erfr_err: 		db	31,133,155,13,14
 ;	mov	r6, dpl
 ;	mov	r7, dph
 ;	ret
-;
-;dash:	mov	a, #'-'				; seems kinda trivial, but each time
-;	ajmp	cout				; this appears in code, it takes 4
-;	nop					; bytes, but an acall takes only 2
-;
-;cout_sp:acall	cout
-;	ajmp	space
-;	nop
-;
-;dash_sp:acall	dash
-;	ajmp	space
-;	nop
 ;
 ;;clearing ti before reading sbuf takes care of the case where
 ;;interrupts may be enabled... if an interrupt were to happen
@@ -2149,79 +2228,6 @@ erfr_err: 		db	31,133,155,13,14
 ;
 ;;---------------------------------------------------------;
 ;
-;help:
-;	mov	dptr, #help1txt
-;	acall	pcstr_h
-;	mov	r4, #help_key
-;	mov	dptr, #help_cmd
-;	acall	help2
-;	mov	r4, #dir_key
-;	;mov	 dptr, #dir_cmd
-;	acall	help2
-;	mov	r4, #run_key
-;	;mov	 dptr, #run_cmd
-;	acall	help2
-;	mov	r4, #dnld_key
-;	;mov	 dptr, #dnld_cmd
-;	acall	help2
-;	mov	r4, #upld_key
-;	;mov	 dptr, #upld_cmd
-;	acall	help2
-;	mov	r4, #nloc_key
-;	;mov	 dptr, #nloc_cmd
-;	acall	help2
-;	mov	r4, #jump_key
-;	;mov	 dptr, #jump_cmd
-;	acall	help2
-;	mov	r4, #dump_key
-;	;mov	 dptr, #dump_cmd
-;	acall	help2
-;	mov	r4, #intm_key
-;	;mov	dptr, #intm_cmd
-;	acall	help2
-;;	mov	r4, #edit_key
-;;	;mov	 dptr, #edit_cmd
-;;	acall	help2
-;	mov	r4, #clrm_key
-;	;mov	 dptr, #clrm_cmd
-;	acall	help2
-;	mov	a, #has_flash
-;	jz	help_skerfm
-;	mov	r4, #erfr_key
-;	;mov	 dptr, #erfr_cmd
-;	acall	help2
-;help_skerfm:
-;	mov	dptr, #help2txt
-;	acall	pcstr_h
-;	mov	dptr, #bmem
-;help3:	acall	module_find
-;	jnc	help4
-;	mov	dpl, #4
-;	clr	a
-;	movc	a,@a+dptr
-;	cjne	a, #254, help3a	   ;only FE is an ext command
-;	acall	dspace
-;	inc	dpl
-;	clr	a
-;	movc	a,@a+dptr
-;	acall	cout
-;	acall	dash_sp
-;	mov	dpl, #32
-;	acall	pstr
-;	acall	newline
-;help3a: inc	dph
-;	mov	a, dph
-;	cjne	a, #((emem+1) >> 8) & 255, help3
-;help4:	
-;	ajmp	newline
-;
-;help2:				;print 11 standard lines
-;	acall	dspace		;given key in R4 and name in dptr
-;	mov	a, r4
-;	acall	cout
-;	acall	dash_sp
-;	acall	pcstr_h
-;	ajmp	newline
 ;
 ;;---------------------------------------------------------;
 ;
