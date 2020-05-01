@@ -12,31 +12,8 @@
 ; See also:
 ; 	https://www.pjrc.com/tech/8051/paulmon2.html
 
-; # Macros
-; ###########################################################################
-	orgmem: macro address
-		seek	address
-		org	address
-	endm
-
-; # Defines
-; ###########################################################################
-	mem_base:		equ	0x0000		; Base memory address
-	mem_srch_start:		equ	0x1000		; Address to start search for additional modules
-	mem_srch_end:		equ	0xFFFF		; Address to stop search
-	mon_base:		equ	0x0100		; Monitor base address
-
-	command_key_help:	equ	'?'		; Help screen
-	command_key_listm:	equ	'M'		; Directory list
-	command_key_run:	equ	'@'		; Run program
-	command_key_download:	equ	'D'		; Download
-	command_key_upload:	equ	'U'		; Upload
-	command_key_new_locat:	equ	'N'		; New memory location
-	command_key_jump:	equ	'J'		; Jump to memory location
-	command_key_hexdump:	equ	'H'		; Hex dump memory
-	command_key_regdump:	equ	'R'		; Dump register data
-	command_key_edit:	equ	'E'		; Edit memory
-	command_key_clrmem:	equ	'C'		; Clear memory
+; include definitions
+include "z80mon.def"
 
 ; # Architecture Jump Table
 ; ###########################################################################
@@ -710,11 +687,6 @@ string_length_end:
 
 ; # Input routines
 ; ###########################################################################
-character_code_backspace:		equ	0x08	; Backspace ASCII code
-character_code_carriage_return:		equ	0x0d	; CR ASCII code
-character_code_escape:			equ	0x1b	; Escape ASCII code
-character_code_delete:			equ	0x7f	; Delete ASCII code
-
 ; # input_character_filter
 ; #################################
 ;  Routine replaces character sequences for up/down/left/right & PageUp/PageDown
