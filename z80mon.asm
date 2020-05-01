@@ -1106,8 +1106,6 @@ menu_main_external_commands_exec:
 	jp	(hl)
 
 ;/////////////////////////////////////////////////////////////////////////////////////////////////
-;        command_key_help:               equ     '?'             ; Help screen
-;        command_key_listm:              equ     'M'             ; Directory list
 ;        command_key_run:                equ     '@'             ; Run program
 ;        command_key_download:           equ     'D'             ; Download
 ;        command_key_upload:             equ     'U'             ; Upload
@@ -1129,6 +1127,12 @@ menu_main_builtin_help:
 	call	print_cstr				; Print message
 	jp	command_help				; Run command
 menu_main_builtin_list_modules:
+	cp	command_key_listm			; Check if list modules key
+	jr	nz, menu_main_builtin_run		; If not, next command
+	ld	hl, str_tag_listm
+	call	print_cstr				; Print message
+	jp	module_list_commands			; Run command
+menu_main_builtin_run:
 
 ;menu1c:
 ;	cjne	a, #dir_key, menu1d
@@ -1394,7 +1398,7 @@ str_prompt6:		db	13,13,31,135,131,129,": ",0				; \n\nNew memory location:
 str_prompt7:		db	31,228,251," key: ",0					; Press any key:
 str_prompt8:		db	13,13,31,136,128,131,129," (",0				; \n\nJump to memory location (
 ;str_prompt9:		db	13,13,31,130,31,253,0					; \n\nProgram Name (OLD)
-str_prompt9:		db	31,130,31,253,0						; Program Name
+str_prompt9:		db	13,31,130,31,253,0					; \nProgram Name
 str_prompt9b:		db	31,129,32,32,32,32,32,31,201,14				; Location      Type	 (must follow prompt9)
 str_prompt10:		db	") ",31,135,31,178,": ",0				; ) New Value:
 str_type1:		db	31,154,158,0						; External command
