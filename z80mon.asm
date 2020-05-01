@@ -565,6 +565,7 @@ print_registers:
 	push	af
 
 	; Print registers
+	call	print_newline
 	ld	hl, str_reg_af1
 	call	print_str
 	pop	bc
@@ -1112,7 +1113,6 @@ menu_main_external_commands_exec:
 ;        command_key_new_locat:          equ     'N'             ; New memory location
 ;        command_key_jump:               equ     'J'             ; Jump to memory location
 ;        command_key_hexdump:            equ     'H'             ; Hex dump memory
-;        command_key_regdump:            equ     'R'             ; Dump register data
 ;        command_key_edit:               equ     'E'             ; Edit memory
 ;        command_key_clrmem:             equ     'C'             ; Clear memory
 ;/////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1128,17 +1128,18 @@ menu_main_builtin_help:
 	jp	command_help				; Run command
 menu_main_builtin_list_modules:
 	cp	command_key_listm			; Check if list modules key
-	jr	nz, menu_main_builtin_run		; If not, next command
+	jr	nz, menu_main_builtin_dump_registers	; If not, next command
 	ld	hl, str_tag_listm
 	call	print_cstr				; Print message
 	jp	module_list_commands			; Run command
+menu_main_builtin_dump_registers:
+	cp	command_key_regdump			; Check if dump registers key
+	jr	nz, menu_main_builtin_run		; If not, next command
+	ld	hl, str_tag_regdump
+	call	print_cstr				; Print message
+	jp	print_registers				; Run command
 menu_main_builtin_run:
 
-;menu1c:
-;	cjne	a, #dir_key, menu1d
-;	mov	dptr, #dir_cmd
-;	acall	pcstr_h
-;	ajmp	dir	(module_list_commands)
 ;menu1d:
 ;	cjne	a, #run_key, menu1e
 ;	mov	dptr, #run_cmd
@@ -1417,7 +1418,7 @@ str_tag_nloc: 		db	31,135,129,0						; New Location
 str_tag_jump: 		db	31,136,128,131,129,0					; Jump to memory location
 ;str_tag_dump: 		db	31,132,219,154,131,0					; Hex dump external memory (OLD)
 str_tag_dump: 		db	31,132,219,131,0					; Hex dump memory
-str_tag_regdump: 	db	31,219,31,196,0						; Dump Registers
+str_tag_regdump: 	db	31,219,31,196,"s",0					; Dump Registers
 ;str_tag_edit: 		db	31,156,154,146,0					; Editing external ram
 str_tag_clrm: 		db	31,237,131,0						; Clear memory
 
