@@ -812,7 +812,37 @@ input_character_filter_end:
 ;	mov	r2, a
 ;	ret
 
+; # input_hex8_preloaded
+; #################################
+;  Routine to enter up to 2 digit hexadecimal number
+;	In:	B = Preload value
+;	Out:	DE = Hex value
+;		Carry flag set if value valid
+input_hex8_preloaded:
+	ld	a, b					; Get first digit
+	srl	a					; Shift top nible to the bottom
+	srl	a
+	srl	a
+	srl	a
+	push	af					; Push digit onto the stack
+	call	print_hex_digit				; Print digit
+	ld	a, b					; Get second digit
+	and	0x0f					; Remove top nibble
+	push	af					; Push digit onto the stack
+	call	print_hex_digit				; Print digit
 
+	ld	b, 0x02					; Set digit count to max
+	ld	c, 0x02					; Max. enterable digits
+	jr	input_hex_get_char
+; # input_hex8
+; #################################
+;  Routine to enter up to 2 digit hexadecimal number
+;	Out:	DE = Hex value
+;		Carry flag set if value valid
+input_hex8:
+	ld	b, 0x00					; Clear digit count
+	ld	c, 0x02					; Max. enterable digits
+	jr	input_hex_get_char
 ; # input_hex16_preloaded
 ; #################################
 ;  Routine to enter up to 4 digit hexadecimal number
@@ -1283,35 +1313,18 @@ command_edit:
 command_edit_loop:
 	ld	b, h					; Copy HL->BC
 	ld	c, l
-	call	print_hex16
+	call	print_hex16				; Print address
 	call	print_colon_space
-	ret
-
-;;edit1:
-;;	acall	phex16
-;;	mov	a,#':'
-;;	acall	cout_sp
-;;	mov	a,#'('
-;;	acall	cout
-;;	acall	dptrtor6r7
-;;	clr	a
-;;	movc	a, @a+dptr
-;;	acall	phex
-;;	mov	dptr,#prompt10
-;;	acall	pcstr_h
-;;	acall	ghex
-;;	jb	psw.5,edit2
-;;	jc	edit2
-;;	acall	r6r7todptr
-;;	lcall	smart_wr
-;;	acall	newline
-;;	acall	r6r7todptr
-;;	inc	dptr
-;;	acall	dptrtor6r7
-;;	ajmp	edit1
-;;edit2:
-;;	mov	dptr,#edits2
-;;	ajmp	pcstr_h
+	ld	b, (hl)					; Load memory contents
+	call	input_hex8_preloaded			; Edit loaded value
+	jr	c, command_edit_save			; Check if Escape was pressed
+	jp	print_abort
+command_edit_save:
+	ld	(hl), e					; Save editted value back to memory
+	call	print_newline
+	inc	hl					; Increment memory pointer
+	ld	(z80mon_default_addr), hl		; Save memory pointer as default
+	jr	command_edit_loop
 
 ; # menu_main
 ; #################################
