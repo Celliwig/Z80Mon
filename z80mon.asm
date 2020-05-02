@@ -94,14 +94,10 @@ monlib_string_length:
 ;	ljmp	autobaud
 ;pcstr_h:ljmp	pcstr
 ;	ljmp	pint16u
-;	ljmp	smart_wr
-;	ljmp	prgm
-;	ljmp	erall
 ;	ljmp	module_find
 ;input_character_filter_h:
 ;	ljmp	input_character_filter
 ;	ajmp	asc2hex
-;	ljmp	erblock
 
 ; # Monitor Variables
 ; ###########################################################################
@@ -1220,7 +1216,7 @@ command_help_internal_commands:
 	;ld	hl, str_tag_jump
 	call	command_help_line_print
 	ld	b, command_key_hexdump
-	;ld	hl, str_tag_dump
+	;ld	hl, str_tag_hexdump
 	call	command_help_line_print
 	ld	b, command_key_regdump
 	;ld	hl, str_tag_regdump
@@ -1437,19 +1433,6 @@ menu_main_builtin_run:
 ;	mov	dptr, #clrm_cmd
 ;	acall	pcstr_h
 ;	ajmp	clrm
-;menu1l:
-;	cjne	a, #erfr_key, menu1m
-;	mov	a, #has_flash
-;	jz	menu_end
-;	mov	dptr, #erfr_cmd
-;	acall	pcstr_h
-;	ajmp	erfr
-;menu1m:
-;	cjne	a, #intm_key, menu1n
-;	mov	dptr, #intm_cmd
-;	acall	pcstr_h
-;	ljmp	intm
-;menu1n:
 
 ;/////////////////////////////////////////////////////////////////////////////////////////////////
 ;        command_key_run:                equ     '@'             ; Run program
@@ -2417,50 +2400,6 @@ erfr_err: 		db	31,133,155,13,14
 ;
 ;;---------------------------------------------------------;
 ;
-;erfr:
-;	acall	newline2
-;	mov	dptr, #erfr_cmd
-;	acall	pcstr_h
-;	mov	a, #','
-;	acall	cout_sp
-;	mov	dptr, #sure
-;	acall	pcstr_h
-;	acall	input_character_filter_h
-;	acall	char_2_upper
-;	cjne	a, #'Y', abort_it
-;	acall	newline2
-;	lcall	erall
-;	mov	dptr, #erfr_ok
-;	jnc	erfr_end
-;	mov	dptr, #erfr_err
-;erfr_end:
-;	ajmp	pcstr_h
-;
-;
-;
-;;---------------------------------------------------------;
-;
-;intm:	acall	newline
-;	mov	r0, #0
-;intm2:	acall	newline
-;	cjne	r0, #0x80, intm3 
-;	ajmp	newline
-;intm3:	mov	a, r0
-;	acall	phex
-;	mov	a, #':'
-;	acall	cout
-;intm4:	acall	space
-;	mov	a, @r0
-;	acall	phex
-;	inc	r0
-;	mov	a, r0
-;	anl	a, #00001111b
-;	jnz	intm4
-;	sjmp	intm2
-;
-;
-;
-;
 ;
 ;;**************************************************************
 ;;**************************************************************
@@ -2480,102 +2419,8 @@ erfr_err: 		db	31,133,155,13,14
 ;;---------------------------------------------------------;
 ;
 ;
-;
-;
-;	; poll the flash rom using it's toggle bit feature
-;	; on D6... and wait until the flash rom is not busy
-;	; dptr must be initialized with the address to read
-;flash_wait:
-;	push	b
-;	clr	a
-;	movc	a, @a+dptr
-;flwt2:	mov	b, a
-;	inc	r5
-;	clr	a
-;	movc	a, @a+dptr
-;	cjne	a, b, flwt2
-;	pop	b
-;	ret
-;
-;	;send the flash enable codes
-;flash_en:
-;	mov	dptr, #flash_en1_addr
-;	mov	a, #flash_en1_data
-;	movx	@dptr, a
-;	mov	dptr, #flash_en2_addr
-;	mov	a, #flash_en2_data
-;	movx	@dptr, a
-;	ret
-;
-;
 ;;a routine that writes ACC to into flash memory at DPTR
 ;; C is set if error occurs, C is clear if it worked
-;
-;prgm:	xch	a, r0
-;	push	acc
-;	push	dpl
-;	push	dph
-;	acall	flash_en		;do first step, enable writing
-;	mov	dptr, #flash_wr_addr
-;	mov	a, #flash_wr_data
-;	movx	@dptr, a		;send flash write command
-;	pop	dph
-;	pop	dpl
-;	mov	a, r0
-;	movx	@dptr, a		;write the data
-;	acall	flash_wait		;wait until it's done
-;	clr	a
-;	movc	a, @a+dptr		;read it back
-;	clr	c
-;	xrl	a, r0
-;	jz	prgmend			;check if data written ok
-;	setb	c
-;prgmend:pop	acc
-;	xch	a, r0
-;	ret
-;
-;; erase the entire flash rom
-;; C=1 if failure, C=0 if ok
-;
-;erall:
-;	mov	dptr, #flash_er2_addr
-;	mov	a, #flash_er2_data
-;	acall	erblock			;use erblock to send erase all
-;	mov	dptr, #bflash
-;erall2:	clr	a
-;	movc	a, @a+dptr		;read back flash memory
-;	cpl	a
-;	jnz	erall_err		;check if it's really erased
-;	inc	dptr
-;	mov	a, #((eflash+1) & 255)
-;	cjne	a, dpl, erall2
-;	mov	a, #(((eflash+1) >> 8) & 255)
-;	cjne	a, dph, erall2
-;	clr	c
-;	ret
-;erall_err:
-;	setb	c
-;	ret
-;
-;
-;	;send a custom erase command.  This is used by erall,
-;	;and it's intended to be callable from the flash memory
-;	;so that custom block erase code can be implemented
-;erblock:
-;	push	acc
-;	push	dpl
-;	push	dph
-;	acall	flash_en		;send flash enable stuff
-;	mov	dptr, #flash_er1_addr
-;	mov	a, #flash_er1_data
-;	movx	@dptr, a		;send erase enable
-;	acall	flash_en		;send flash enable stuff
-;	pop	dph
-;	pop	dpl
-;	pop	acc
-;	movx	@dptr, a		;send erase command
-;	ajmp	flash_wait
-;
 ;
 ;
 ;;************************************
