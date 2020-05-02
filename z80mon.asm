@@ -1214,6 +1214,7 @@ command_help_end:
 ; #################################
 ;  Sets the monitor pointer to where default operations are performed
 command_location_new:
+	call	print_newline
 	ld	hl, str_prompt6				; Print location prompt
 	call	print_cstr
 	call	input_hex16				; Get value

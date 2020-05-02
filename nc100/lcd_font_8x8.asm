@@ -1,12 +1,14 @@
-; # nc100_lcd_print_glyph_8x8
+; # LCD font methods (8x8)
+; ###########################################################################
+
+; # nc100_lcd_print_glyph_only_8x8
 ; #################################
 ;  Prints a character to lcd (char must be <128)
 ;	In:	A = ASCII character
 ;		D = y position (0-63)
 ;		E = x position/memory cell (0-59)
-nc100_lcd_print_glyph_8x8:
-	ld	hl, (nc100_raster_cursor_addr)				; Load cursor address
-
+;		HL = cursor address
+nc100_lcd_print_glyph_only_8x8:
 	ld	ix, nc100_font_8x8					; Get font data address
 	sub	0x20							; Remove offset to ' ' from character
 	sla	a							; x2 result
@@ -47,7 +49,17 @@ nc100_lcd_print_glyph_8x8:
 	ld	bc, 0x40						; Offset to the same position in the next line
 	add	hl, bc
 	ld	a, (ix+7)
-	call	nc100_lcd_write_screen_data				; Write glyph data (5)
+	jp	nc100_lcd_write_screen_data				; Write glyph data (5)
+
+; # nc100_lcd_print_glyph_8x8
+; #################################
+;  Prints a character to lcd (char must be <128), and updates the cursor position
+;	In:	A = ASCII character
+;		D = y position (0-63)
+;		E = x position/memory cell (0-59)
+;		HL = cursor address
+nc100_lcd_print_glyph_8x8:
+	call	nc100_lcd_print_glyph_only_8x8
 
 	; Increment position
 	inc	e							; Increment x position
@@ -59,7 +71,6 @@ nc100_lcd_print_glyph_8x8:
 	ld	hl, (nc100_raster_cursor_addr)				; Load cursor address
 	inc	hl
 	ld	(nc100_raster_cursor_addr), hl				; Save cursor position
-nc100_lcd_print_glyph_8x8_exit:
 	ret
 
 ; # nc100_lcd_print_cr_8x8
@@ -69,8 +80,7 @@ nc100_lcd_print_glyph_8x8_exit:
 ;		E = x position/memory cell (0-59)
 nc100_lcd_print_cr_8x8:
 	ld	e, 0							; Reset X position
-	call	nc100_lcd_set_cursor_by_grid
-	ret
+	jp	nc100_lcd_set_cursor_by_grid
 
 ; # nc100_lcd_print_lf_8x8
 ; #################################
@@ -98,14 +108,11 @@ nc100_lcd_print_lf_8x8_scroll_screen:
 	call	nc100_lcd_scroll_8x8					; Scroll screen up
 nc100_lcd_print_lf_8x8_set_position:
 	ld	e, 0							; Reset X position
-	call	nc100_lcd_set_cursor_by_grid				; Set cursor position
-	ret
+	jp	nc100_lcd_set_cursor_by_grid				; Set cursor position
 
 ; # nc100_lcd_scroll_8x8
 ; #################################
 ;  Scrolls entire screen memory up 1 character line
-;	In:	D = y position (0-63)
-;		E = x position/memory cell (0-59)
 nc100_lcd_scroll_8x8:
 	push	de							; Save existing data
 	push	hl
@@ -130,3 +137,33 @@ nc100_lcd_scroll_8x8_clear_line:
 	pop	de
 	ret
 
+; # nc100_lcd_backspace_8x8
+; #################################
+;  Moves back one character and blanks poisition
+;	In:	D = y position (0-63)
+;		E = x position/memory cell (0-59)
+;		HL = cursor address
+nc100_lcd_backspace_8x8:
+	ld	a, e							; Check if X position
+	cp	0x00							; Is zero
+	jr	z, nc100_lcd_backspace_8x8_update_position
+	dec	e							; Decrement X position
+	dec	hl							; Decrement cursor position
+	jr	nc100_lcd_backspace_8x8_end
+nc100_lcd_backspace_8x8_update_position:
+	ld	a, d							; Get Y position
+	sub	0x08							; Subtract 1 character line
+	jr	c, nc100_lcd_backspace_8x8_update_position_wrapped	; Gone off the top of the screen
+	ld	e, 0x3b							; Set character to the last character column
+	jr	nc100_lcd_backspace_8x8_set_position
+nc100_lcd_backspace_8x8_update_position_wrapped:
+	add	a, 64							; Get the Y position at the bottom of the screen
+	ld	d, a							; Save Y position
+	ld	e, 0x3b							; Set X position (almost certainly wrong, there is no right answer here)
+nc100_lcd_backspace_8x8_set_position:
+	jp	nc100_lcd_set_cursor_by_grid				; Set cursor position
+nc100_lcd_backspace_8x8_end:
+	ld	(nc100_lcd_pos_xy), de					; Save cursor X/Y position
+	ld	(nc100_raster_cursor_addr), hl				; Save cursor position
+	ld	a, ' '							; Overwrite previous character with a space
+	jp	nc100_lcd_print_glyph_only_8x8

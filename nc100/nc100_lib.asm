@@ -59,6 +59,11 @@ include	"nc100/interrupts.asm"
 
 ; # Console routines
 ; ###########################################################################
+; # nc100_console_print_glyph
+; #################################
+nc100_console_print_glyph:
+	jp	nc100_lcd_print_glyph_8x8
+
 ; # nc100_console_linefeed
 ; #################################
 nc100_console_linefeed:
@@ -69,6 +74,14 @@ nc100_console_linefeed:
 nc100_console_carriage_return:
 	jp	nc100_lcd_print_cr_8x8
 
+; # nc100_console_delete
+; #################################
+nc100_console_delete:
+; # nc100_console_backspace
+; #################################
+nc100_console_backspace:
+	jp	nc100_lcd_backspace_8x8
+
 ; # nc100_console_char_out
 ; #################################
 ;  Copy character to selected output device
@@ -76,6 +89,17 @@ nc100_console_carriage_return:
 nc100_console_char_out:
 	exx								; Swap out registers
 	ld	de, (nc100_lcd_pos_xy)					; Load cursor X/Y position
+	ld	hl, (nc100_raster_cursor_addr)				; Load cursor address
+nc100_console_char_out_check_bs:
+	cp	character_code_backspace				; Check for BS (backspace)
+	jr	nz, nc100_console_char_out_check_del
+	call	nc100_console_backspace
+	jr	nc100_console_char_out_exit
+nc100_console_char_out_check_del:
+	cp	character_code_delete					; Check for Delete
+	jr	nz, nc100_console_char_out_check_lf
+	call	nc100_console_delete
+	jr	nc100_console_char_out_exit
 nc100_console_char_out_check_lf:
 	cp	character_code_linefeed					; Check for LF (line feed)
 	jr	nz, nc100_console_char_out_check_cr
@@ -87,7 +111,7 @@ nc100_console_char_out_check_cr:
 	call	nc100_console_carriage_return
 	jr	nc100_console_char_out_exit
 nc100_console_char_out_print_glyph:
-	call	nc100_lcd_print_glyph_8x8
+	call	nc100_console_print_glyph
 nc100_console_char_out_exit:
 	exx								; Swap back registers
 	ret
