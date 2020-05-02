@@ -813,61 +813,6 @@ input_character_filter_end:
 ;	ret
 
 
-;;clearing ti before reading sbuf takes care of the case where
-;;interrupts may be enabled... if an interrupt were to happen
-;;between those two instructions, the serial port will just
-;;wait a while, but in the other order and the character could
-;;finish transmitting (during the interrupt routine) and then
-;;ti would be cleared and never set again by the hardware, causing
-;;the next call to cout to hang forever!
-;
-;	;get 2 digit hex number from serial port
-;	; c = set if ESC pressed, clear otherwise
-;	; psw.5 = set if return w/ no input, clear otherwise
-;ghex:
-;ghex8:	clr	psw.5
-;ghex8c:
-;	acall	input_character_filter_h	;get first digit
-;	acall	char_2_upper
-;	cjne	a, #27, ghex8f
-;ghex8d: setb	c
-;	clr	a
-;	ret
-;ghex8f: cjne	a, #13, ghex8h
-;	setb	psw.5
-;	clr	c
-;	clr	a
-;	ret
-;ghex8h: mov	r2, a
-;	acall	asc2hex
-;	jc	ghex8c
-;	xch	a, r2		;r2 will hold hex value of 1st digit
-;	acall	cout
-;ghex8j:
-;	acall	input_character_filter_h	;get second digit
-;	acall	char_2_upper
-;	cjne	a, #27, ghex8k
-;	sjmp	ghex8d
-;ghex8k: cjne	a, #13, ghex8m
-;	mov	a, r2
-;	clr	c
-;	ret
-;ghex8m: cjne	a, #8, ghex8p
-;ghex8n: acall	cout
-;	sjmp	ghex8c
-;ghex8p: cjne	a, #21, ghex8q
-;	sjmp	ghex8n
-;ghex8q: mov	r3, a
-;	acall	asc2hex
-;	jc	ghex8j
-;	xch	a, r3
-;	acall	cout
-;	mov	a, r2
-;	swap	a
-;	orl	a, r3
-;	clr	c
-;	ret
-
 ; # input_hex16_preloaded
 ; #################################
 ;  Routine to enter up to 4 digit hexadecimal number
@@ -899,71 +844,79 @@ input_hex16_preloaded:
 	push	af					; Push digit onto the stack
 	call	print_hex_digit				; Print digit
 
-	ld	b, 4					; Set digit count to max
-	jr	input_hex16_get_char
+	ld	b, 0x04					; Set digit count to max
+	ld	c, 0x04					; Max. enterable digits
+	jr	input_hex_get_char
 ; # input_hex16
 ; #################################
 ;  Routine to enter up to 4 digit hexadecimal number
 ;	Out:	DE = Hex value
 ;		Carry flag set if value valid
 input_hex16:
-	ld	b, 0x00					; Digit count
-
-input_hex16_get_char:
+	ld	b, 0x00					; Clear digit count
+	ld	c, 0x04					; Max. enterable digits
+; # input_hex_get_char
+; #################################
+;  Base routine to enter hex ASCII digit(s), and convert that to the equivalent hex value.
+;	In:	B = Current digit count
+;		C = Maximum number of digits
+;	Out:	DE = Hex value
+;		Carry flag set if value valid
+input_hex_get_char:
 	call	input_character_filter			; Get character
 	call	char_2_upper
-input_hex16_process_char:
-	ld	c, a					; Copy character
+input_hex_process_char:
+	ld	d, a					; Copy character
 
 	cp	character_code_escape			; Check whether character is escape key
-	jr	z, input_hex16_abort
+	jr	z, input_hex_abort
 	cp	character_code_backspace		; Check whether character is backspace key
-	jr	z, input_hex16_delete_digit
+	jr	z, input_hex_delete_digit
 	cp	character_code_delete			; Check whether character is delete key
-	jr	z, input_hex16_delete_digit
+	jr	z, input_hex_delete_digit
 	cp	character_code_carriage_return		; Check whether character is CR key
-	jr	z, input_hex16_complete
+	jr	z, input_hex_complete
 
-	ld	a, b					; Check that number of digits <= 4
-	sub	0x04
-	jr	nc, input_hex16_get_char		; Already have 4 digits, so just loop
-	ld	a, c					; Reload character
+	ld	a, b					; Check that number of digits
+	sub	c					; Is less than (n)
+	jr	nc, input_hex_get_char			; Already have (n) digits, so just loop
+	ld	a, d					; Reload character
 	call	char_2_hex				; Convert ASCII to hex
-	jr	nc, input_hex16_get_char		; Character not valid hex digit so loop
+	jr	nc, input_hex_get_char			; Character not valid hex digit so loop
 	push	af					; Push hex value on to stack
 	inc	b					; Increment digit count
-	ld	a, c					; Reload character
+	ld	a, d					; Reload character
 	call	monlib_console_out			; Output character
-	jr	input_hex16_get_char
-input_hex16_delete_digit:
+	jr	input_hex_get_char
+input_hex_delete_digit:
 	ld	a, b					; Check if there are digits to delete
 	cp	0x00
-	jr	z, input_hex16_get_char			; No existing digits, so just wait for next character
-	ld	a, c					; Reload character
+	jr	z, input_hex_get_char			; No existing digits, so just wait for next character
+	ld	a, d					; Reload character
 	call	monlib_console_out			; Update display
 	pop	af					; Pop digit from stack
 	dec	b					; Decrement digit count
-	jr	input_hex16_get_char
-input_hex16_abort:
+	jr	input_hex_get_char
+input_hex_abort:
 	xor	a					; Clear A
 	cp	b					; Check if there's anything to remove from the stack
-	jr	z, input_hex16_abort_end		; Nothing to pop, so finish
-input_hex16_abort_loop:
+	jr	z, input_hex_abort_end			; Nothing to pop, so finish
+input_hex_abort_loop:
 	pop	af					; Pop digit
-	djnz	input_hex16_abort_loop			; Keep looping until all digits removed
-input_hex16_abort_end:
+	djnz	input_hex_abort_loop			; Keep looping until all digits removed
+input_hex_abort_end:
 	ld	de, 0x0000				; Zero register
 	scf						; Clear Carry flag
 	ccf
 	ret
-input_hex16_complete:
+input_hex_complete:
 	ld	de, 0x0000				; Zero register
 	ld	c, b					; Swap number of digits
 	ld	b, 4					; Total number of shifts
 	xor	a					; Clear A
 	cp	c					; Check if there's anything to remove from the stack
-	jr	z, input_hex16_complete_end		; Nothing to pop, so finish
-input_hex16_complete_loop:
+	jr	z, input_hex_complete_end		; Nothing to pop, so finish
+input_hex_complete_loop:
 	; Make some room for a nibble
 	srl	d					; Right shift into Carry MSB (bit 1)
 	rr	e
@@ -976,7 +929,7 @@ input_hex16_complete_loop:
 
 	xor	a					; Clear A
 	cp	c					; Check whether we have all the digits
-	jr	z, input_hex16_complete_check_remainder
+	jr	z, input_hex_complete_check_remainder
 	; Add digit
 	pop	af					; Pop digit
 	sla	a					; Shit digit in to upper nibble
@@ -986,9 +939,9 @@ input_hex16_complete_loop:
 	or	d					; OR bits from D (LSB) and shifted digit
 	ld	d, a					; Save combined digit
 	dec	c					; Decrement digit count
-input_hex16_complete_check_remainder:
-	djnz	input_hex16_complete_loop		; Keep looping until all digits moved
-input_hex16_complete_end:
+input_hex_complete_check_remainder:
+	djnz	input_hex_complete_loop			; Keep looping until all digits moved
+input_hex_complete_end:
 	scf						; Set Carry flag
 	ret
 
@@ -1221,6 +1174,9 @@ command_help_internal_commands:
 	ld	b, command_key_regdump
 	;ld	hl, str_tag_regdump
 	call	command_help_line_print
+	ld	b, command_key_edit
+	;ld	hl, str_tag_edit
+	call	command_help_line_print
 	ld	b, command_key_clrmem
 	;ld	hl, str_tag_clrm
 	call	command_help_line_print
@@ -1318,6 +1274,45 @@ command_hexdump_line_print_loop:
 
 	ret
 
+; # command_edit
+; #################################
+command_edit:
+	ld	hl, str_edit1
+	call	print_cstr
+	ld	hl, (z80mon_default_addr)		; Get default address
+command_edit_loop:
+	ld	b, h					; Copy HL->BC
+	ld	c, l
+	call	print_hex16
+	call	print_colon_space
+	ret
+
+;;edit1:
+;;	acall	phex16
+;;	mov	a,#':'
+;;	acall	cout_sp
+;;	mov	a,#'('
+;;	acall	cout
+;;	acall	dptrtor6r7
+;;	clr	a
+;;	movc	a, @a+dptr
+;;	acall	phex
+;;	mov	dptr,#prompt10
+;;	acall	pcstr_h
+;;	acall	ghex
+;;	jb	psw.5,edit2
+;;	jc	edit2
+;;	acall	r6r7todptr
+;;	lcall	smart_wr
+;;	acall	newline
+;;	acall	r6r7todptr
+;;	inc	dptr
+;;	acall	dptrtor6r7
+;;	ajmp	edit1
+;;edit2:
+;;	mov	dptr,#edits2
+;;	ajmp	pcstr_h
+
 ; # menu_main
 ; #################################
 ;  Implements interactive menu
@@ -1402,10 +1397,25 @@ menu_main_builtin_jump:
 	jp	command_jump				; Run command
 menu_main_builtin_hexdump:
 	cp	command_key_hexdump			; Check if hexdump key
-	jr	nz, menu_main_builtin_run		; If not, next command
+	jr	nz, menu_main_builtin_edit		; If not, next command
 	ld	hl, str_tag_hexdump
 	call	print_cstr				; Print message
 	jp	command_hexdump				; Run command
+menu_main_builtin_edit:
+	cp	command_key_edit			; Check if edit key
+	jr	nz, menu_main_builtin_clear_mem		; If not, next command
+	ld	hl, str_tag_edit
+	call	print_cstr				; Print message
+	jp	command_edit				; Run command
+
+
+menu_main_builtin_clear_mem:
+
+;menu1k:
+;	cjne	a, #clrm_key, menu1l
+;	mov	dptr, #clrm_cmd
+;	acall	pcstr_h
+;	ajmp	clrm
 
 menu_main_builtin_run:
 ;	cjne	a, #run_key, menu1e
@@ -1423,22 +1433,11 @@ menu_main_builtin_run:
 ;	mov	dptr, #upld_cmd
 ;	acall	pcstr_h
 ;	ajmp	upld
-;menu1g:
-;;	 cjne	a, #edit_key, menu1k
-;;	mov	dptr, #edit_cmd
-;;	acall	pcstr_h
-;;	ajmp	edit
-;menu1k:
-;	cjne	a, #clrm_key, menu1l
-;	mov	dptr, #clrm_cmd
-;	acall	pcstr_h
-;	ajmp	clrm
 
 ;/////////////////////////////////////////////////////////////////////////////////////////////////
 ;        command_key_run:                equ     '@'             ; Run program
 ;        command_key_download:           equ     'D'             ; Download
 ;        command_key_upload:             equ     'U'             ; Upload
-;        command_key_edit:               equ     'E'             ; Edit memory
 ;        command_key_clrmem:             equ     'C'             ; Clear memory
 ;/////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -1640,7 +1639,7 @@ str_prompt1:		db	"z80Mon:",0						; z80Mon:
 str_prompt2:		db	" >", 160						;  > abort run which program(	(must follow after prompt1)
 str_prompt3:		db	134,202,130,'(',0					; run which program(
 ;str_prompt4:		db	"),",149,140,128,200,": ",0				; ), or esc to quit: (OLD)
-str_prompt4:		db	",",149,31,140,": ",0					; , or press escape:
+str_prompt4:		db	",",149,31,140,": ",0					; , or Escape:
 str_prompt5:		db	31,151,130,195,"s",199,166,131,","
 			db	186," JUMP",128,134,161,"r",130,13,14			; No program headers found in memory, use JUMP to run your program
 str_prompt6:		db	13,13,31,135,131,129,": ",0				; \n\nNew memory location:
@@ -1668,7 +1667,8 @@ str_tag_jump: 		db	31,136,128,131,129,0					; Jump to memory location
 ;str_tag_dump: 		db	31,132,219,154,131,0					; Hex dump external memory (OLD)
 str_tag_hexdump: 	db	31,132,219,131,0					; Hex dump memory
 str_tag_regdump: 	db	31,219,31,196,"s",0					; Dump Registers
-;str_tag_edit: 		db	31,156,154,146,0					; Editing external ram
+;str_tag_edit: 		db	31,156,154,146,0					; Editing external ram (OLD)
+str_tag_edit: 		db	31,216,31,146,0						; Edit Ram
 str_tag_clrm: 		db	31,237,131,0						; Clear memory
 
 str_help1:		db	13,13,"Standard",31,158,"s",14				; \n\nStandard Commands
@@ -1678,11 +1678,13 @@ str_abort:		db	" ",31,158,31,160,"!",14				;  Command Abort!\n
 ;str_runs:		db	13,134,"ning",130,":",13,14				; \nRunning program:\n\n
 str_runs:		db	13,134,"ning",130," @",0				; \nRunning program @
 
+;str_edit1: 		db	13,13,31,156,154,146,",",140,128,200,14			; \n\nEditing external ram, esc to quit\n (OLD)
+str_edit1: 		db	13,13,31,156,31,146,",",31,140,128,200,14			; \n\nEditing Ram, Esc to quit\n
+str_edit2: 		db	"  ",31,156,193,",",142,129,247,13,14			;   Editing complete, this location unchanged\n\n
+
 beg_str:		db	"First",31,129,": ",0
 end_str:		db	"Last",31,129,":",32,32,0
 sure:			db	31,185,161," sure?",0
-edits1: 		db	13,13,31,156,154,146,",",140,128,200,14
-edits2: 		db	"  ",31,156,193,",",142,129,247,13,14
 dnlds1: 		db	13,13,31,159," ascii",249,150,31,152,132,137
 			db	",",149,140,128,160,13,14
 dnlds2: 		db	13,31,138,160,"ed",13,14
@@ -2111,33 +2113,6 @@ erfr_err: 		db	31,133,155,13,14
 ;
 ;;---------------------------------------------------------;
 ;
-;;edit:	   					; edit external ram...
-;;	mov	dptr, #edits1
-;;	acall	pcstr_h
-;;	acall	r6r7todptr
-;;edit1:	acall	phex16
-;;	mov	a,#':'
-;;	acall	cout_sp
-;;	mov	a,#'('
-;;	acall	cout
-;;	acall	dptrtor6r7
-;;	clr	a
-;;	movc	a, @a+dptr
-;;	acall	phex
-;;	mov	dptr,#prompt10
-;;	acall	pcstr_h
-;;	acall	ghex
-;;	jb	psw.5,edit2
-;;	jc	edit2
-;;	acall	r6r7todptr
-;;	lcall	smart_wr
-;;	acall	newline
-;;	acall	r6r7todptr
-;;	inc	dptr
-;;	acall	dptrtor6r7
-;;	ajmp	edit1
-;;edit2:	mov	dptr,#edits2
-;;	ajmp	pcstr_h
 ;
 ;;---------------------------------------------------------;
 ;
