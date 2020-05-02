@@ -864,6 +864,39 @@ input_character_filter_end:
 ;	clr	c
 ;	ret
 
+; # input_hex16_preloaded
+; #################################
+;  Routine to enter up to 4 digit hexadecimal number
+;	In:	BC = Preload value
+;	Out:	DE = Hex value
+;		Carry flag set if value valid
+input_hex16_preloaded:
+	ld	a, b					; Get first digit
+	srl	a					; Shift top nible to the bottom
+	srl	a
+	srl	a
+	srl	a
+	push	af					; Push digit onto the stack
+	call	print_hex_digit				; Print digit
+	ld	a, b					; Get second digit
+	and	0x0f					; Remove top nibble
+	push	af					; Push digit onto the stack
+	call	print_hex_digit				; Print digit
+
+	ld	a, c					; Get third digit
+	srl	a					; Shift top nible to the bottom
+	srl	a
+	srl	a
+	srl	a
+	push	af					; Push digit onto the stack
+	call	print_hex_digit				; Print digit
+	ld	a, c					; Get fourth digit
+	and	0x0f					; Remove top nibble
+	push	af					; Push digit onto the stack
+	call	print_hex_digit				; Print digit
+
+	ld	b, 4					; Set digit count to max
+	jr	input_hex16_get_char
 ; # input_hex16
 ; #################################
 ;  Routine to enter up to 4 digit hexadecimal number
@@ -1214,13 +1247,40 @@ command_help_end:
 ; #################################
 ;  Sets the monitor pointer to where default operations are performed
 command_location_new:
-	call	print_newline
 	ld	hl, str_prompt6				; Print location prompt
 	call	print_cstr
 	call	input_hex16				; Get value
 	jp	nc, print_abort				; If escaped, print abort message
 	ld	(z80mon_current_addr), de		; Save value
 	jp	print_newline
+
+; # command_jump
+; #################################
+;  Request an address, and jump to the code at that location
+command_jump:
+	ld	hl, str_prompt8
+	call	print_cstr
+	ld	hl, str_prompt4
+	call	print_cstr
+	ld	bc, (z80mon_current_addr)
+	call	input_hex16_preloaded
+	jr	c, command_jump_prep
+	jp	print_abort
+command_jump_prep:
+	push	de
+	ld	hl, str_runs
+	call	print_cstr
+	pop	hl
+	ld	b, h					; Copy HL->BC
+	ld	c, l
+	call	print_hex16
+	call	print_newline
+
+	ld	bc, 0x0010				; Reset address (RST 16: z80Mon final startup)
+	push	bc					; Push reset address on stack
+	push	bc					; In case there's a RET at the end of the code
+command_jump_brkpnt:
+	jp	(hl)					; Execute startup module
 
 ; # menu_main
 ; #################################
@@ -1276,7 +1336,6 @@ menu_main_external_commands_exec:
 ;        command_key_run:                equ     '@'             ; Run program
 ;        command_key_download:           equ     'D'             ; Download
 ;        command_key_upload:             equ     'U'             ; Upload
-;        command_key_jump:               equ     'J'             ; Jump to memory location
 ;        command_key_hexdump:            equ     'H'             ; Hex dump memory
 ;        command_key_edit:               equ     'E'             ; Edit memory
 ;        command_key_clrmem:             equ     'C'             ; Clear memory
@@ -1309,13 +1368,12 @@ menu_main_builtin_location_new:
 	ld	hl, str_tag_nloc
 	call	print_cstr				; Print message
 	jp	command_location_new			; Run command
-
 menu_main_builtin_jump:
-
-;	cjne	a, #jump_key, menu1i
-;	mov	dptr, #jump_cmd
-;	acall	pcstr_h
-;	ajmp	jump
+	cp	command_key_jump			; Check if jump key
+	jr	nz, menu_main_builtin_run		; If not, next command
+	ld	hl, str_tag_jump
+	call	print_cstr				; Print message
+	jp	command_jump				; Run command
 
 menu_main_builtin_run:
 ;	cjne	a, #run_key, menu1e
@@ -1414,10 +1472,9 @@ startup_warm:
 	call	module_search
 	jr	nc, startup_warm_end			; No module found, so finish
 
-	ld	sp, hl					; Load module base addess in to stack pointer (we can't load IX directly)
-	ld	ix, 0x40				; Load offset in to IX
-	add	ix, sp					; Create pointer to init module
-	jp	(ix)					; Execute startup module
+	ld	de, 0x40				; Load offset to module code
+	add	hl, de					; Create pointer to init module
+	jp	(hl)					; Execute startup module
 
 startup_warm_end:
 	rst	16
@@ -1561,13 +1618,14 @@ str_logon2:	 	db	32,32,"See",148,"2.DOC,",148,"2.EQU",164
 str_prompt1:		db	"z80Mon:",0						; z80Mon:
 str_prompt2:		db	" >", 160						;  > abort run which program(	(must follow after prompt1)
 str_prompt3:		db	134,202,130,'(',0					; run which program(
-str_prompt4:		db	"),",149,140,128,200,": ",0				; ), or esc to quit:
+;str_prompt4:		db	"),",149,140,128,200,": ",0				; ), or esc to quit: (OLD)
+str_prompt4:		db	",",149,31,140,": ",0					; , or press escape:
 str_prompt5:		db	31,151,130,195,"s",199,166,131,","
 			db	186," JUMP",128,134,161,"r",130,13,14			; No program headers found in memory, use JUMP to run your program
-;str_prompt6:		db	13,13,31,135,131,129,": ",0				; \n\nNew memory location: (OLD)
-str_prompt6:		db	13,31,135,131,129,": ",0				; \nNew memory location:
+str_prompt6:		db	13,13,31,135,131,129,": ",0				; \n\nNew memory location:
 str_prompt7:		db	31,228,251," key: ",0					; Press any key:
-str_prompt8:		db	13,13,31,136,128,131,129," (",0				; \n\nJump to memory location (
+;str_prompt8:		db	13,13,31,136,128,131,129," (",0				; \n\nJump to memory location ( (OLD)
+str_prompt8:		db	13,13,31,136,128,131,129,0				; \n\nJump to memory location
 ;str_prompt9:		db	13,13,31,130,31,253,0					; \n\nProgram Name (OLD)
 str_prompt9:		db	13,31,130,31,253,0					; \nProgram Name
 str_prompt9b:		db	31,129,32,32,32,32,32,31,201,14				; Location      Type	 (must follow prompt9)
@@ -1596,6 +1654,8 @@ str_help1:		db	13,13,"Standard",31,158,"s",14				; \n\nStandard Commands
 str_help2:		db	31,218,31,244,"ed",31,158,"s",14			; User Installed Commands
 ;str_abort:		db	" ",31,158,31,160,"!",13,14				;  Command Abort!\n\n
 str_abort:		db	" ",31,158,31,160,"!",14				;  Command Abort!\n
+;str_runs:		db	13,134,"ning",130,":",13,14				; \nRunning program:\n\n
+str_runs:		db	13,134,"ning",130," @",0				; \nRunning program @
 
 beg_str:		db	"First",31,129,": ",0
 end_str:		db	"Last",31,129,":",32,32,0
@@ -1617,7 +1677,6 @@ dnlds10:		db	" ",133,159,150,198,14
 dnlds11:		db	" ",133,132,157,14
 dnlds12:		db	" ",133," non",132,157,14
 dnlds13:		db	31,151,155," detected",13,14
-runs1:			db	13,134,"ning",130,":",13,14
 uplds3: 		db	13,13,"Sending",31,152,132,137,172,32,32,0
 uplds4: 		db	" ",128,32,32,0		;must follow uplds3
 erfr_cmd: 		db	31,203,153,144,0
@@ -2028,43 +2087,6 @@ erfr_err: 		db	31,133,155,13,14
 ;;dnlds12: = " unexpected non-hex digits"
 ;;dnlds13: = "No errors detected"
 ;
-;
-;
-;;---------------------------------------------------------;
-;
-;
-;jump:
-;	mov	dptr, #prompt8
-;	acall	pcstr_h
-;	acall	r6r7todptr
-;	acall	phex16
-;	mov	dptr, #prompt4
-;	acall	pcstr_h
-;	acall	ghex16
-;	jb	psw.5, jump3
-;	jnc	jump2
-;	ajmp	abort2
-;jump2:
-;	acall	dptrtor6r7
-;jump3:	acall	newline
-;	mov	dptr, #runs1
-;	acall	pcstr_h
-;	acall	r6r7todptr
-;
-;jump_doit:  ;jump to user code @dptr (this used by run command also)
-;	clr	a
-;	mov	psw, a
-;	mov	b, a
-;	mov	r0, #7
-;jditclr:mov	@r0, a		;clear r7 to r1
-;	djnz	r0, jditclr	;clear r0
-;	mov	sp, #8		;start w/ sp=7, like a real reset
-;	push	acc		;unlike a real reset, push 0000
-;	push	acc		;in case they end with a RET
-;	jmp	@a+dptr
-;
-;
-;;---------------------------------------------------------;
 ;
 ;dump:	
 ;	mov	r2, #16		;number of lines to print

@@ -23,7 +23,7 @@ nc100_key_delete:			equ		0x7f		; Delete
 
 nc100_keyboard_raw_keytable:
 		db		nc100_key_shift, nc100_key_shift, 0x00, nc100_key_left, nc100_key_enter, 0x00, 0x00, 0x00
-		db		nc100_key_function, nc100_key_control, nc100_key_stop, ' ', 0x00, 0x00, '5', 0x00
+		db		nc100_key_function, nc100_key_control, character_code_escape, ' ', 0x00, 0x00, '5', 0x00
 		db		nc100_key_capslock, nc100_key_symbol, '1', nc100_key_tab, 0x00, 0x00, 0x00, 0x00
 		db		'3', '2', 'Q', 'W', 'E', 0x00, 'S', 'D'
 		db		'4', 0x00, 'Z', 'X', 'A', 0x00, 'R', 'F'
