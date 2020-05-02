@@ -247,7 +247,7 @@ system_init:
 
 	; Configure z80Mon variables
 	ld	bc, 0x4000
-	ld	(z80mon_current_addr), bc				; Set monitor's current address: 0x4000
+	ld	(z80mon_default_addr), bc				; Set monitor's current address: 0x4000
 
 	rst	8							; Continue boot
 

@@ -105,7 +105,7 @@ monlib_string_length:
 
 ; # Monitor Variables
 ; ###########################################################################
-z80mon_current_addr:
+z80mon_default_addr:
 	dw	0x1000
 z80mon_temp1:
 	dw	0x0000
@@ -174,6 +174,14 @@ print_dash_spaces:
 	call	print_space
 	call	print_dash
 	jr	print_space
+
+; # print_colon_space
+; #################################
+;  Print ': '
+print_colon_space:
+	ld	a, ":"
+	call	monlib_console_out
+	jp	print_space
 
 ;cout_sp:acall	cout
 ;	ajmp	space
@@ -1251,7 +1259,7 @@ command_location_new:
 	call	print_cstr
 	call	input_hex16				; Get value
 	jp	nc, print_abort				; If escaped, print abort message
-	ld	(z80mon_current_addr), de		; Save value
+	ld	(z80mon_default_addr), de		; Save value
 	jp	print_newline
 
 ; # command_jump
@@ -1262,7 +1270,7 @@ command_jump:
 	call	print_cstr
 	ld	hl, str_prompt4
 	call	print_cstr
-	ld	bc, (z80mon_current_addr)
+	ld	bc, (z80mon_default_addr)
 	call	input_hex16_preloaded
 	jr	c, command_jump_prep
 	jp	print_abort
@@ -1282,6 +1290,38 @@ command_jump_prep:
 command_jump_brkpnt:
 	jp	(hl)					; Execute startup module
 
+
+; # command_hexdump
+; #################################
+;  Dump memory at the default location
+command_hexdump:
+	ld	hl, (z80mon_default_addr)
+	ld	de, 0x0600
+
+	call	print_newline
+command_hexdump_line_print:
+	ld	e, 0x08					; Number of bytes per line
+	call	print_spacex2
+	ld	b, h					; Copy HL->BC
+	ld	c, l
+	call	print_hex16
+	call	print_colon_space
+command_hexdump_line_print_loop:
+	ld	a, (hl)
+	call	print_hex8
+	inc	hl
+	ld	a, (hl)
+	call	print_hex8
+	inc	hl
+	call	print_spacex2
+	dec	e					; Decrement line byte count
+	jr	nz, command_hexdump_line_print_loop
+	call	print_newline
+	dec	d					; Decrement line count
+	jr	nz, command_hexdump_line_print
+
+	ret
+
 ; # menu_main
 ; #################################
 ;  Implements interactive menu
@@ -1291,7 +1331,7 @@ menu_main:
 	; prompt, so we've got to find and execute all of 'em.
 	ld	hl, str_prompt1				; First part of the prompt
 	call	print_cstr
-	ld	bc, (z80mon_current_addr)		; Get current address
+	ld	bc, (z80mon_default_addr)		; Get current address
 	call	print_hex16
 	;ld	hl, str_prompt2				; Second part of the prompt
 	call	print_str
@@ -1332,16 +1372,6 @@ menu_main_external_commands_exec:
 	xor	a
 	jp	(hl)
 
-;/////////////////////////////////////////////////////////////////////////////////////////////////
-;        command_key_run:                equ     '@'             ; Run program
-;        command_key_download:           equ     'D'             ; Download
-;        command_key_upload:             equ     'U'             ; Upload
-;        command_key_hexdump:            equ     'H'             ; Hex dump memory
-;        command_key_edit:               equ     'E'             ; Edit memory
-;        command_key_clrmem:             equ     'C'             ; Clear memory
-;/////////////////////////////////////////////////////////////////////////////////////////////////
-
-
 menu_main_builtin_commands:
 	pop	af					; Restore command character
 menu_main_builtin_help:
@@ -1370,16 +1400,23 @@ menu_main_builtin_location_new:
 	jp	command_location_new			; Run command
 menu_main_builtin_jump:
 	cp	command_key_jump			; Check if jump key
-	jr	nz, menu_main_builtin_run		; If not, next command
+	jr	nz, menu_main_builtin_hexdump		; If not, next command
 	ld	hl, str_tag_jump
 	call	print_cstr				; Print message
 	jp	command_jump				; Run command
+menu_main_builtin_hexdump:
+	cp	command_key_hexdump			; Check if hexdump key
+	jr	nz, menu_main_builtin_run		; If not, next command
+	ld	hl, str_tag_hexdump
+	call	print_cstr				; Print message
+	jp	command_hexdump				; Run command
 
 menu_main_builtin_run:
 ;	cjne	a, #run_key, menu1e
 ;	mov	dptr, #run_cmd
 ;	acall	pcstr_h
 ;	ajmp	run
+
 ;menu1e:
 ;	cjne	a, #dnld_key, menu1f
 ;	mov	dptr, #dnld_cmd
@@ -1391,13 +1428,6 @@ menu_main_builtin_run:
 ;	acall	pcstr_h
 ;	ajmp	upld
 ;menu1g:
-;menu1h:
-;menu1i:
-;	cjne	a, #dump_key, menu1j
-;	mov	dptr, #dump_cmd
-;	acall	pcstr_h
-;	ajmp	dump
-;menu1j:
 ;;	 cjne	a, #edit_key, menu1k
 ;;	mov	dptr, #edit_cmd
 ;;	acall	pcstr_h
@@ -1420,6 +1450,14 @@ menu_main_builtin_run:
 ;	acall	pcstr_h
 ;	ljmp	intm
 ;menu1n:
+
+;/////////////////////////////////////////////////////////////////////////////////////////////////
+;        command_key_run:                equ     '@'             ; Run program
+;        command_key_download:           equ     'D'             ; Download
+;        command_key_upload:             equ     'U'             ; Upload
+;        command_key_edit:               equ     'E'             ; Edit memory
+;        command_key_clrmem:             equ     'C'             ; Clear memory
+;/////////////////////////////////////////////////////////////////////////////////////////////////
 
 menu_main_end:
 	jp	print_newline				; This will return to menu_main
@@ -1645,7 +1683,7 @@ str_tag_upld: 		db	31,147,0						; Upload
 str_tag_nloc: 		db	31,135,129,0						; New Location
 str_tag_jump: 		db	31,136,128,131,129,0					; Jump to memory location
 ;str_tag_dump: 		db	31,132,219,154,131,0					; Hex dump external memory (OLD)
-str_tag_dump: 		db	31,132,219,131,0					; Hex dump memory
+str_tag_hexdump: 	db	31,132,219,131,0					; Hex dump memory
 str_tag_regdump: 	db	31,219,31,196,"s",0					; Dump Registers
 ;str_tag_edit: 		db	31,156,154,146,0					; Editing external ram
 str_tag_clrm: 		db	31,237,131,0						; Clear memory
@@ -2087,46 +2125,6 @@ erfr_err: 		db	31,133,155,13,14
 ;;dnlds12: = " unexpected non-hex digits"
 ;;dnlds13: = "No errors detected"
 ;
-;
-;dump:	
-;	mov	r2, #16		;number of lines to print
-;	acall	newline2
-;dump1:	acall	r6r7todptr
-;	acall	phex16		;tell 'em the memory location
-;	mov	a,#':'
-;	acall	cout_sp
-;	mov	r3, #16		;r3 counts # of bytes to print
-;	acall	r6r7todptr
-;dump2:	clr	a
-;;	movc	a, @a+dptr
-;	movx	a, @dptr
-;	inc	dptr
-;	acall	phex		;print each byte in hex
-;	acall	space
-;	djnz	r3, dump2
-;	acall	dspace		;print a couple extra space
-;	mov	r3, #16
-;	acall	r6r7todptr
-;dump3:	clr	a
-;;	movc	a, @a+dptr
-;	movx	a, @dptr
-;	inc	dptr
-;	anl	a, #01111111b	;avoid unprintable characters
-;	cjne	a, #127, dump3b
-;	clr	a		;avoid 127/255 (delete/rubout) char
-;dump3b: add	a, #224
-;	jc	dump4
-;	clr	a		;avoid control characters
-;dump4:	add	a, #32
-;	acall	cout
-;	djnz	r3, dump3
-;	acall	newline
-;	acall	line_dly
-;	acall	dptrtor6r7
-;	acall	esc
-;	jc	dump5
-;	djnz	r2, dump1	;loop back up to print next line
-;dump5:	ajmp	newline
 ;
 ;;---------------------------------------------------------;
 ;
