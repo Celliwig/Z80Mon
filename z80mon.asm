@@ -975,6 +975,33 @@ input_hex_complete_end:
 	scf						; Set Carry flag
 	ret
 
+; # input_addrs_start_end
+; #################################
+;  Routine to get a start and end address
+;	Out:	BC = Start Address
+;		DE = End Address
+input_addrs_start_end:
+	call	print_newlinex2
+	ld	hl, str_start_addr
+	call	print_cstr
+	call	input_hex16				; Get start address
+	jr	c, input_addrs_start_end_next_addr	; If it's valid, get next address
+	pop	af					; Dump return address off stack
+	jp	print_abort				; So when this returns, it returns to the menu
+input_addrs_start_end_next_addr:
+	push	de					; Store start address
+	call	print_newline
+	ld	hl, str_end_addr
+	call	print_cstr
+	call	input_hex16
+	jr	c, input_addrs_start_end_finish
+	pop	af					; Dump start address
+	pop	af					; Dump return address off stack
+	jp	print_abort				; So when this returns, it returns to the menu
+input_addrs_start_end_finish:
+	pop	bc
+	jp	print_newline
+
 ; # Memory routines
 ; ###########################################################################
 ; # memory_copy
@@ -1326,6 +1353,43 @@ command_edit_save:
 	ld	(z80mon_default_addr), hl		; Save memory pointer as default
 	jr	command_edit_loop
 
+; # command_clear_mem
+; #################################
+command_clear_mem:
+	call	input_addrs_start_end
+	ld	(z80mon_temp1), bc			; Save start/end address
+	ld	(z80mon_temp2), de			; They're about to be trashed
+	ld	hl, str_sure
+	call	print_cstr
+	call	input_character_filter			; Get response
+	call	char_2_upper
+	cp	'Y'					; Compare key to 'Y'
+	jr	z, command_clear_mem_do
+	ld	a, 'N'
+	call	monlib_console_out
+	jp	print_newlinex2
+command_clear_mem_do:
+	ld	a, 'Y'
+	call	monlib_console_out
+	call	print_newline
+	ld	bc, (z80mon_temp1)			; Reload start/end addresses
+	ld	de, (z80mon_temp2)
+command_clear_mem_loop:
+	xor	a					; Clear A
+	ld	(bc), a					; Clear current memory address
+	ld	a, b					; Check address MSB
+	cp	d
+	jr	nz, command_clear_mem_inc
+	ld	a, c					; Check address LSB
+	cp	e
+	jr	nz, command_clear_mem_inc
+	ld	hl, str_clrcomp
+	call	print_cstr
+	ret
+command_clear_mem_inc:
+	inc	bc
+	jr	command_clear_mem_loop
+
 ; # menu_main
 ; #################################
 ;  Implements interactive menu
@@ -1420,15 +1484,13 @@ menu_main_builtin_edit:
 	ld	hl, str_tag_edit
 	call	print_cstr				; Print message
 	jp	command_edit				; Run command
-
-
 menu_main_builtin_clear_mem:
+	cp	command_key_clrmem			; Check if clear memory key
+	jr	nz, menu_main_builtin_run		; If not, next command
+	ld	hl, str_tag_clrmem
+	call	print_cstr				; Print message
+	jp	command_clear_mem			; Run command
 
-;menu1k:
-;	cjne	a, #clrm_key, menu1l
-;	mov	dptr, #clrm_cmd
-;	acall	pcstr_h
-;	ajmp	clrm
 
 menu_main_builtin_run:
 ;	cjne	a, #run_key, menu1e
@@ -1451,7 +1513,6 @@ menu_main_builtin_run:
 ;        command_key_run:                equ     '@'             ; Run program
 ;        command_key_download:           equ     'D'             ; Download
 ;        command_key_upload:             equ     'U'             ; Upload
-;        command_key_clrmem:             equ     'C'             ; Clear memory
 ;/////////////////////////////////////////////////////////////////////////////////////////////////
 
 menu_main_end:
@@ -1682,7 +1743,7 @@ str_tag_hexdump: 	db	31,132,219,131,0					; Hex dump memory
 str_tag_regdump: 	db	31,219,31,196,"s",0					; Dump Registers
 ;str_tag_edit: 		db	31,156,154,146,0					; Editing external ram (OLD)
 str_tag_edit: 		db	31,216,31,146,0						; Edit Ram
-str_tag_clrm: 		db	31,237,131,0						; Clear memory
+str_tag_clrmem: 	db	31,237,131,0						; Clear memory
 
 str_help1:		db	13,13,"Standard",31,158,"s",14				; \n\nStandard Commands
 str_help2:		db	31,218,31,244,"ed",31,158,"s",14			; User Installed Commands
@@ -1695,9 +1756,11 @@ str_runs:		db	13,134,"ning",130," @",0				; \nRunning program @
 str_edit1: 		db	13,13,31,156,31,146,",",31,140,128,200,14			; \n\nEditing Ram, Esc to quit\n
 str_edit2: 		db	"  ",31,156,193,",",142,129,247,13,14			;   Editing complete, this location unchanged\n\n
 
-beg_str:		db	"First",31,129,": ",0
-end_str:		db	"Last",31,129,":",32,32,0
-sure:			db	31,185,161," sure?",0
+str_start_addr:		db	"Start Address: ",0
+str_end_addr:		db	"End Address:",32,32,0
+str_sure:		db	31,185,161," sure?",0					; Are you sure?
+str_clrcomp:		db	31,131,237,193,14					; Memory clear complete\n
+
 dnlds1: 		db	13,13,31,159," ascii",249,150,31,152,132,137
 			db	",",149,140,128,160,13,14
 dnlds2: 		db	13,31,138,160,"ed",13,14
@@ -2328,75 +2391,12 @@ erfr_err: 		db	31,133,155,13,14
 ;
 ;;---------------------------------------------------------;
 ;
-;get_mem:     ;this thing gets the begin and end locations for
-;	     ;a few commands.  If an esc or enter w/ no input,
-;	     ;it pops it's own return and returns to the menu
-;	     ;(nasty programming, but we need tight code for 4k rom)
-;	acall	newline2
-;	mov	dptr, #beg_str
-;	acall	pcstr_h
-;	acall	ghex16
-;	jc	pop_it
-;	jb	psw.5, pop_it
-;	push	dph
-;	push	dpl
-;	acall	newline
-;	mov	dptr, #end_str
-;	acall	pcstr_h
-;	acall	ghex16
-;	mov	r5, dph
-;	mov	r4, dpl
-;	pop	acc
-;	mov	r2, a
-;	pop	acc
-;	mov	r3, a
-;	jc	pop_it
-;	jb	psw.5, pop_it
-;	ajmp	newline
-;
 ;pop_it: pop	acc
 ;	pop	acc
 ;abort_it:
 ;	acall	newline
 ;abort2: mov	dptr, #abort
 ;	ajmp	pcstr_h
-;
-;
-;clrm:
-;	acall	get_mem
-;	mov	dptr, #sure
-;	acall	pcstr_h
-;	acall	input_character_filter_h
-;	acall	char_2_upper
-;	cjne	a, #'Y', abort_it
-;	acall	newline2
-;     ;now we actually do it
-;
-;clrm2:	mov	dph, r3
-;	mov	dpl, r2
-;clrm3:	clr	a
-;	lcall	smart_wr
-;	mov	a, r5
-;	cjne	a, dph, clrm4
-;	mov	a, r4
-;	cjne	a, dpl, clrm4
-;	ret
-;clrm4:	inc	dptr
-;	sjmp	clrm3
-;
-;;---------------------------------------------------------;
-;
-;;---------------------------------------------------------;
-;
-;
-;;**************************************************************
-;;**************************************************************
-;;*****							  *****
-;;*****	     2k page boundry is somewhere near here	  *****
-;;*****	       (no ajmp or acall past this point)	  *****
-;;*****							  *****
-;;**************************************************************
-;;**************************************************************
 ;
 ;
 ;
