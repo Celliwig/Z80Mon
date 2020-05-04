@@ -1333,6 +1333,7 @@ command_hexdump_line_print_loop:
 
 ; # command_edit
 ; #################################
+;  Basic memory editor
 command_edit:
 	ld	hl, str_edit1
 	call	print_cstr
@@ -1355,6 +1356,7 @@ command_edit_save:
 
 ; # command_clear_mem
 ; #################################
+;  Clears a region of memory
 command_clear_mem:
 	call	input_addrs_start_end
 	ld	(z80mon_temp1), bc			; Save start/end address
@@ -1389,6 +1391,93 @@ command_clear_mem_loop:
 command_clear_mem_inc:
 	inc	bc
 	jr	command_clear_mem_loop
+
+; # command_run
+; #################################
+;  Lists module with id code (35), and provides the ability to run them.
+command_run:
+	call	print_newlinex2
+	ld	b, 0					; Module count
+	ld	hl, mem_srch_start			; Set search start
+command_run_module_list_loop:
+	ld	a, 0x23					; Search for program modules
+	push	bc					; Save BC
+	call	module_search
+	pop	bc					; Restore BC
+	jr	nc, command_run_any_programs		; No command found so finish
+	inc	b					; Found a program
+	call	print_spacex2
+	ld	a, 'A'-1				; -1 because it's added to B which is effectively +1
+	add	a, b					; Create character to press to run program
+	call	monlib_console_out			; Print character
+	call	print_dash_spaces
+	ld	l, 0x20					; Offset to module name
+	call	print_str				; Print module name
+	call	print_newline
+	inc	h					; Increment module search start address
+	jr	command_run_module_list_loop		; Loop around again
+command_run_any_programs:
+	ld	a, b					; Check if there are any programs
+	and	a
+	jr	nz, command_run_select_module
+command_run_no_programs:
+	ld	hl, str_prompt5
+	jp	print_cstr
+command_run_select_module:
+	push	bc					; Save B again
+	ld	hl, str_prompt3				; Print select
+	call	print_cstr
+	ld	a, 'A'					; First character
+	call	monlib_console_out
+	call	print_dash
+	ld	a, 'A'-1				; Last character to select program
+	pop	bc					; Restore B
+	add	a, b
+	call	monlib_console_out
+	push	bc
+	ld	hl, str_prompt4
+	ld	a, ')'
+	call	monlib_console_out
+	call	print_cstr
+	call	input_character_filter			; Get character to select program
+	cp	character_code_escape
+	jr	nz, command_run_validate_selection	; Check that it wasn't escape
+	pop	bc					; If it was pop stored BC
+	jp	print_abort
+command_run_validate_selection:
+	pop	bc
+	call	char_2_upper
+	cp	'A'					; Check that it's A or higher
+	jr	c, command_run_invalid
+	ld	c, a					; Save character
+	ld	a, 'A'-1
+	add	b					; Calculate last letter
+	cp	c					; Check that it's less than or equal to second letter
+	jr	nc, command_run_get_program
+	jr	z, command_run_get_program
+command_run_invalid:
+	ld	hl, str_invalid
+	jp	print_cstr
+command_run_get_program:
+	ld	a, c
+	call	monlib_console_out			; Print selected character
+	ld	a, c					; Get character code
+	sub	'A'-1					; Calculate the index
+	ld	b, a					; Save index
+	call	print_newline
+	ld	hl, mem_srch_start			; Set search start
+command_run_get_program_loop:
+	push	bc					; Save BC
+	ld	a, 0x23					; Search for program modules
+	call	module_search
+	jr	nc, command_run_invalid			; This should never run
+	pop	bc
+	inc	h					; Increment module search pointer
+	djnz	command_run_get_program_loop
+	dec	h
+	ld	l, 0x40					; Set offset to program code
+command_run_brkpnt:
+	jp	(hl)					; Execute program code
 
 ; # menu_main
 ; #################################
@@ -1490,13 +1579,14 @@ menu_main_builtin_clear_mem:
 	ld	hl, str_tag_clrmem
 	call	print_cstr				; Print message
 	jp	command_clear_mem			; Run command
-
-
 menu_main_builtin_run:
-;	cjne	a, #run_key, menu1e
-;	mov	dptr, #run_cmd
-;	acall	pcstr_h
-;	ajmp	run
+	cp	command_key_run				; Check if run key
+	jr	nz, menu_main_builtin_upload		; If not, next command
+	ld	hl, str_tag_run
+	call	print_cstr				; Print message
+	jp	command_run				; Run command
+
+menu_main_builtin_upload:
 
 ;menu1e:
 ;	cjne	a, #dnld_key, menu1f
@@ -1761,6 +1851,8 @@ str_end_addr:		db	"End Address:",32,32,0
 str_sure:		db	31,185,161," sure?",0					; Are you sure?
 str_clrcomp:		db	31,131,237,193,14					; Memory clear complete\n
 
+str_invalid:		db	"Invalid selection",14
+
 dnlds1: 		db	13,13,31,159," ascii",249,150,31,152,132,137
 			db	",",149,140,128,160,13,14
 dnlds2: 		db	13,31,138,160,"ed",13,14
@@ -1882,10 +1974,6 @@ erfr_err: 		db	31,133,155,13,14
 ;;							  ;
 ;;---------------------------------------------------------;
 ;
-;
-;;..........................................................
-;
-;;---------------------------------------------------------;
 ;
 ;;dnlds1 = "Begin sending Intel HEX format file <ESC> to abort"
 ;;dnlds2 = "Download aborted"
@@ -2186,102 +2274,6 @@ erfr_err: 		db	31,133,155,13,14
 ;;dnlds12: = " unexpected non-hex digits"
 ;;dnlds13: = "No errors detected"
 ;
-;
-;;---------------------------------------------------------;
-;
-;
-;;---------------------------------------------------------;
-;
-;
-;;---------------------------------------------------------;
-;
-;
-;run:   
-;	acall	newline2
-;	mov	r2, #255	;first print the menu, count items
-;	mov	dptr, #bmem
-;	dec	dph
-;run2:	inc	dph
-;	mov	a, dph
-;	cjne	a, #((emem+1) >> 8) & 255, run2b
-;	sjmp	run3
-;run2b:	acall	module_find
-;	jnc	run3		;have we found 'em all??
-;	mov	dpl, #4
-;	clr	a
-;	movc	a, @a+dptr
-;	orl	a, #00000011b
-;	cpl	a
-;	jz	run2		;this one doesn't run... find next
-;	acall	dspace
-;	inc	r2
-;	mov	a, #'A'		;print the key to press
-;	add	a, r2
-;	acall	cout_sp
-;	acall	dash_sp
-;	mov	dpl, #32
-;	acall	pstr		;and the command name
-;	acall	newline
-;	ajmp	run2		;and continue doing this
-;run3:	cjne	r2, #255, run4	;are there any to run??
-;	mov	dptr, #prompt5
-;	ajmp	pcstr_h
-;run4:	mov	dptr, #prompt3	;ask the big question!
-;	acall	pcstr_h
-;	mov	a, #'A'
-;	acall	cout
-;	acall	dash
-;	mov	a, #'A'		;such user friendliness...
-;	add	a, r2		;even tell 'em the choices
-;	acall	cout
-;	mov	dptr, #prompt4
-;	acall	pcstr_h
-;	acall	input_character_filter_h
-;	cjne	a, #27, run4aa	;they they hit <ESC>
-;	ajmp	newline
-;run4aa: mov	r3, a
-;	mov	a, #31
-;	clr	c
-;	subb	a, r2
-;	mov	a, r3
-;	jc	run4a
-;	acall	char_2_upper
-;run4a:	acall	cout
-;	mov	r3, a
-;	acall	newline
-;	;check to see if it's under 32, if so convert to uppercase
-;	mov	a, r3
-;	add	a, #(256 - 'A')
-;	jnc	run4		;if they typed less than 'A'
-;	mov	r3, a		;R3 has the number they typed
-;	mov	a, r2		;A=R2 has the maximum number
-;	clr	c
-;	subb	a, r3
-;	jc	run4		;if they typed over the max
-;	inc	r3
-;	mov	dptr, #bmem
-;	dec	dph
-;run5:	inc	dph
-;	mov	a, dph
-;	cjne	a, #((emem+1) >> 8) & 255, run5b
-;	sjmp	run8
-;run5b:	acall	module_find
-;	jnc	run8		;Shouldn't ever do this jump!
-;	mov	dpl, #4
-;	clr	a
-;	movc	a, @a+dptr
-;	orl	a, #00000011b
-;	cpl	a
-;	jz	run5		;this one doesn't run... find next
-;	djnz	r3, run5	;count til we find the one they want
-;	acall	newline
-;	mov	dpl, #64
-;	ajmp	jump_doit
-;run8:	ret
-;
-;;---------------------------------------------------------;
-;
-;
 ;;---------------------------------------------------------;
 ;
 ;upld:
@@ -2405,10 +2397,6 @@ erfr_err: 		db	31,133,155,13,14
 ;;   Subroutines for memory managment and non-serial I/O	  ;
 ;;							  ;
 ;;---------------------------------------------------------;
-;
-;
-;;a routine that writes ACC to into flash memory at DPTR
-;; C is set if error occurs, C is clear if it worked
 ;
 ;
 ;;************************************
