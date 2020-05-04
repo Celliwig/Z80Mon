@@ -12,7 +12,7 @@ mon_base:		equ	0x0100			; Monitor base address
 ; ###########################################################################
 command_key_help:	equ	'?'			; Help screen
 command_key_listm:	equ	'M'			; Directory list
-command_key_run:	equ	'@'			; Run program
+command_key_run:	equ	'P'			; Run program
 command_key_download:	equ	'D'			; Download
 command_key_upload:	equ	'U'			; Upload
 command_key_new_locat:	equ	'N'			; New memory location

@@ -1,0 +1,9 @@
+; # Definition file for nc100_lib
+; ###########################################################################
+
+include	"nc100/nc100_io.def"
+
+; # Defines
+; ###########################################################################
+nc100_lib_base:				equ	mem_base+0x1000		; nc100_lib offset
+nc100_cmd_base:				equ	nc100_lib_base+0x1000	; nc100_lib commands offset

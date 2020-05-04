@@ -1,9 +1,4 @@
-include	"nc100/nc100_io.def"
-
-; # Defines
-; ###########################################################################
-nc100_lib_base:				equ	mem_base+0x1000		; nc100_lib offset
-nc100_cmd_base:				equ	nc100_lib_base+0x1000	; nc100_lib commands offset
+include	"nc100/nc100_lib.def"
 
 ; # Library variable storage
 ; ###########################################################################
@@ -292,3 +287,4 @@ orgmem  nc100_cmd_base+0x0500
 
 orgmem  nc100_cmd_base+0x0540
 setup_cmd:
+	ret
