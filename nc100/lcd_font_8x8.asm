@@ -95,7 +95,7 @@ nc100_lcd_print_lf_8x8:
 	ld	d, a							; Save Y position
 	sub	0x40							; Y position - 64
 	jr	c, nc100_lcd_print_lf_8x8_set_position
-	bit	7, b							; Test scroll bit
+	bit	nc100_draw_attrib_scroll, b				; Test scroll bit
 	jr	nz, nc100_lcd_print_lf_8x8_scroll_screen
 ;	xor	a
 ;	ld	d, a							; Reset Y position

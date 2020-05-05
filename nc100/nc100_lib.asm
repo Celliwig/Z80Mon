@@ -251,9 +251,9 @@ endif
 	call	nc100_lcd_set_raster_addr
 
 	xor	a							; Clear attributes
-	set	0, a							; Set inverted attributes
-	;set	1, a							; Overwrite
-	set	7, a							; Scroll screen
+	;set	nc100_draw_attrib_invert, a				; Set inverted attributes
+	;set	nc100_draw_attrib_merge, a				; Overwrite
+	set	nc100_draw_attrib_scroll, a				; Scroll screen
 	call	nc100_lcd_set_attributes
 	call	nc100_lcd_clear_screen					; Clear screen memory
 
