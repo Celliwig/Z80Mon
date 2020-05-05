@@ -49,6 +49,9 @@ include "nc100/lcd_font_8x8.asm"
 ; Keyboard routines
 include	"nc100/keyboard.asm"
 
+; Serial routines
+include	"nc100/serial_io.asm"
+
 ; Interrupt routines
 include	"nc100/interrupts.asm"
 
@@ -275,6 +278,8 @@ endif
 	ld	a, nc100_irq_key_scan					; Enable keyboard interrupts
 	call	interrupt_set_mask_enabled
 	ei								; Enable interrupts
+
+	call	nc100_serial_init					; Init UART (turn off)
 
 	; Configure z80Mon variables
 	ld	bc, 0x4000
