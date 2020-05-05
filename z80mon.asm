@@ -1228,6 +1228,12 @@ command_help_internal_commands:
 	ld	b, command_key_hexdump
 	;ld	hl, str_tag_hexdump
 	call	command_help_line_print
+	ld	b, command_key_in
+	;ld	hl, str_tag_in
+	call	command_help_line_print
+	ld	b, command_key_out
+	;ld	hl, str_tag_out
+	call	command_help_line_print
 	ld	b, command_key_regdump
 	;ld	hl, str_tag_regdump
 	call	command_help_line_print
@@ -1479,6 +1485,52 @@ command_run_get_program_loop:
 command_run_brkpnt:
 	jp	(hl)					; Execute program code
 
+; # command_port_in
+; #################################
+;  Displays the contents of a particular port
+command_port_in:
+	call	print_newlinex2
+	ld	hl, str_prompt11
+	call	print_cstr
+	call	input_hex8				; Get port address
+	jr	c, command_port_in_cont			; Check if escape pressed
+	jp	print_abort
+command_port_in_cont:
+	ld	c, e
+	in	a, (c)					; Read port
+	push	af					; Save value
+	call	print_newline
+	ld	hl, str_prompt12
+	call	print_cstr
+	pop	af
+	call	print_hex8				; Print value
+	call	print_newline
+	ret
+
+; # command_port_out
+; #################################
+;  Writes data to a particular port
+command_port_out:
+	call	print_newlinex2
+	ld	hl, str_prompt11
+	call	print_cstr
+	call	input_hex8				; Get port address
+	jr	c, command_port_out_cont1		; Check if escape pressed
+	jp	print_abort
+command_port_out_cont1:
+	push	de					; Save port address
+	call	print_newline
+	ld	hl, str_prompt12
+	call	print_cstr
+	call	input_hex8
+	jr	c, command_port_out_cont2		; Check if escape pressed
+	jp	print_abort
+command_port_out_cont2:
+	pop	bc					; Restore port address
+	out	(c), e					; Write value to port
+	call	print_newline
+	ret
+
 ; # menu_main
 ; #################################
 ;  Implements interactive menu
@@ -1581,10 +1633,23 @@ menu_main_builtin_clear_mem:
 	jp	command_clear_mem			; Run command
 menu_main_builtin_run:
 	cp	command_key_run				; Check if run key
-	jr	nz, menu_main_builtin_upload		; If not, next command
+	jr	nz, menu_main_builtin_port_input	; If not, next command
 	ld	hl, str_tag_run
 	call	print_cstr				; Print message
 	jp	command_run				; Run command
+menu_main_builtin_port_input:
+	cp	command_key_in				; Check if in key
+	jr	nz, menu_main_builtin_port_output	; If not, next command
+	ld	hl, str_tag_in
+	call	print_cstr				; Print message
+	jp	command_port_in				; Run command
+menu_main_builtin_port_output:
+	cp	command_key_out				; Check if out key
+	jr	nz, menu_main_builtin_upload		; If not, next command
+	ld	hl, str_tag_out
+	call	print_cstr				; Print message
+	jp	command_port_out			; Run command
+
 
 menu_main_builtin_upload:
 
@@ -1814,6 +1879,9 @@ str_prompt8:		db	13,13,31,136,128,131,129,0				; \n\nJump to memory location
 str_prompt9:		db	13,31,130,31,253,0					; \nProgram Name
 str_prompt9b:		db	31,129,32,32,32,32,32,31,201,14				; Location      Type	 (must follow prompt9)
 str_prompt10:		db	") ",31,135,31,178,": ",0				; ) New Value:
+str_prompt11:		db	31,189,": ",0						; Port:
+str_prompt12:		db	31,178,": ",0						; Value:
+
 str_type1:		db	31,154,158,0						; External command
 str_type2:		db	31,130,0						; Program
 str_type3:		db	"Init",0						; Init
@@ -1830,6 +1898,8 @@ str_tag_nloc: 		db	31,135,129,0						; New Location
 str_tag_jump: 		db	31,136,128,131,129,0					; Jump to memory location
 ;str_tag_dump: 		db	31,132,219,154,131,0					; Hex dump external memory (OLD)
 str_tag_hexdump: 	db	31,132,219,131,0					; Hex dump memory
+str_tag_in:		db	"Read",166,189,0					; Read in port
+str_tag_out:		db	31,225,128,189,0					; Write to port
 str_tag_regdump: 	db	31,219,31,196,"s",0					; Dump Registers
 ;str_tag_edit: 		db	31,156,154,146,0					; Editing external ram (OLD)
 str_tag_edit: 		db	31,216,31,146,0						; Edit Ram

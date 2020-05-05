@@ -21,6 +21,8 @@ command_key_hexdump:	equ	'H'			; Hex dump memory
 command_key_regdump:	equ	'R'			; Dump register data
 command_key_edit:	equ	'E'			; Edit memory
 command_key_clrmem:	equ	'C'			; Clear memory
+command_key_in:		equ	'I'			; Port in
+command_key_out:	equ	'O'			; Port out
 
 ; # ASCII character codes
 ; ###########################################################################
