@@ -155,7 +155,34 @@ interrupt_handler:
 ; # nm_interrupt_handler
 ; #################################
 ;  Non-maskable interrupt handler
+;  Power switch handler
 nm_interrupt_handler:
+
+; Is this sideloaded, so need to switch back to original ROM
+if NC100_PROGRAMCARD_SIDELOAD == 0
+else
+	; Switch bank 0 RAM into the last page
+	ld	a, nc100_membank_RAM|nc100_membank_0k
+	out	(nc100_io_membank_D), a
+
+	; Continue execution from high address
+	ld	hl, nm_interrupt_handler_pc_sl_cont			; Get jump address
+	ld	bc, 0xc000						; Start of the last page
+	add	hl, bc
+	jp	(hl)							; Jump to next instruction in high address
+
+nm_interrupt_handler_pc_sl_cont:
+	; Switch ROM back in
+	ld	a, nc100_membank_ROM|nc100_membank_32k
+	out	(nc100_io_membank_C), a					; Select RAM for next page
+	ld	a, nc100_membank_ROM|nc100_membank_16k
+	out	(nc100_io_membank_B), a					; Select RAM for next page
+	ld	a, nc100_membank_ROM|nc100_membank_0k
+	out	(nc100_io_membank_A), a					; Select RAM for lowest page
+
+	rst 0								; Restart ROM
+endif
+
 	retn
 
 ; # Commands
@@ -195,6 +222,9 @@ system_init:
 	; Set below screen RAM
 	ld	sp, 0xf000						; So first object wil be pushed to 0xEFFF
 
+; If booting from ROM, need to copy the code into RAM.
+; Otherwise being sideloaded, so just configure memory as all RAM (already copied).
+if NC100_PROGRAMCARD_SIDELOAD == 0
 	; Copy ROM to RAM
 	ld	a, nc100_membank_RAM|nc100_membank_16k
 	out	(nc100_io_membank_B), a					; Select RAM for next page
@@ -209,6 +239,12 @@ system_init:
 	out	(nc100_io_membank_B), a					; Select RAM for next page
 	ld	a, nc100_membank_RAM|nc100_membank_16k
 	out	(nc100_io_membank_A), a					; Select RAM for lowest page
+else
+	ld	a, nc100_membank_RAM|nc100_membank_16k
+	out	(nc100_io_membank_B), a					; Select RAM for next page
+	ld	a, nc100_membank_RAM|nc100_membank_0k
+	out	(nc100_io_membank_A), a					; Select RAM for lowest page
+endif
 
 	; Setup screen
 	ld	hl, 0xf000						; Set screen at RAM top, above stack
