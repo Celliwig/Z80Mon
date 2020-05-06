@@ -220,12 +220,14 @@ print_hex8:
 	call	print_hex_digit
 	pop	af
 print_hex_digit:
+	push	af
 	and	0x0F
 	add	a, 0x90
 	daa
 	adc	a, 0x40
 	daa
 	call	monlib_console_out
+	pop	af
 	ret
 
 ; # print_dec8u
@@ -994,13 +996,28 @@ input_addrs_start_end_next_addr:
 	ld	hl, str_end_addr
 	call	print_cstr
 	call	input_hex16
-	jr	c, input_addrs_start_end_finish
+	jr	c, input_addrs_start_end_check
 	pop	af					; Dump start address
 	pop	af					; Dump return address off stack
 	jp	print_abort				; So when this returns, it returns to the menu
-input_addrs_start_end_finish:
+input_addrs_start_end_check:
 	pop	bc
+
+	; Check end address is greater (or equal) than start address
+	ld	a, d
+	cp	b
+	jr	c, input_addrs_start_end_invalid	; End MSB is greater than start MSB, so just finish
+	jr	nz, input_addrs_start_end_finish	; D > B, so finish
+	ld	a, e
+	cp	c
+	jr	c, input_addrs_start_end_invalid
+input_addrs_start_end_finish:
 	jp	print_newline
+input_addrs_start_end_invalid:
+	pop	af					; Dump return address off stack
+	call	print_newline
+	ld	hl, str_invalid
+	jp	print_cstr
 
 ; # Memory routines
 ; ###########################################################################
@@ -1531,6 +1548,126 @@ command_port_out_cont2:
 	call	print_newline
 	ret
 
+; # command_upload
+; #################################
+;  Uploads a selected section of memory
+command_upload:
+	call	input_addrs_start_end
+	push	de					; Save addresses
+	push	bc					; print_cstr trashes everything
+	ld	hl, str_upld1
+	call	print_cstr
+	pop	bc					; Restore address
+	ld	d, b					; Copy BC->DE
+	ld	e, c
+	call	print_hex16				; Print start address
+	ld	hl, str_upld2
+	call	print_str				; Use str not cstr as it only trashes HL
+	pop	bc					; Restore address
+	push	bc					; Save addresses again
+	push	de
+	call	print_hex16				; Print end address
+	call	print_newline
+	ld	hl, str_prompt7
+	call	print_cstr
+	call	monlib_console_in			; Get character
+	cp	character_code_escape			; Check if escape
+	jr	nz, command_upload_send
+	pop	bc					; Pop saved addresses
+	pop	de
+	jp	print_abort
+command_upload_send:
+	call	print_newline
+	pop	de					; Pop saved addresses
+	pop	hl
+	inc	hl
+command_upload_send_calc_remain:
+	push	hl					; Store end address
+	sbc	hl, de
+	ld	a, h					; Check value
+	and	a
+	jr	nz, command_upload_send_line_16
+	ld	a, l					; Check value
+	and	0xf0
+	jr	nz, command_upload_send_line_16
+	ld	b, l
+	pop	hl
+	jr	command_upload_send_line_n
+command_upload_send_line_16:
+	ld	b, 0x10
+	pop	hl
+command_upload_send_line_n:
+	call	command_upload_intel_hex_line
+
+	ld	a, h					; Check remaining
+	cp	d
+	jr	nz, command_upload_send_calc_remain
+	ld	a, l					; Check remaining
+	sub	e
+	jr	z, command_upload_send_eof
+	jr	nc, command_upload_send_calc_remain
+
+command_upload_send_eof:
+	call	command_upload_intel_hex_line_eof
+
+	ret
+
+; Writes a line of data in intel hex format
+; B = Number of bytes to output
+; HL = Pointer to area of memory to read
+command_upload_intel_hex_line:
+	ld	c, 0x00					; Zero C (checksum value)
+
+	ld	a, ':'					; line start character
+	call	monlib_console_out
+
+	ld	a, b					; Get byte count
+	call	print_hex8
+	add	c					; Add to checksum
+	ld	c, a					; Save checksum
+
+	ld	a, d					; Get address high byte
+	call	print_hex8
+	add	c					; Add to checksum
+	ld	c, a					; Save checksum
+
+	ld	a, e					; Get address low byte
+	call	print_hex8
+	add	c					; Add to checksum
+	ld	c, a					; Save checksum
+
+	ld	a, 0x00					; Data type
+	call	print_hex8
+command_upload_intel_hex_line_loop:
+	ld	a, (de)					; Get byte from memory
+	call	print_hex8
+	add	c					; Add to checksum
+	ld	c, a					; Save checksum
+	inc	de
+	djnz	command_upload_intel_hex_line_loop	; Loop remain bytes on line
+command_upload_intel_hex_line_checksum:
+	cpl						; Complement A
+	add	0x01					; Add 1
+	call	print_hex8				; Print checksum
+	call	print_newline
+	ret
+
+; Writes out an Intel hex format EOF
+command_upload_intel_hex_line_eof:
+	; Intel hex file EOF
+	ld	a, ':'					; line start character
+	call	monlib_console_out
+	xor	a					; Clear A
+	call	print_hex8
+	call	print_hex8
+	call	print_hex8
+	inc	a
+	call	print_hex8
+	ld	a, 0xff
+	call	print_hex8
+	call	print_newline
+	ret
+
 ; # menu_main
 ; #################################
 ;  Implements interactive menu
@@ -1649,9 +1786,16 @@ menu_main_builtin_port_output:
 	ld	hl, str_tag_out
 	call	print_cstr				; Print message
 	jp	command_port_out			; Run command
-
-
 menu_main_builtin_upload:
+	cp	command_key_upload			; Check if upload key
+	jr	nz, menu_main_builtin_download		; If not, next command
+	ld	hl, str_tag_upld
+	call	print_cstr				; Print message
+	jp	command_upload				; Run command
+
+
+menu_main_builtin_download:
+
 
 ;menu1e:
 ;	cjne	a, #dnld_key, menu1f
@@ -1659,15 +1803,9 @@ menu_main_builtin_upload:
 ;	acall	pcstr_h
 ;	ajmp	dnld
 ;menu1f:
-;	cjne	a, #upld_key, menu1g
-;	mov	dptr, #upld_cmd
-;	acall	pcstr_h
-;	ajmp	upld
 
 ;/////////////////////////////////////////////////////////////////////////////////////////////////
-;        command_key_run:                equ     '@'             ; Run program
 ;        command_key_download:           equ     'D'             ; Download
-;        command_key_upload:             equ     'U'             ; Upload
 ;/////////////////////////////////////////////////////////////////////////////////////////////////
 
 menu_main_end:
@@ -1923,6 +2061,10 @@ str_clrcomp:		db	31,131,237,193,14					; Memory clear complete\n
 
 str_invalid:		db	"Invalid selection",14
 
+str_upld1: 		db	13,13,"Sending",31,152,132,137,172,32,32,0		; \n\nSending Intel hex file from
+str_upld2:		db	" to ",0						; to
+;str_upld2: 		db	" ",128,32,32,0						;  to
+
 dnlds1: 		db	13,13,31,159," ascii",249,150,31,152,132,137
 			db	",",149,140,128,160,13,14
 dnlds2: 		db	13,31,138,160,"ed",13,14
@@ -1938,8 +2080,6 @@ dnlds10:		db	" ",133,159,150,198,14
 dnlds11:		db	" ",133,132,157,14
 dnlds12:		db	" ",133," non",132,157,14
 dnlds13:		db	31,151,155," detected",13,14
-uplds3: 		db	13,13,"Sending",31,152,132,137,172,32,32,0
-uplds4: 		db	" ",128,32,32,0		;must follow uplds3
 erfr_cmd: 		db	31,203,153,144,0
 erfr_ok:  		db	31,153,144,203,'d',13,14
 erfr_err: 		db	31,133,155,13,14
@@ -2346,95 +2486,6 @@ erfr_err: 		db	31,133,155,13,14
 ;
 ;;---------------------------------------------------------;
 ;
-;upld:
-;
-;	acall	get_mem
-;	;assume we've got the beginning address in r3/r2
-;	;and the final address in r5/r4 (r4=lsb)...
-;
-;	;print out what we'll be doing
-;	mov	dptr, #uplds3
-;	acall	pcstr_h
-;	mov	a, r3
-;	acall	phex
-;	mov	a, r2
-;	acall	phex
-;	;mov	 dptr, #uplds4
-;	acall	pcstr_h
-;	mov	a, r5
-;	acall	phex
-;	mov	a, r4
-;	acall	phex
-;	acall	newline
-;
-;	;need to adjust end location by 1...
-;	mov	dph, r5
-;	mov	dpl, r4
-;	inc	dptr
-;	mov	r4, dpl
-;	mov	r5, dph
-;
-;	mov	dptr, #prompt7
-;	acall	pcstr_h
-;	acall	cin
-;	cjne	a, #27, upld2e
-;	ajmp	abort_it
-;upld2e: acall	newline
-;	mov	dpl, r2
-;	mov	dph, r3
-;
-;upld3:	mov	a, r4		;how many more bytes to output??
-;	clr	c
-;	subb	a, dpl
-;	mov	r2, a
-;	mov	a, r5
-;	subb	a, dph
-;	jnz	upld4		;if >256 left, then do next 16
-;	mov	a, r2
-;	jz	upld7		;if we're all done
-;	anl	a, #11110000b
-;	jnz	upld4		;if >= 16 left, then do next 16
-;	sjmp	upld5		;otherwise just finish it off
-;upld4:	mov	r2, #16
-;upld5:	mov	a, #':'		;begin the line
-;	acall	cout
-;	mov	a, r2
-;	acall	phex		;output # of data bytes
-;	acall	phex16		;output memory location
-;	mov	a, dph
-;	add	a, dpl
-;	add	a, r2
-;	mov	r3, a		;r3 will become checksum
-;	clr	a
-;	acall	phex		;output 00 code for data
-;upld6:	clr	a
-;	movc	a, @a+dptr
-;	acall	phex		;output each byte
-;	add	a, r3
-;	mov	r3, a
-;	inc	dptr
-;	djnz	r2, upld6	;do however many bytes we need
-;	mov	a, r3
-;	cpl	a
-;	inc	a
-;	acall	phex		;and finally the checksum
-;	acall	newline
-;	acall	line_dly
-;	acall	esc
-;	jnc	upld3		;keep working if no esc pressed
-;	sjmp	abort_it
-;upld7:	mov	a, #':'
-;	acall	cout
-;	clr	a
-;	acall	phex
-;	acall	phex
-;	acall	phex
-;	inc	a
-;	acall	phex
-;	mov	a, #255
-;	acall	phex
-;upld8:	ajmp	newline2
-;
 ;
 ;line_dly: ;a brief delay between line while uploading, so the
 ;	;receiving host can be slow (i.e. most windows software)
@@ -2525,20 +2576,6 @@ erfr_err: 		db	31,133,155,13,14
 ;	pop	b
 ;	pop	acc
 ;	ret
-;
-;
-;
-;
-;;---------------------------------------------------------;
-;;							  ;
-;;	Power-On initialization code and such...	  ;
-;;							  ;
-;;---------------------------------------------------------;
-;
-;;first the hardware has to get initialized.
-;
-;intr_return:
-;	reti
 ;
 ;;to do automatic baud rate detection, we assume the user will
 ;;press the carriage return, which will cause this bit pattern
