@@ -103,9 +103,22 @@ monlib_string_length:
 ; ###########################################################################
 z80mon_default_addr:
 	dw	0x1000
+z80mon_temp:
 z80mon_temp1:
 	dw	0x0000
 z80mon_temp2:
+	dw	0x0000
+z80mon_temp3:
+	dw	0x0000
+z80mon_temp4:
+	dw	0x0000
+z80mon_temp5:
+	dw	0x0000
+z80mon_temp6:
+	dw	0x0000
+z80mon_temp7:
+	dw	0x0000
+z80mon_temp8:
 	dw	0x0000
 
 ; # Monitor
@@ -128,6 +141,34 @@ dummy_char_in:
 ;	In: A = Character
 dummy_char_out:
 	nop
+	ret
+
+; # Math routines
+; ###########################################################################
+; # math_divide_16b
+; #################################
+;  Divides 16 bit number by another 16 bit number
+;  From: http://map.grauw.nl/sources/external/z80bits.html
+;	In:	BC = Dividend
+;		DE = Divisor
+;		HL = 0
+;	Out:	BC = Quotient
+;		HL = Remainder
+math_divide_16b:
+	ld	hl, 0x0000
+	ld	a, 0x10
+math_divide_16b_loop:
+	db	 0xcb, 0x31				; Undocumented instruction: SLL  C
+	;sll	c					; carry <- C <- 1
+	rl	b					; carry <- B <- carry
+	adc	hl, hl					; HL = HL + HL + carry
+	sbc	hl, de					; HL = HL - (DE + carry)
+	jr	nc, math_divide_16b_check
+	add	hl, de					; HL = HL + DE
+	dec	c					; C = C - 1
+math_divide_16b_check:
+	dec	a
+	jr	nz, math_divide_16b_loop
 	ret
 
 ; # Print routines
@@ -277,84 +318,72 @@ print_dec8_digit_loop:
 	pop	af					; Restore result
 	ret
 
-;	;print 16 bit unsigned integer in DPTR, using base 10.
-;pint16u:	;warning, destroys r2, r3, r4, r5, psw.5
-;	push	acc
-;	mov	a, r0
-;	push	acc
-;	clr	psw.5
-;	mov	r2, dpl
-;	mov	r3, dph
-;
-;pint16a:mov	r4, #16		;ten-thousands digit
-;	mov	r5, #39
-;	acall	pint16x
-;	jz	pint16b
-;	add	a, #'0'
-;	lcall	cout
-;	setb	psw.5
-;
-;pint16b:mov	r4, #232	;thousands digit
-;	mov	r5, #3
-;	acall	pint16x
-;	jnz	pint16c
-;	jnb	psw.5, pint16d
-;pint16c:add	a, #'0'
-;	lcall	cout
-;	setb	psw.5
-;
-;pint16d:mov	r4, #100	;hundreds digit
-;	mov	r5, #0
-;	acall	pint16x
-;	jnz	pint16e
-;	jnb	psw.5, pint16f
-;pint16e:add	a, #'0'
-;	lcall	cout
-;	setb	psw.5
-;
-;pint16f:mov	a, r2		;tens digit
-;	mov	r3, b
-;	mov	b, #10
-;	div	ab
-;	jnz	pint16g
-;	jnb	psw.5, pint16h
-;pint16g:add	a, #'0'
-;	lcall	cout
-;
-;pint16h:mov	a, b		;and finally the ones digit
-;	mov	b, r3
-;	add	a, #'0'
-;	lcall	cout
-;
-;	pop	acc
-;	mov	r0, a
-;	pop	acc
-;	ret
-;
-;;ok, it's a cpu hog and a nasty way to divide, but this code
-;;requires only 21 bytes!  Divides r2-r3 by r4-r5 and leaves
-;;quotient in r2-r3 and returns remainder in acc.  If Intel
-;;had made a proper divide, then this would be much easier.
-;
-;pint16x:mov	r0, #0
-;pint16y:inc	r0
-;	clr	c
-;	mov	a, r2
-;	subb	a, r4
-;	mov	r2, a
-;	mov	a, r3
-;	subb	a, r5
-;	mov	r3, a
-;	jnc	pint16y
-;	dec	r0
-;	mov	a, r2
-;	add	a, r4
-;	mov	r2, a
-;	mov	a, r3
-;	addc	a, r5
-;	mov	r3, a
-;	mov	a, r0
-;	ret
+; # print_dec16u
+; #################################
+;  Print a 16 bit number as unsigned decimal
+;	In: 	BC = Integer value
+print_dec16u:
+	ld	ix, z80mon_temp1			; Used to store state
+	res	0, (ix+0)				; Flag used to suppress leading zeros
+
+print_dec16u_d5:
+	ld	de, 0x2710
+	call	math_divide_16b				; Divid by 10000
+	ld	a, c
+	ld	b, h					; Copy HL -> BC
+	ld	c, l
+	and	a					; Check there's something to print
+	jr	z, print_dec16u_d4
+	call	print_hex_digit
+	set	0, (ix+0)				; Digit has been printed
+
+print_dec16u_d4:
+	ld	de, 0x03e8
+	call	math_divide_16b				; Divid by 1000
+	ld	a, c
+	ld	b, h					; Copy HL -> BC
+	ld	c, l
+	bit	0, (ix+0)				; Test whether a digit has been printed already
+	jr	nz, print_dec16u_d4_out
+	and	a					; Check there's something to print
+	jr	z, print_dec16u_d3
+print_dec16u_d4_out:
+	call	print_hex_digit
+	set	0, (ix+0)				; Digit has been printed
+
+print_dec16u_d3:
+	ld	de, 0x0064
+	call	math_divide_16b				; Divid by 100
+	ld	a, c
+	ld	b, h					; Copy HL -> BC
+	ld	c, l
+	bit	0, (ix+0)				; Test whether a digit has been printed already
+	jr	nz, print_dec16u_d3_out
+	and	a					; Check there's something to print
+	jr	z, print_dec16u_d2
+print_dec16u_d3_out:
+	call	print_hex_digit
+	set	0, (ix+0)				; Digit has been printed
+
+print_dec16u_d2:
+	ld	de, 0x000a
+	call	math_divide_16b				; Divid by 10
+	ld	a, c
+	ld	b, h					; Copy HL -> BC
+	ld	c, l
+	bit	0, (ix+0)				; Test whether a digit has been printed already
+	jr	nz, print_dec16u_d2_out
+	and	a					; Check there's something to print
+	jr	z, print_dec16u_d1
+print_dec16u_d2_out:
+	call	print_hex_digit
+	set	0, (ix+0)				; Digit has been printed
+
+print_dec16u_d1:
+	ld	a, c					; Remainder
+	call	print_hex_digit
+
+	ret
 
 ; # print_str
 ; #################################
@@ -1668,6 +1697,284 @@ command_upload_intel_hex_line_eof:
 	call	print_newline
 	ret
 
+; # command_download_alt
+; #################################
+;  Downloads an Intel format hex file
+;  Used directly from the main menu
+command_download_alt:
+	call	command_download_init
+	jr	command_download_line_start
+; # command_download
+; #################################
+;  Downloads an Intel format hex file
+command_download:
+	ld	hl, str_dnld1
+	call	print_cstr
+	call	command_download_init
+command_download_char_read:
+	call	monlib_console_in			; Get character
+	cp	character_code_escape			; Check for escape
+	jp	z, command_download_abort
+	cp	':'					; Check for line start
+	jr	z, command_download_line_start
+	call	char_2_hex
+	jr	nc, command_download_char_read
+	ld	e, 0x06					; Unexpected hex digits (while waiting for BOL)
+	call	command_download_stats_inc
+	jr	command_download_char_read
+command_download_line_start:
+	ld	e, 0					; (lines received)
+	call	command_download_stats_inc
+command_download_line_start_no_inc:
+	ld	a, '.'					; Print period to indicate transfer
+	call	monlib_console_out
+	ld	c, 0x0					; C = clear checksum
+	call	command_download_get_hex
+	ld	d, a					; D = Number of bytes on this row
+	ld	a, '.'					; Print period to indicate transfer
+	call	monlib_console_out
+	call	command_download_get_hex
+	ld	h, a					; H = MSB address
+	call	command_download_get_hex
+	ld	l, a					; L = LSB address
+	call	command_download_get_hex		; Record type
+	cp	1
+	jr	z, command_download_finished		; Intel hex format EOF
+	and	a
+	jr	nz, command_download_line_unknown
+command_download_line_data:
+	ld	a, d
+	and	a
+	jr	z, command_download_line_checksum
+	call	command_download_get_hex
+	ld	(hl), a					; Save byte of data to memory
+	ld	e, 1
+	call	command_download_stats_inc		; (bytes received)
+	ld	e, 2
+	call	command_download_stats_inc		; (bytes received)
+	inc	hl					; Increment address pointer
+	dec	d
+	jr	z, command_download_line_data
+command_download_line_checksum:
+	call	command_download_get_hex
+	ld	a, c					; Get checksum value
+	and	a					; Which should be zero
+	jr	z, command_download_char_read
+command_download_line_checksum_error:
+	ld	e, 4
+	call	command_download_stats_inc		; (incorrect checksums)
+	jr	command_download_char_read
+command_download_line_unknown:
+	ld	a, d					; Check payload size
+	jr	z, command_download_line_checksum
+command_download_line_unknown_data:
+	call	command_download_get_hex
+	dec	d
+	jr	nz, command_download_line_unknown_data
+	jr	command_download_line_checksum
+command_download_finished:
+	ld	a, d
+	jr	z, command_download_finished_summary
+command_download_finished_data:				; There shouldn't be data to consume...
+	call	command_download_get_hex
+	dec	d
+	jr	nz, command_download_finished_data
+command_download_finished_summary:
+	call	command_download_get_hex		; Get checksum
+	ld	a, c
+	and	a					; Check checksum
+	jp	nz, command_download_summary_error_print
+	call	download_delay
+	ld	hl, str_dnld3
+	call	print_cstr				; Download okay
+; Could do with unconditionally accepting any additional characters for a short time
+	jp	command_download_summary
+command_download_abort:
+	call	download_delay
+	ld	hl, str_dnld2
+	call	print_cstr
+	jr	command_download_summary
+
+; Used to zero the monitor temp space which is used
+; to store stats
+command_download_init:
+	ld	b, 0x10					; Number of bytes to clear
+	ld	hl, z80mon_temp				; Address of temp space
+	xor	a					; Clear A
+command_download_init_loop:
+	ld	(hl), a					; Clear memory
+	djnz	command_download_init_loop
+	ret
+
+; Increment download stat indexed by E
+; 0 = lines received		4 = incorrect checksums
+; 1 = bytes received		5 = unexpected begin of line
+; 2 = bytes written		6 = unexpected hex digits (while waiting for BOL)
+; 3 = bytes unable to write	7 = unexpected non-hex digits (in middle of a line)
+command_download_stats_inc:
+	push	bc					; Save registers
+	push	de
+	push	ix
+	sla	e					; Index x2 (16 bit value)
+	ld	d, 0					; Adding the pair to IX
+	ld	ix, z80mon_temp				; Get base address variable store
+	add	ix, de					; Add index
+	ld	c, (ix+0)				; Get 16 bit value
+	ld	b, (ix+1)
+	inc	bc					; Increment value
+	ld	(ix+0), c
+	ld	(ix+1), b
+	pop	ix					; Restore registers
+	pop	de
+	pop	bc
+	ret
+
+; Gets a hexadecimal value from input, returns it in A. Adds value of A to C (checksum value)
+; Does not print character. Does not handle CR, or backspace.
+command_download_get_hex:
+	call	monlib_console_in			; Get character
+	call	char_2_upper
+	cp	character_code_escape			; Check whether character is escape key
+	jr	nz, command_download_get_hex_check_char
+command_download_get_hex_escape:
+	pop	af					; Pop return address
+	pop	af
+	jr	command_download_abort			; Jump to abort message
+command_download_get_hex_check_char:
+	cp	':'
+	jr	nz, command_download_get_hex_process_char
+command_download_get_hex_check_char_unexpected_bol:
+	ld	e, 5					; (unexpected begin of line)
+	call	command_download_stats_inc
+	pop	af					; Pop return address
+	pop	af
+	jp	command_download_line_start_no_inc
+command_download_get_hex_process_char:
+	call	char_2_hex				; Convert ASCII to hex
+	jr	c, command_download_get_hex_process_value
+	ld	e, 7					; (unexpected non-hex digits)
+	call	command_download_stats_inc
+	jr	command_download_get_hex
+command_download_get_hex_process_value:
+	sla	a					; Shift lower nibble to upper nibble
+	sla	a
+	sla	a
+	sla	a
+	ld	b, a					; Save value
+command_download_get_hex_next_char:
+	call	monlib_console_in			; Get character
+	call	char_2_upper
+	cp	character_code_escape			; Check whether character is escape key
+	jr	z, command_download_get_hex_escape
+command_download_get_hex_check_next_char:
+	cp	':'
+	jr	z, command_download_get_hex_check_char_unexpected_bol
+command_download_get_hex_process_next_char:
+	call	char_2_hex				; Convert ASCII to hex
+	jr	c, command_download_get_hex_process_next_value
+	ld	e, 7					; (unexpected non-hex digits)
+	call	command_download_stats_inc
+	jr	command_download_get_hex_next_char
+command_download_get_hex_process_next_value:
+	or	b					; Combine values
+	push	af					; Save value
+	add	a, c					; Add to checksum
+	ld	c, a					; Store new checksum value
+	pop	af					; Restore value
+	ret
+
+; Prints download stats
+command_download_summary:
+	ld	hl, str_dnld4
+	call	print_cstr
+
+	call	print_space
+	ld	bc, (z80mon_temp)
+	call	print_dec16u
+	ld	hl, str_dnld5
+	call	print_cstr
+
+	call	print_space
+	ld	bc, (z80mon_temp+2)
+	call	print_dec16u
+	ld	hl, str_dnld6a
+	call	print_cstr
+
+	call	print_space
+	ld	bc, (z80mon_temp+4)
+	call	print_dec16u
+	ld	hl, str_dnld6b
+	call	print_cstr
+
+	; Check for errors
+	ld	b, 5
+	ld	hl, 0x0000
+	ld	ix, z80mon_temp+6
+command_download_summary_error_chk:
+	ld	e, (ix+0)
+	inc	ix
+	ld	d, (ix+0)
+	inc	ix
+	add	hl, de
+	djnz	command_download_summary_error_chk
+
+	xor	a					; Clear A
+	or	h
+	or	l
+	and	a					; Check if any errors
+	jr	nz, command_download_summary_error_print
+	ld	hl, str_dnld13				; No errors
+	call	print_cstr
+	jr	command_download_summary_finish
+
+command_download_summary_error_print:
+	ld	hl, str_dnld7
+	call	print_cstr
+
+	call	print_space
+	ld	bc, (z80mon_temp+6)
+	call	print_dec16u
+	ld	hl, str_dnld8
+	call	print_cstr
+
+	call	print_space
+	ld	bc, (z80mon_temp+8)
+	call	print_dec16u
+	ld	hl, str_dnld9
+	call	print_cstr
+
+	call	print_space
+	ld	bc, (z80mon_temp+10)
+	call	print_dec16u
+	ld	hl, str_dnld10
+	call	print_cstr
+
+	call	print_space
+	ld	bc, (z80mon_temp+12)
+	call	print_dec16u
+	ld	hl, str_dnld11
+	call	print_cstr
+
+	call	print_space
+	ld	bc, (z80mon_temp+14)
+	call	print_dec16u
+	ld	hl, str_dnld12
+	call	print_cstr
+
+command_download_summary_finish:
+	jp	print_newline
+
+; A short delay since most terminal emulation programs
+; won't be ready to receive anything immediately after
+; they've transmitted a file... even on a fast Pentium(tm)
+; machine with 16550 uarts!
+download_delay:
+	ld	bc, 0x0000
+download_delay_loop:
+	dec	bc
+	jr	nz, download_delay_loop
+	ret
+
 ; # menu_main
 ; #################################
 ;  Implements interactive menu
@@ -1684,10 +1991,10 @@ menu_main:
 
 	call	input_character_filter			; Get character input
 
-;	cp	':'					; Check for ':' from pushing a HEX file from a terminal
-;	jr	nz, menu_main_push_address
-;	call	dnld_now
-;	jr	menu_main
+	cp	':'					; Check for ':' from pushing a HEX file from a terminal
+	jr	nz, menu_main_push_address
+	call	command_download_alt
+	jr	menu_main
 
 menu_main_push_address:
 	call	char_2_upper				; Convert to uppercase to simplify matching
@@ -1792,22 +2099,12 @@ menu_main_builtin_upload:
 	ld	hl, str_tag_upld
 	call	print_cstr				; Print message
 	jp	command_upload				; Run command
-
-
 menu_main_builtin_download:
-
-
-;menu1e:
-;	cjne	a, #dnld_key, menu1f
-;	mov	dptr, #dnld_cmd
-;	acall	pcstr_h
-;	ajmp	dnld
-;menu1f:
-
-;/////////////////////////////////////////////////////////////////////////////////////////////////
-;        command_key_download:           equ     'D'             ; Download
-;/////////////////////////////////////////////////////////////////////////////////////////////////
-
+	cp	command_key_download			; Check if download key
+	jr	nz, menu_main_end			; If not, next command
+	ld	hl, str_tag_dnld
+	call	print_cstr				; Print message
+	jp	command_download			; Run command
 menu_main_end:
 	jp	print_newline				; This will return to menu_main
 
@@ -2065,21 +2362,22 @@ str_upld1: 		db	13,13,"Sending",31,152,132,137,172,32,32,0		; \n\nSending Intel 
 str_upld2:		db	" to ",0						; to
 ;str_upld2: 		db	" ",128,32,32,0						;  to
 
-dnlds1: 		db	13,13,31,159," ascii",249,150,31,152,132,137
-			db	",",149,140,128,160,13,14
-dnlds2: 		db	13,31,138,160,"ed",13,14
-dnlds3: 		db	13,31,138,193,"d",13,14
-dnlds4: 		db	"Summary:",14
-dnlds5: 		db	" ",198,"s",145,"d",14
-dnlds6a:		db	" ",139,145,"d",14
-dnlds6b:		db	" ",139," written",14
-dnlds7: 		db	31,155,":",14
-dnlds8: 		db	" ",139," unable",128," write",14
-dnlds9: 		db	32,32,"bad",245,"s",14
-dnlds10:		db	" ",133,159,150,198,14
-dnlds11:		db	" ",133,132,157,14
-dnlds12:		db	" ",133," non",132,157,14
-dnlds13:		db	31,151,155," detected",13,14
+str_dnld1: 		db	13,13,31,159," ascii",249,150,31,152,132,137		; \n\nBegin ascii transfer of Intel hex file
+			db	",",149,140,128,160,13,14				; , or esc to abort \n\n
+str_dnld2: 		db	13,31,138,160,"ed",13,14				; \nDownload aborted\n\n
+str_dnld3: 		db	13,31,138,193,"d",13,14					; \nDownload completed\n\n
+str_dnld4: 		db	13,"Summary:",14					; \nSummary:\n
+str_dnld5: 		db	" ",198,"s",145,"d",14					;  lines received\n
+str_dnld6a:		db	" ",139,145,"d",14					;  bytes received\n
+str_dnld6b:		db	" ",139," written",14					;  bytes written\n
+str_dnld7: 		db	31,155,":",14						; Errors:\n
+str_dnld8: 		db	" ",139," unable",128," write",14			;  bytes unable to write\n
+str_dnld9: 		db	32,32,"bad",245,"s",14					; bad checksums\n
+str_dnld10:		db	" ",133,159,150,198,14					;  unexpected begin of line\n
+str_dnld11:		db	" ",133,132,157,14					;  unexpected hex digits\n
+str_dnld12:		db	" ",133," non",132,157,14				;  unexpected non hex digits\n
+str_dnld13:		db	31,151,155," detected",13,14				; No errors detected\n\n
+
 erfr_cmd: 		db	31,203,153,144,0
 erfr_ok:  		db	31,153,144,203,'d',13,14
 erfr_err: 		db	31,133,155,13,14
@@ -2176,315 +2474,6 @@ erfr_err: 		db	31,133,155,13,14
 ;esc1:	clr	ri
 ;esc2:	pop	acc
 ;	ret
-;
-;
-;;---------------------------------------------------------;
-;;							  ;
-;;    The 'high-level' stuff to interact with the user	  ;
-;;							  ;
-;;---------------------------------------------------------;
-;
-;
-;;dnlds1 = "Begin sending Intel HEX format file <ESC> to abort"
-;;dnlds2 = "Download aborted"
-;;dnlds3 = "Download completed"
-;
-;
-;;16 byte parameter table: (eight 16 bit values)
-;;  *   0 = lines received
-;;  *   1 = bytes received
-;;  *   2 = bytes written
-;;  *   3 = bytes unable to write
-;;  *   4 = incorrect checksums
-;;  *   5 = unexpected begin of line
-;;  *   6 = unexpected hex digits (while waiting for bol)
-;;  *   7 = unexpected non-hex digits (in middle of a line)
-;
-;
-;
-;dnld:
-;	mov	dptr, #dnlds1		 
-;	acall	pcstr_h		   ;"begin sending file <ESC> to abort"
-;	acall	dnld_init
-;
-;	  ;look for begining of line marker ':'
-;dnld1:	acall	cin
-;	cjne	a, #27, dnld2	;Test for escape
-;	sjmp	dnld_esc
-;
-;dnld2:	cjne	a, #':', dnld2b
-;	sjmp	dnld2d
-;dnld2b:	  ;check to see if it's a hex digit, error if it is
-;	acall	asc2hex
-;	jc	dnld1
-;	mov	r1, #6
-;	acall	dnld_inc
-;	sjmp	dnld1
-;
-;dnld_now: ;entry point for main menu detecting ":" character
-;	mov	a, #'^'
-;	acall	cout
-;	acall	dnld_init
-;
-;dnld2d:	mov	r1, #0
-;	acall	dnld_inc
-;
-;	  ;begin taking in the line of data
-;dnld3:	;mov	a, #'.'
-;	;acall	cout
-;	mov	r4, #0		;r4 will count up checksum
-;	acall	dnld_ghex
-;	mov	r0, a		;R0 = # of data bytes
-;	mov	a, #'.'
-;	acall	cout
-;	acall	dnld_ghex
-;	mov	dph, a		;High byte of load address
-;	acall	dnld_ghex
-;	mov	dpl, a		;Low byte of load address
-;	acall	dnld_ghex	;Record type
-;	cjne	a, #1, dnld4	;End record?
-;	sjmp	dnld_end
-;dnld4:	jnz	dnld_unknown	;is it a unknown record type???
-;dnld5:	mov	a, r0
-;	jz	dnld_get_cksum
-;	acall	dnld_ghex	;Get data byte
-;	mov	r2, a
-;	mov	r1, #1
-;	acall	dnld_inc	;count total data bytes received
-;	mov	a, r2
-;	lcall	smart_wr	;c=1 if an error writing
-;	clr	a
-;	addc	a, #2
-;	mov	r1, a
-;;     2 = bytes written
-;;     3 = bytes unable to write
-;	acall	dnld_inc
-;	inc	dptr
-;	djnz	r0, dnld5
-;dnld_get_cksum:
-;	acall	dnld_ghex	;get checksum
-;	mov	a, r4
-;	jz	dnld1		;should always add to zero
-;dnld_sumerr:
-;	mov	r1, #4
-;	acall	dnld_inc	;all we can do it count # of cksum errors
-;	sjmp	dnld1
-;
-;dnld_unknown:	;handle unknown line type
-;	mov	a, r0
-;	jz	dnld_get_cksum	;skip data if size is zero
-;dnld_ukn2:
-;	acall	dnld_ghex	;consume all of unknown data
-;	djnz	r0, dnld_ukn2
-;	sjmp	dnld_get_cksum
-;
-;dnld_end:   ;handles the proper end-of-download marker
-;	mov	a, r0
-;	jz	dnld_end_3	;should usually be zero
-;dnld_end_2:
-;	acall	dnld_ghex	;consume all of useless data
-;	djnz	r0, dnld_ukn2
-;dnld_end_3:
-;	acall	dnld_ghex	;get the last checksum
-;	mov	a, r4
-;	jnz	dnld_sumerr
-;	acall	dnld_dly
-;	mov	dptr, #dnlds3
-;	acall	pcstr_h		   ;"download went ok..."
-;	;consume any cr or lf character that may have been
-;	;on the end of the last line
-;	jnb	ri, dnld_sum
-;	acall	cin
-;	sjmp	dnld_sum
-;
-;
-;
-;dnld_esc:   ;handle esc received in the download stream
-;	acall	dnld_dly
-;	mov	dptr, #dnlds2	 
-;	acall	pcstr_h		   ;"download aborted."
-;	sjmp	dnld_sum
-;
-;dnld_dly:   ;a short delay since most terminal emulation programs
-;	    ;won't be ready to receive anything immediately after
-;	    ;they've transmitted a file... even on a fast Pentium(tm)
-;	    ;machine with 16550 uarts!
-;	mov	r0, #0
-;dnlddly2:mov	r1, #0
-;	djnz	r1, *		;roughly 128k cycles, appox 0.1 sec
-;	djnz	r0, dnlddly2
-;	ret
-;
-;dnld_inc:     ;increment parameter specified by R1
-;	      ;note, values in Acc and R1 are destroyed
-;	mov	a, r1
-;	anl	a, #00000111b	;just in case
-;	rl	a
-;	add	a, #dnld_parm
-;	mov	r1, a		;now r1 points to lsb
-;	inc	@r1
-;	mov	a, @r1
-;	jnz	dnldin2
-;	inc	r1
-;	inc	@r1
-;dnldin2:ret
-;
-;dnld_gp:     ;get parameter, and inc to next one (@r1)
-;	     ;carry clear if parameter is zero.
-;	     ;16 bit value returned in dptr
-;	setb	c
-;	mov	dpl, @r1
-;	inc	r1
-;	mov	dph, @r1
-;	inc	r1
-;	mov	a, dpl
-;	jnz	dnldgp2
-;	mov	a, dph
-;	jnz	dnldgp2
-;	clr	c
-;dnldgp2:ret
-;
-;
-;
-;;a spacial version of ghex just for the download.  Does not
-;;look for carriage return or backspace.	 Handles ESC key by
-;;poping the return address (I know, nasty, but it saves many
-;;bytes of code in this 4k ROM) and then jumps to the esc
-;;key handling.	This ghex doesn't echo characters, and if it
-;;sees ':', it pops the return and jumps to an error handler
-;;for ':' in the middle of a line.  Non-hex digits also jump
-;;to error handlers, depending on which digit.
-;	  
-;dnld_ghex:
-;dnldgh1:acall	cin
-;	acall	char_2_upper
-;	cjne	a, #27, dnldgh3
-;dnldgh2:pop	acc
-;	pop	acc
-;	sjmp	dnld_esc
-;dnldgh3:cjne	a, #':', dnldgh5
-;dnldgh4:mov	r1, #5		;handle unexpected beginning of line
-;	acall	dnld_inc
-;	pop	acc
-;	pop	acc
-;	ajmp	dnld3		;and now we're on a new line!
-;dnldgh5:acall	asc2hex
-;	jnc	dnldgh6
-;	mov	r1, #7
-;	acall	dnld_inc
-;	sjmp	dnldgh1
-;dnldgh6:mov	r2, a		;keep first digit in r2
-;dnldgh7:acall	cin
-;	acall	char_2_upper
-;	cjne	a, #27, dnldgh8
-;	sjmp	dnldgh2
-;dnldgh8:cjne	a, #':', dnldgh9
-;	sjmp	dnldgh4
-;dnldgh9:acall	asc2hex
-;	jnc	dnldghA
-;	mov	r1, #7
-;	acall	dnld_inc
-;	sjmp	dnldgh7
-;dnldghA:xch	a, r2
-;	swap	a
-;	orl	a, r2
-;	mov	r2, a
-;	add	a, r4		;add into checksum
-;	mov	r4, a
-;	mov	a, r2		;return value in acc
-;	ret
-;
-;;dnlds4 =  "Summary:"
-;;dnlds5 =  " lines received"
-;;dnlds6a = " bytes received"
-;;dnlds6b = " bytes written"
-;
-;dnld_sum:    ;print out download summary
-;	mov	a, r6
-;	push	acc
-;	mov	a, r7
-;	push	acc
-;	mov	dptr, #dnlds4
-;	acall	pcstr_h
-;	mov	r1, #dnld_parm
-;	mov	r6, #dnlds5 & 255
-;	mov	r7, #dnlds5 >> 8
-;	acall	dnld_i0
-;	mov	r6, #dnlds6a & 255
-;	mov	r7, #dnlds6a >> 8
-;	acall	dnld_i0
-;	mov	r6, #dnlds6b & 255
-;	mov	r7, #dnlds6b >> 8
-;	acall	dnld_i0
-;
-;dnld_err:    ;now print out error summary
-;	mov	r2, #5
-;dnlder2:acall	dnld_gp
-;	jc	dnlder3		;any errors?
-;	djnz	r2, dnlder2
-;	 ;no errors, so we print the nice message
-;	mov	dptr, #dnlds13
-;	acall	pcstr_h
-;	sjmp	dlnd_sum_done
-;
-;dnlder3:  ;there were errors, so now we print 'em
-;	mov	dptr, #dnlds7
-;	acall	pcstr_h
-;	  ;but let's not be nasty... only print if necessary
-;	mov	r1, #(dnld_parm+6)
-;	mov	r6, #dnlds8 & 255
-;	mov	r7, #dnlds8 >> 8
-;	acall	dnld_item
-;	mov	r6, #dnlds9 & 255
-;	mov	r7, #dnlds9 >> 8
-;	acall	dnld_item
-;	mov	r6, #dnlds10 & 255
-;	mov	r7, #dnlds10 >> 8
-;	acall	dnld_item
-;	mov	r6, #dnlds11 & 255
-;	mov	r7, #dnlds11 >> 8
-;	acall	dnld_item
-;	mov	r6, #dnlds12 & 255
-;	mov	r7, #dnlds12 >> 8
-;	acall	dnld_item
-;dlnd_sum_done:
-;	pop	acc
-;	mov	r7, a
-;	pop	acc
-;	mov	r6, a
-;	ajmp	newline
-;
-;dnld_item:
-;	acall	dnld_gp		;error conditions
-;	jnc	dnld_i3
-;dnld_i2:acall	space
-;	lcall	pint16u
-;	acall	r6r7todptr
-;	acall	pcstr_h
-;dnld_i3:ret
-;
-;dnld_i0:acall	dnld_gp		;non-error conditions
-;	sjmp	dnld_i2
-;
-;
-;dnld_init:
-;	;init all dnld parms to zero.
-;	mov	r0, #dnld_parm
-;dnld0:	mov	@r0, #0
-;	inc	r0
-;	cjne	r0, #dnld_parm + 16, dnld0
-;	ret
-;
-;
-;;dnlds7:  = "Errors:"
-;;dnlds8:  = " bytes unable to write"
-;;dnlds9:  = " incorrect checksums"
-;;dnlds10: = " unexpected begin of line"
-;;dnlds11: = " unexpected hex digits"
-;;dnlds12: = " unexpected non-hex digits"
-;;dnlds13: = "No errors detected"
-;
-;;---------------------------------------------------------;
 ;
 ;
 ;line_dly: ;a brief delay between line while uploading, so the
