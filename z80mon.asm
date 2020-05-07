@@ -1754,7 +1754,7 @@ command_download_line_data:
 	call	command_download_stats_inc		; (bytes received)
 	inc	hl					; Increment address pointer
 	dec	d
-	jr	z, command_download_line_data
+	jr	nz, command_download_line_data
 command_download_line_checksum:
 	call	command_download_get_hex
 	ld	a, c					; Get checksum value
@@ -1803,6 +1803,7 @@ command_download_init:
 	xor	a					; Clear A
 command_download_init_loop:
 	ld	(hl), a					; Clear memory
+	inc	hl					; Increment pointer
 	djnz	command_download_init_loop
 	ret
 
@@ -1838,7 +1839,6 @@ command_download_get_hex:
 	jr	nz, command_download_get_hex_check_char
 command_download_get_hex_escape:
 	pop	af					; Pop return address
-	pop	af
 	jr	command_download_abort			; Jump to abort message
 command_download_get_hex_check_char:
 	cp	':'
@@ -1847,7 +1847,6 @@ command_download_get_hex_check_char_unexpected_bol:
 	ld	e, 5					; (unexpected begin of line)
 	call	command_download_stats_inc
 	pop	af					; Pop return address
-	pop	af
 	jp	command_download_line_start_no_inc
 command_download_get_hex_process_char:
 	call	char_2_hex				; Convert ASCII to hex
