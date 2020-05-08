@@ -33,6 +33,13 @@ character_code_carriage_return:		equ	0x0d	; Carriage Return ASCII code
 character_code_escape:			equ	0x1b	; Escape ASCII code
 character_code_delete:			equ	0x7f	; Delete ASCII code
 
+; Cursor keys
+character_code_left:			equ	0x11	; Repurpose 'Device Control' ASCII codes
+character_code_right:			equ	0x12
+character_code_up:			equ	0x13
+character_code_down:			equ	0x14
+
+
 ; # Macros
 ; ###########################################################################
 	orgmem: macro address
