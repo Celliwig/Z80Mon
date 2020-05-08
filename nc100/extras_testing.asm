@@ -17,14 +17,16 @@ orgmem  extras_cmd_base+0x0000
 
 orgmem  extras_cmd_base+0x0040
 keyboard_test:
+; This test prints the contents of the various keyboard variables
+; And also prints the keycode
+keyboard_test1:
 	call	nc100_lcd_clear_screen					; Clear screen
-
-keyboard_test_loop:
+keyboard_test1_loop:
 	ld	de, 0x0							; Reset cursor position
 	ld	l, 0x0
 	call	nc100_lcd_set_cursor_by_grid
 
-	ld	hl, str_keybd_keycode
+	ld	hl, str_keybd_raw
 	call	print_str
 	ld	a, (nc100_keyboard_raw_keycode)
 	call	print_hex8
@@ -33,7 +35,7 @@ keyboard_test_loop:
 	call	print_hex8
 	call	print_newline
 
-	ld	hl, str_keybd_raw
+	ld	hl, str_keybd_control
 	call	print_str
 	ld	a, (nc100_keyboard_raw_control)
 	call	print_hex8
@@ -54,14 +56,59 @@ keyboard_test_loop:
 	call	print_hex8
 	call	print_newline
 
+	call	print_newline
+	ld	hl, str_keybd_keycode
+	call	nc100_keyboard_char_in
+	call	print_hex8
+
+	call	keyboard_test_select
+
+	jp	keyboard_test1_loop
+
+; This test prints a keypress to the screen
+keyboard_test2:
+	call	nc100_lcd_clear_screen
+keyboard_test2_loop:
+	call	nc100_keyboard_char_in
+	call	c, monlib_console_out
+
+	call	keyboard_test_select
+	jr	keyboard_test2_loop
+
+keyboard_test_select:
 	ld	a, (nc100_keyboard_raw_control)
-	and	nc100_key_stop | nc100_key_control | nc100_key_shift
-	cp	nc100_key_stop | nc100_key_control | nc100_key_shift
-	jr	nz, keyboard_test_loop
+	and	key_combo_exit
+	cp	key_combo_exit
+	jr	z, keyboard_test_select_exit
+
+	ld	a, (nc100_keyboard_raw_control)
+	and	key_combo_test1
+	cp	key_combo_test1
+	jr	z, keyboard_test_select_test1
+
+	ld	a, (nc100_keyboard_raw_control)
+	and	key_combo_test2
+	cp	key_combo_test2
+	jr	z, keyboard_test_select_test2
 
 	ret
+keyboard_test_select_test1:
+	pop	af						; Pop return address
+	jp	keyboard_test1
+keyboard_test_select_test2:
+	pop	af						; Pop return address
+	jp	keyboard_test2
+keyboard_test_select_exit:
+	pop	af						; Pop first return address
+	call	print_newline
+	ret
 
-str_keybd_keycode:	db	"Keycode: ",0
 str_keybd_raw:		db	"Raw:     ",0
+str_keybd_control:	db	"Control: ",0
 str_keybd_state:	db	"State:   ",0
 str_keybd_count:	db	"Count:   ",0
+str_keybd_keycode:	db	"Keycode: ",0
+
+key_combo_exit:		equ	(nc100_rawkey_control | nc100_rawkey_stop) & 0x7f
+key_combo_test1:	equ	(nc100_rawkey_control | nc100_rawkey_shift) & 0x7f
+key_combo_test2:	equ	(nc100_rawkey_control | nc100_rawkey_capslock) & 0x7f
