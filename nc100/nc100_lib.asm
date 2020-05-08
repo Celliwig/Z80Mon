@@ -15,10 +15,10 @@ nc100_lcd_draw_attributes:		db	0x00			; Cursor draw attributes
 									; 1 - 0 = Copy over, 1 = Merge
 									; 7 - 0 = LF resets to (0,0), 1 = Scrolls screen
 
-nc100_keyboard_raw_keycode_prev:	db	0x00			; Previous raw keycode returned from interrupt handler
 nc100_keyboard_raw_keycode:		db	0x00			; Raw keycode returned from interrupt handler (Possibly amalgam of characters)
-nc100_keyboard_raw_control_prev:	db	0x00			; Previous raw control keys from interrupt handler
+nc100_keyboard_raw_keycode_prev:	db	0x00			; Previous raw keycode returned from interrupt handler
 nc100_keyboard_raw_control:		db	0x00			; Raw control keys from interrupt handler
+nc100_keyboard_raw_control_prev:	db	0x00			; Previous raw control keys from interrupt handler
 nc100_keyboard_controller_state:	db	0x00			; Persistent information (capslock, etc)
 nc100_keyboard_raw_character_count:	db	0x00			; Number of character (not control!) keys depressed
 
@@ -307,6 +307,16 @@ orgmem	nc100_cmd_base+0x0100
 
 orgmem	nc100_cmd_base+0x0140						; executable code begins here
 startup_cmd:
+;	ld	b, nc100_serial_baud_2400
+;	ld	c, uPD71051_reg_mode_bclk_x16 | uPD71051_reg_mode_chrlen_8 | uPD71051_reg_mode_parity_none | uPD71051_reg_mode_stopbit_1
+;	call	nc100_serial_config
+;
+;	; Replace dummy console routines
+;	ld	bc, nc100_serial_char_out_poll
+;	ld	(monlib_console_out+1), bc
+;	ld	bc, nc100_serial_char_in_poll
+;	ld	(monlib_console_in+1), bc
+
 	rst	16							; Continue boot
 
 ; ###########################################################################

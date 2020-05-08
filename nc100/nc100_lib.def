@@ -12,6 +12,7 @@ NC100_PROGRAMCARD_SIDELOAD:		equ	1			; If set, the monitor will be loaded
 ; ###########################################################################
 nc100_lib_base:				equ	mem_base+0x1000		; nc100_lib offset
 nc100_cmd_base:				equ	nc100_lib_base+0x1000	; nc100_lib commands offset
+extras_cmd_base:			equ	nc100_cmd_base+0x1000	; nc100_lib commands offset
 
 ; # LCD draw attributes
 ; ###########################################################################
