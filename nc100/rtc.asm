@@ -47,13 +47,12 @@ tm8521_register_timer_year_10:		equ		0xc		; Year: 80/40/20/10
 ; # nc100_rtc_datetime_get_pair
 ; #################################
 ;  Get a pair of values from the RTC, return the combined
-;  Page has already been selected.
-;	In:	B = Bitmask to filter value
-;		C = Port number (upper register)
+;  Page must already be selected.
+;	In:	C = Port number (upper register)
 ;	Out:	A = Combined value
 nc100_rtc_datetime_get_pair:
 	in	a, (c)							; Get value
-	and	b							; Apply bitmask
+	and	0x0f							; Filter value
 	ld	b, a							; Save value
 	xor	a							; Clear A
 nc100_rtc_datetime_get_pair_loop_x10:
@@ -66,9 +65,13 @@ nc100_rtc_datetime_get_pair_loop_x10:
 	add	b							; Add pair
 	ret
 
+; ###########################################################################
+; # Timer (Clock) routines
+; #################################
+
 ; # nc100_rtc_datetime_get
 ; #################################
-;  Retrieves the current datetime
+;  Retrieves the current RTC date/time
 ;	Out:	B = Seconds
 ;		C = Minutes
 ;		D = Hours
@@ -85,28 +88,22 @@ nc100_rtc_datetime_get:
 									; Disable alarm
 
 	; Get datetime
-	ld	b, 0x07
 	ld	c, nc100_rtc_base_register+tm8521_register_timer_second_10
 	call	nc100_rtc_datetime_get_pair
 	ld	h, a							; Temporaily save seconds
-	ld	b, 0x07
 	ld	c, nc100_rtc_base_register+tm8521_register_timer_minute_10
 	call	nc100_rtc_datetime_get_pair
 	ld	l, a							; Temporaily save minutes
 	push	hl							; Save for later
-	ld	b, 0x03
 	ld	c, nc100_rtc_base_register+tm8521_register_timer_hour_10
 	call	nc100_rtc_datetime_get_pair
 	ld	d, a							; Save hours
-	ld	b, 0x03
 	ld	c, nc100_rtc_base_register+tm8521_register_timer_day_10
 	call	nc100_rtc_datetime_get_pair
 	ld	e, a							; Save days
-	ld	b, 0x01
 	ld	c, nc100_rtc_base_register+tm8521_register_timer_month_10
 	call	nc100_rtc_datetime_get_pair
 	ld	h, a							; Save months
-	ld	b, 0x0f
 	ld	c, nc100_rtc_base_register+tm8521_register_timer_year_10
 	call	nc100_rtc_datetime_get_pair
 	ld	l, a							; Save year
@@ -114,32 +111,26 @@ nc100_rtc_datetime_get:
 
 ; Disabled the timer so don't need to re-read
 ;	; Check datetime
-;	ld	b, 0x07
 ;	ld	c, tm8521_register_timer_second_10
 ;	call	nc100_rtc_datetime_get_pair
 ;	cp	b							; Check seconds
 ;	jr	nz, nc100_rtc_datetime_get				; Don't match so reload
-;	ld	b, 0x07
 ;	ld	c, tm8521_register_timer_minute_10
 ;	call	nc100_rtc_datetime_get_pair
 ;	cp	c							; Check minutes
 ;	jr	nz, nc100_rtc_datetime_get				; Don't match so reload
-;	ld	b, 0x03
 ;	ld	c, tm8521_register_timer_hour_10
 ;	call	nc100_rtc_datetime_get_pair
 ;	cp	d							; Check hours
 ;	jr	nz, nc100_rtc_datetime_get				; Don't match so reload
-;	ld	b, 0x03
 ;	ld	c, tm8521_register_timer_day_10
 ;	call	nc100_rtc_datetime_get_pair
 ;	cp	e							; Check days
 ;	jr	nz, nc100_rtc_datetime_get				; Don't match so reload
-;	ld	b, 0x01
 ;	ld	c, tm8521_register_timer_month_10
 ;	call	nc100_rtc_datetime_get_pair
 ;	cp	h							; Check months
 ;	jr	nz, nc100_rtc_datetime_get				; Don't match so reload
-;	ld	b, 0x0f
 ;	ld	c, tm8521_register_timer_year_10
 ;	call	nc100_rtc_datetime_get_pair
 ;	cp	l							; Check years
