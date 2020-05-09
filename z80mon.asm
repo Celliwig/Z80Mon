@@ -2150,7 +2150,7 @@ startup_cold_end:
 ; This code is executed once basic system is initialised
 ; It's assumed that a stack is available at this point
 startup_warm:
-	ld	a, #253					; Search for startup application
+	ld	a, 253					; Search for startup application
 	ld	hl, mem_srch_start			; Set search start
 	call	module_search
 	jr	nc, startup_warm_end			; No module found, so finish
