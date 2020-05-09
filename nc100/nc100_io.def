@@ -30,6 +30,7 @@
 	nc100_io_keyboard_buffer9:	equ	0xB9
 	nc100_uart_data_register:	equ	0xC0		; NEC uPD71051 data register
 	nc100_uart_control_register:	equ	0xC1		; NEC uPD71051 control register
+	nc100_rtc_base_register:	equ	0xd0		; TM8521 RTC base address
 
 ; # Memory Bank Control (0x10-0x13)
 ; ###########################################################################

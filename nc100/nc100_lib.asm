@@ -52,6 +52,9 @@ include	"nc100/keyboard.asm"
 ; Serial routines
 include	"nc100/serial_io.asm"
 
+; RTC routines
+include "nc100/rtc.asm"
+
 ; Interrupt routines
 include	"nc100/interrupts.asm"
 

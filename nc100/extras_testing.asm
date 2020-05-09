@@ -112,3 +112,70 @@ str_keybd_keycode:	db	"Keycode: ",0
 key_combo_exit:		equ	(nc100_rawkey_control | nc100_rawkey_stop) & 0x7f
 key_combo_test1:	equ	(nc100_rawkey_control | nc100_rawkey_shift) & 0x7f
 key_combo_test2:	equ	(nc100_rawkey_control | nc100_rawkey_capslock) & 0x7f
+
+; ###########################################################################
+; #                                                                         #
+; #                                RTC Test                                 #
+; #                                                                         #
+; ###########################################################################
+
+orgmem  extras_cmd_base+0x0100
+	db	0xA5,0xE5,0xE0,0xA5					; signiture bytes
+	db	254,'2',0,0						; id (254=cmd)
+	db	0,0,0,0							; prompt code vector
+	db	0,0,0,0							; reserved
+	db	0,0,0,0							; reserved
+	db	0,0,0,0							; reserved
+	db	0,0,0,0							; user defined
+	db	255,255,255,255						; length and checksum (255=unused)
+	db	"RTC Test",0
+
+orgmem  extras_cmd_base+0x0140
+rtc_test:
+	call	nc100_lcd_clear_screen					; Clear screen
+rtc_test_loop:
+	ld	de, 0x0							; Reset cursor position
+	ld	l, 0x0
+	call	nc100_lcd_set_cursor_by_grid
+
+	ld	hl, str_rtc_timedate
+	call	print_str
+	call	print_newline
+	call	print_spacex2
+
+	call	nc100_rtc_datetime_get
+	ld	a, d
+	call	print_dec8u						; Print hours
+	ld	a, ':'
+	call	monlib_console_out
+	ld	a, c
+	call	print_dec8u						; Print minutes
+	ld	a, ':'
+	call	monlib_console_out
+	ld	a, b
+	call	print_dec8u						; Print seconds
+
+	call	print_spacex2
+
+	ld	a, e
+	call	print_dec8u
+	ld	a, '/'
+	call	monlib_console_out
+	ld	a, h
+	call	print_dec8u
+	ld	a, '/'
+	call	monlib_console_out
+	ld	a, l
+	call	print_dec8u
+
+	ld	a, (nc100_keyboard_raw_control)
+	and	nc100_rawkey_stop ^ 0x80
+	cp	nc100_rawkey_stop ^ 0x80
+	jr	nz, rtc_test_loop
+
+	call	print_newline
+
+	ret
+
+str_rtc_timedate:	db	"Time/Date:",0
+
