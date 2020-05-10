@@ -168,12 +168,13 @@ rtc_test_loop:
 	ld	a, l
 	call	print_dec8u
 
+rtc_test_key_set:
 	; Check if function depressed
 	; Set date/time if it is
 	ld	a, (nc100_keyboard_raw_control)
 	and	nc100_rawkey_function ^ 0x80
 	cp	nc100_rawkey_function ^ 0x80
-	jr	nz, rtc_test_key_exit
+	jr	nz, rtc_test_key_ram
 
 	; Set date/time
 	ld	b, 0
@@ -184,17 +185,35 @@ rtc_test_loop:
 	ld	l, 77
 	call	nc100_rtc_datetime_set
 
+rtc_test_key_ram:
+	; Check if shift is depressed
+	; Run RTC RAM routines
+	ld	a, (nc100_keyboard_raw_control)
+	and	nc100_rawkey_shift ^ 0x80
+	cp	nc100_rawkey_shift ^ 0x80
+	jr	nz, rtc_test_key_exit
+rtc_test_key_ram_brkpt:
+	ld	hl, rtc_test_ramblk1
+	call	nc100_rtc_ram_check
+	ld	hl, rtc_test_ramblk1
+	call	nc100_rtc_ram_write
+	ld	hl, rtc_test_ramblk1
+	call	nc100_rtc_ram_check
+	ld	hl, rtc_test_ramblk2
+	call	nc100_rtc_ram_read
+
 rtc_test_key_exit:
 	; Check if escape depressed
 	; Exit if it is
 	ld	a, (nc100_keyboard_raw_control)
 	and	nc100_rawkey_stop ^ 0x80
 	cp	nc100_rawkey_stop ^ 0x80
-	jr	nz, rtc_test_loop
+	jp	nz, rtc_test_loop
 
 	call	print_newline
 
 	ret
 
 str_rtc_timedate:	db	"Time/Date:",0
-
+rtc_test_ramblk1:	db	"Hello World",0				; 12 bytes of storage to copy into RTC RAM
+rtc_test_ramblk2:	ds	12, 0					; 12 bytes of storage to copy RTC RAM into

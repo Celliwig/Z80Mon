@@ -237,3 +237,221 @@ nc100_rtc_datetime_set:
 ; ###########################################################################
 ; # RAM routines
 ; #################################
+;  The RTC has 2 pages, each with 13 nibbles of storage.
+;  To simplify operations, the last nibble in each page is ignored so
+;  12 bytes of storage is available
+
+; # nc100_rtc_ram_read
+; #################################
+;  Reads RTC RAM into system RAM
+;	In:	HL = Pointer to start of 12 byte block
+nc100_rtc_ram_read:
+	ld	de, 0x0b
+	add	hl, de							; Start at the end of the block
+
+	ld	a, tm8521_register_page_enable_timer|tm8521_register_page_data2
+	out	(nc100_rtc_base_register+tm8521_register_page), a	; Selects the 2nd RAM page
+									; Enable timer
+									; Disable alarm
+
+	ld	b, 6							; Byte counter
+	ld	c, nc100_rtc_base_register+0x0b				; End RTC register port address
+nc100_rtc_ram_read_loop1:
+	in	a, (c)							; Read value
+	and	0x0f							; Filter value
+	sla	a							; Move to upper nibble
+	sla	a
+	sla	a
+	sla	a
+	ld	d, a							; Save for later
+	dec	c							; Next RTC register
+	in	a, (c)
+	and	0x0f							; Filter value
+	or	d							; Add saved value
+	ld	(hl), a							; Write value to system RAM
+	dec	hl							; Decrement system RAM pointer
+	dec	c							; Next RTC register
+	djnz	nc100_rtc_ram_read_loop1				; Loop while bytes remain
+
+	ld	a, tm8521_register_page_enable_timer|tm8521_register_page_data1
+	out	(nc100_rtc_base_register+tm8521_register_page), a	; Selects the 1st RAM page
+									; Enable timer
+									; Disable alarm
+
+	ld	b, 6							; Byte counter
+	ld	c, nc100_rtc_base_register+0x0b				; End RTC register port address
+nc100_rtc_ram_read_loop2:
+	in	a, (c)							; Read value
+	and	0x0f							; Filter value
+	sla	a							; Move to upper nibble
+	sla	a
+	sla	a
+	sla	a
+	ld	d, a							; Save for later
+	dec	c							; Next RTC register
+	in	a, (c)
+	and	0x0f							; Filter value
+	or	d							; Add saved value
+	ld	(hl), a							; Write value to system RAM
+	dec	hl							; Decrement system RAM pointer
+	dec	c							; Next RTC register
+	djnz	nc100_rtc_ram_read_loop2				; Loop while bytes remain
+
+	ld	a, tm8521_register_page_enable_timer
+	out	(nc100_rtc_base_register+tm8521_register_page), a	; Selects the datetime page
+									; Enable timer
+									; Disable alarm
+	ret
+
+; # nc100_rtc_ram_write
+; #################################
+;  Writes a block of system RAM into the RTC RAM
+;	In:	HL = Pointer to start of 12 byte block to save
+nc100_rtc_ram_write:
+	ld	de, 0x0b
+	add	hl, de							; Start at the end of the block
+
+	ld	a, tm8521_register_page_enable_timer|tm8521_register_page_data2
+	out	(nc100_rtc_base_register+tm8521_register_page), a	; Selects the 2nd RAM page
+									; Enable timer
+									; Disable alarm
+
+	ld	b, 6							; Byte counter
+	ld	c, nc100_rtc_base_register+0x0b				; End RTC register port address
+nc100_rtc_ram_write_loop1:
+	ld	d, (hl)							; Get value from system RAM
+	dec	hl							; Decrement system RAM pointer
+	ld	a, d							; First upper nibble
+	and	0xf0							; Filter value
+	srl	a							; Move to lower nibble
+	srl	a
+	srl	a
+	srl	a
+	out	(c), a							; Write nibble to RTC RAM
+	dec	c							; Next RTC register
+	ld	a, d							; Lower nibble
+	and	0x0f							; Filter value
+	out	(c), a							; Write nibble to RTC RAM
+	dec	c							; Next RTC register
+	djnz	nc100_rtc_ram_write_loop1				; Loop while bytes remain
+
+	ld	a, tm8521_register_page_enable_timer|tm8521_register_page_data1
+	out	(nc100_rtc_base_register+tm8521_register_page), a	; Selects the 1st RAM page
+									; Enable timer
+									; Disable alarm
+
+	ld	b, 6							; Byte counter
+	ld	c, nc100_rtc_base_register+0x0b				; End RTC register port address
+nc100_rtc_ram_write_loop2:
+	ld	d, (hl)							; Get value from system RAM
+	dec	hl							; Decrement system RAM pointer
+	ld	a, d							; First upper nibble
+	and	0xf0							; Filter value
+	srl	a							; Move to lower nibble
+	srl	a
+	srl	a
+	srl	a
+	out	(c), a							; Write nibble to RTC RAM
+	dec	c							; Next RTC register
+	ld	a, d							; Lower nibble
+	and	0x0f							; Filter value
+	out	(c), a							; Write nibble to RTC RAM
+	dec	c							; Next RTC register
+	djnz	nc100_rtc_ram_write_loop2				; Loop while bytes remain
+
+
+	ld	a, tm8521_register_page_enable_timer
+	out	(nc100_rtc_base_register+tm8521_register_page), a	; Selects the datetime page
+									; Enable timer
+									; Disable alarm
+	ret
+
+; # nc100_rtc_ram_check
+; #################################
+;  Check that a 12 byte block of system RAM matches the values stored in the RTC
+;	In:	HL = Pointer to start of 12 byte block to save
+;	Out:	Carry flag set if it matches, clear if it doesn't
+nc100_rtc_ram_check:
+	ld	de, 0x0b
+	add	hl, de							; Start at the end of the block
+
+	ld	a, tm8521_register_page_enable_timer|tm8521_register_page_data2
+	out	(nc100_rtc_base_register+tm8521_register_page), a	; Selects the 2nd RAM page
+									; Enable timer
+									; Disable alarm
+
+	ld	b, 6							; Byte counter
+	ld	c, nc100_rtc_base_register+0x0b				; End RTC register port address
+nc100_rtc_ram_check_loop1:
+	ld	d, (hl)							; Get value from system RAM
+	dec	hl							; Decrement system RAM pointer
+	ld	a, d							; Upper nibble
+	and	0xf0							; Filter value
+	srl	a							; Move to lower nibble
+	srl	a
+	srl	a
+	srl	a
+	ld	e, a							; Save for comparison
+	in	a, (c)							; Get RTC RAM value
+	and	0x0f							; Filter RTC value
+	dec	c							; Next RTC register
+	cp	e							; Compare values
+	jr	nz, nc100_rtc_ram_check_failed				; RAM does not match
+	ld	a, d							; Lower nibble
+	and	0x0f							; Filter value
+	ld	e, a							; Save for comparison
+	in	a, (c)							; Get RTC RAM value
+	and	0x0f							; Filter RTC value
+	dec	c							; Next RTC register
+	cp	e							; Compare values
+	jr	nz, nc100_rtc_ram_check_failed				; RAM does not match
+	djnz	nc100_rtc_ram_check_loop1				; Loop while bytes remain
+
+	ld	a, tm8521_register_page_enable_timer|tm8521_register_page_data1
+	out	(nc100_rtc_base_register+tm8521_register_page), a	; Selects the 1st RAM page
+									; Enable timer
+									; Disable alarm
+
+	ld	b, 6							; Byte counter
+	ld	c, nc100_rtc_base_register+0x0b				; End RTC register port address
+nc100_rtc_ram_check_loop2:
+	ld	d, (hl)							; Get value from system RAM
+	dec	hl							; Decrement system RAM pointer
+	ld	a, d							; Upper nibble
+	and	0xf0							; Filter value
+	srl	a							; Move to lower nibble
+	srl	a
+	srl	a
+	srl	a
+	ld	e, a							; Save for comparison
+	in	a, (c)							; Get RTC RAM value
+	and	0x0f							; Filter RTC value
+	dec	c							; Next RTC register
+	cp	e							; Compare values
+	jr	nz, nc100_rtc_ram_check_failed				; RAM does not match
+	ld	a, d							; Lower nibble
+	and	0x0f							; Filter value
+	ld	e, a							; Save for comparison
+	in	a, (c)							; Get RTC RAM value
+	and	0x0f							; Filter RTC value
+	dec	c							; Next RTC register
+	cp	e							; Compare values
+	jr	nz, nc100_rtc_ram_check_failed				; RAM does not match
+	djnz	nc100_rtc_ram_check_loop2				; Loop while bytes remain
+
+	ld	a, tm8521_register_page_enable_timer
+	out	(nc100_rtc_base_register+tm8521_register_page), a	; Selects the datetime page
+									; Enable timer
+									; Disable alarm
+
+	scf								; Set Carry flag
+	ret
+nc100_rtc_ram_check_failed:
+	ld	a, tm8521_register_page_enable_timer
+	out	(nc100_rtc_base_register+tm8521_register_page), a	; Selects the datetime page
+									; Enable timer
+									; Disable alarm
+
+	scf								; Clear Carry flag
+	ccf
+	ret
