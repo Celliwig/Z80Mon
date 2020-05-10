@@ -40,6 +40,9 @@ tm8521_register_timer_month_10:		equ		0xa		; Month: -/-/-/10
 tm8521_register_timer_year_1:		equ		0xb		; Year: 8/4/2/1
 tm8521_register_timer_year_10:		equ		0xc		; Year: 80/40/20/10
 
+; Alarm page
+tm8521_register_alarm_12_24:		equ		0xa		; Selects whether clock operates as 12 or 24 hour
+
 ; ###########################################################################
 ; # Time routines
 ; #################################
@@ -56,6 +59,14 @@ nc100_rtc_init:
 									; Enable Timer (not reset)
 									; 16Hz disabled
 									; 1Hz disabled
+
+	ld	a, tm8521_register_page_enable_timer|tm8521_register_page_alarm
+	out	(nc100_rtc_base_register+tm8521_register_page), a	; Selects the alarm page
+									; Enable timer
+									; Disable alarm
+	ld	a, 0x1							; Select 24 hour operation
+	out	(nc100_rtc_base_register+tm8521_register_alarm_12_24), a
+
 
 	ld	a, tm8521_register_page_enable_timer			; Enable clock
 	out	(nc100_rtc_base_register+tm8521_register_page), a	; Selects the datetime page
