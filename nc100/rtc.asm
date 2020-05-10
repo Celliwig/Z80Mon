@@ -44,6 +44,25 @@ tm8521_register_timer_year_10:		equ		0xc		; Year: 80/40/20/10
 ; # Time routines
 ; #################################
 
+; # nc100_rtc_init
+; #################################
+;  Initialise RTC after power on
+nc100_rtc_init:
+	xor	a							; Clear A
+	out	(nc100_rtc_base_register+tm8521_register_test), a	; Be sure to zero test register
+
+	ld	a, tm8521_register_reset_alarm|tm8521_register_reset_enable_16Hz|tm8521_register_reset_enable_1Hz
+	out	(nc100_rtc_base_register+tm8521_register_reset), a	; Reset Alarm
+									; Enable Timer (not reset)
+									; 16Hz disabled
+									; 1Hz disabled
+
+	ld	a, tm8521_register_page_enable_timer			; Enable clock
+	out	(nc100_rtc_base_register+tm8521_register_page), a	; Selects the datetime page
+									; Enable timer
+									; Disable alarm
+	ret
+
 ; # nc100_rtc_datetime_get_pair
 ; #################################
 ;  Get a pair of values from the RTC, return the combined

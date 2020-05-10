@@ -283,6 +283,7 @@ endif
 	ei								; Enable interrupts
 
 	call	nc100_serial_init					; Init UART (turn off)
+	call	nc100_rtc_init						; Init RTC
 
 	; Configure z80Mon variables
 	ld	bc, 0x4000
