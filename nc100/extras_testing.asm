@@ -168,6 +168,25 @@ rtc_test_loop:
 	ld	a, l
 	call	print_dec8u
 
+	; Check if function depressed
+	; Set date/time if it is
+	ld	a, (nc100_keyboard_raw_control)
+	and	nc100_rawkey_function ^ 0x80
+	cp	nc100_rawkey_function ^ 0x80
+	jr	nz, rtc_test_key_exit
+
+	; Set date/time
+	ld	b, 0
+	ld	c, 39
+	ld	d, 17
+	ld	e, 1
+	ld	h, 2
+	ld	l, 77
+	call	nc100_rtc_datetime_set
+
+rtc_test_key_exit:
+	; Check if escape depressed
+	; Exit if it is
 	ld	a, (nc100_keyboard_raw_control)
 	and	nc100_rawkey_stop ^ 0x80
 	cp	nc100_rawkey_stop ^ 0x80

@@ -65,6 +65,26 @@ nc100_rtc_datetime_get_pair_loop_x10:
 	add	b							; Add pair
 	ret
 
+; # nc100_rtc_datetime_set_pair
+; #################################
+;  Set a pair of values in the RTC
+;  Page must already be selected.
+;	In:	A = Value
+;		C = Port number (upper register)
+nc100_rtc_datetime_set_pair:
+	ld	b, 0							; Store for 10's unit
+nc100_rtc_datetime_set_pair_x10:
+	sub	0x0a							; Subtract 10
+	jr	c, nc100_rtc_datetime_set_pair_cont			; If greater or equal to zero
+	inc	b							; Increment 10's unit
+	jr	nc100_rtc_datetime_set_pair_x10				; Repeat
+nc100_rtc_datetime_set_pair_cont:
+	out	(c), b							; Write out 10's unit
+	dec	c							; Decreement to next register
+	add	0x0a							; Undo previous subtract
+	out	(c), a							; Write out 1's unit
+	ret
+
 ; ###########################################################################
 ; # Timer (Clock) routines
 ; #################################
@@ -142,6 +162,53 @@ nc100_rtc_datetime_get:
 									; Disable alarm
 
 	ei								; Enable interrupts again
+	ret
+
+; # nc100_rtc_datetime_set
+; #################################
+;  Sets the current RTC date/time
+;	Out:	B = Seconds
+;		C = Minutes
+;		D = Hours
+;		E = Day
+;		H = Month
+;		L = Year
+nc100_rtc_datetime_set:
+	di								; Disable interrupts
+
+	xor	a
+	out	(nc100_rtc_base_register+tm8521_register_page), a	; Selects the datetime page
+									; Disable timer
+									; Disable alarm
+
+	; Set date/time
+	push	bc							; Because it's going to get nuked
+	ld	a, l							; Set year
+	ld	c, nc100_rtc_base_register+tm8521_register_timer_year_10
+	call	nc100_rtc_datetime_set_pair
+	ld	a, h							; Set month
+	ld	c, nc100_rtc_base_register+tm8521_register_timer_month_10
+	call	nc100_rtc_datetime_set_pair
+	ld	a, e							; Set day
+	ld	c, nc100_rtc_base_register+tm8521_register_timer_day_10
+	call	nc100_rtc_datetime_set_pair
+	ld	a, d							; Set hour
+	ld	c, nc100_rtc_base_register+tm8521_register_timer_hour_10
+	call	nc100_rtc_datetime_set_pair
+	pop	hl							; Restore saved values
+	ld	a, l							; Set minutes
+	ld	c, nc100_rtc_base_register+tm8521_register_timer_minute_10
+	call	nc100_rtc_datetime_set_pair
+	ld	a, h							; Set seconds
+	ld	c, nc100_rtc_base_register+tm8521_register_timer_second_10
+	call	nc100_rtc_datetime_set_pair
+
+	ld	a, tm8521_register_page_enable_timer
+	out	(nc100_rtc_base_register+tm8521_register_page), a	; Selects the datetime page
+									; Enable timer
+									; Disable alarm
+
+	ei								; Enable interrupts
 	ret
 
 ; ###########################################################################
