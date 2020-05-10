@@ -2,12 +2,12 @@ include	"nc100/nc100_lib.def"
 
 ; # Library variable storage
 ; ###########################################################################
-orgmem	mon_base-0x20
+; Interrupt space 0x0018-0x0037 free (32 bytes)
+orgmem  mem_base+0x18
+; # LCD variables
+; #################################
 nc100_raster_start_addr:		dw	0x0000			; Address of LCD raster memory
-; Possibly move these into the raster memory
-; Last 4 bytes of each line are not used
 nc100_raster_cursor_addr:		dw	0x0000			; Cursor position in raster memory
-; These are words to allow loading directly into double registers
 nc100_lcd_pos_xy:			dw	0x0000			; LCD x/y cursor position (X: 0-59/Y: 0-63)
 nc100_lcd_pixel_offset:			db	0x00			; LCD pixel position in data byte
 nc100_lcd_draw_attributes:		db	0x00			; Cursor draw attributes
@@ -15,12 +15,44 @@ nc100_lcd_draw_attributes:		db	0x00			; Cursor draw attributes
 									; 1 - 0 = Copy over, 1 = Merge
 									; 7 - 0 = LF resets to (0,0), 1 = Scrolls screen
 
+; # Keyboard variables
+; #################################
 nc100_keyboard_raw_keycode:		db	0x00			; Raw keycode returned from interrupt handler (Possibly amalgam of characters)
 nc100_keyboard_raw_keycode_prev:	db	0x00			; Previous raw keycode returned from interrupt handler
 nc100_keyboard_raw_control:		db	0x00			; Raw control keys from interrupt handler
 nc100_keyboard_raw_control_prev:	db	0x00			; Previous raw control keys from interrupt handler
 nc100_keyboard_controller_state:	db	0x00			; Persistent information (capslock, etc)
 nc100_keyboard_raw_character_count:	db	0x00			; Number of character (not control!) keys depressed
+
+;  Memory locations 0x0040-0x004f not used by CP/M, allocated to CBIOS
+orgmem	mem_base+0x40
+; # Config variables
+; #################################
+nc100_config:
+nc100_config1:
+					db	0x0
+nc100_config2:
+					db	0x0
+nc100_config3:
+					db	0x0
+nc100_config4:
+					db	0x0
+nc100_config5:
+					db	0x0
+nc100_config6:
+					db	0x0
+nc100_config7:
+					db	0x0
+nc100_config8:
+					db	0x0
+nc100_config9:
+					db	0x0
+nc100_config10:
+					db	0x0
+nc100_config11:
+					db	0x0
+nc100_config_chksum:
+					db	0x0
 
 orgmem	nc100_lib_base
 ; # Font data
