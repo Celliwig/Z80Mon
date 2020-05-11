@@ -29,7 +29,7 @@ nc100_memory_page_get:
 ;	Out:	Carry flag set if present, clear if not
 nc100_memory_memcard_present:
 	in	a, (nc100_io_misc_status_A)			; Read general status
-	and	a, nc100_memcard_present			; Check memcard present bit
+	and	nc100_memcard_present				; Check memcard present bit
 	scf							; Set Carry flag
 	jr	z, nc100_memory_memcard_present_exit		; Memcard present
 	ccf							; Clear (complement) Carry flag
@@ -42,7 +42,7 @@ nc100_memory_memcard_present_exit:
 ;	Out:	Carry flag set if read only, clear if not
 nc100_memory_memcard_read_only:
 	in	a, (nc100_io_misc_status_A)			; Read general status
-	and	a, nc100_memcard_write_prot			; Check memcard write protected
+	and	nc100_memcard_write_prot			; Check memcard write protected
 	scf							; Set Carry flag
 	jr	nz, nc100_memory_memcard_read_only_exit		; Memcard write protected
 	ccf							; Clear (complement) Carry flag
