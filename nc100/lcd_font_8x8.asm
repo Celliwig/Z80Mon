@@ -3,17 +3,18 @@
 
 ; # nc100_lcd_print_glyph_only_8x8
 ; #################################
-;  Prints a character to lcd (char must be <128)
+;  Prints a character to lcd
 ;	In:	A = ASCII character
 ;		D = y position (0-63)
 ;		E = x position/memory cell (0-59)
 ;		HL = cursor address
 nc100_lcd_print_glyph_only_8x8:
+	ld	b, 0
 	ld	ix, nc100_font_8x8					; Get font data address
 	sub	0x20							; Remove offset to ' ' from character
 	sla	a							; x2 result
 	ld	c, a							; Create offset to glyph data
-	ld	b, 0
+	rl	b
 	sla	c							; x2 (original x 4)
 	rl	b
 	sla	c							; x2 (original x 8)
@@ -53,7 +54,7 @@ nc100_lcd_print_glyph_only_8x8:
 
 ; # nc100_lcd_print_glyph_8x8
 ; #################################
-;  Prints a character to lcd (char must be <128), and updates the cursor position
+;  Prints a character to lcd, and updates the cursor position
 ;	In:	A = ASCII character
 ;		D = y position (0-63)
 ;		E = x position/memory cell (0-59)

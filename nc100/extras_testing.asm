@@ -217,3 +217,45 @@ rtc_test_key_exit:
 str_rtc_timedate:	db	"Time/Date:",0
 rtc_test_ramblk1:	db	"Hello World",0				; 12 bytes of storage to copy into RTC RAM
 rtc_test_ramblk2:	ds	12, 0					; 12 bytes of storage to copy RTC RAM into
+
+; ###########################################################################
+; #                                                                         #
+; #                                LCD Test                                 #
+; #                                                                         #
+; ###########################################################################
+
+orgmem  extras_cmd_base+0x0200
+	db	0xA5,0xE5,0xE0,0xA5					; signiture bytes
+	db	254,'3',0,0						; id (254=cmd)
+	db	0,0,0,0							; prompt code vector
+	db	0,0,0,0							; reserved
+	db	0,0,0,0							; reserved
+	db	0,0,0,0							; reserved
+	db	0,0,0,0							; user defined
+	db	255,255,255,255						; length and checksum (255=unused)
+	db	"LCD Test",0
+
+orgmem  extras_cmd_base+0x0240
+lcd_test:
+	call	nc100_lcd_clear_screen					; Clear screen
+
+	ld	b, 0xdf
+	ld	a, ' '
+lcd_test_print_loop:
+	push	af
+	call	monlib_console_out
+	pop	af
+	inc	a
+	djnz	lcd_test_print_loop
+
+lcd_test_key_exit:
+	; Check if escape depressed
+	; Exit if it is
+	ld	a, (nc100_keyboard_raw_control)
+	and	nc100_rawkey_stop ^ 0x80
+	cp	nc100_rawkey_stop ^ 0x80
+	jp	nz, lcd_test_key_exit
+
+	call	print_newline
+
+	ret
