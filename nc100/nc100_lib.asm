@@ -57,8 +57,6 @@ nc100_config_chksum:
 orgmem	nc100_lib_base
 ; # Font data
 ; ###########################################################################
-nc100_font_6x8:
-	include	'fonts/font_6x8.asm'
 nc100_font_8x8:
 	include	'fonts/font_8x8.asm'
 
@@ -71,9 +69,6 @@ include	"math/multiplication_64.def"
 ; ###########################################################################
 ; Basic LCD routines
 include	"nc100/lcd_basic.asm"
-
-; Provides LCD 6x8 font
-;include	"nc100/lcd_font_6x8.asm"
 
 ; Provides LCD 8x8 font
 include "nc100/lcd_font_8x8.asm"
