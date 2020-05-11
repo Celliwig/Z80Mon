@@ -385,6 +385,21 @@ print_dec16u_d1:
 
 	ret
 
+; # print_str_simple
+; #################################
+;  Prints a null terminated string.
+;  Retains the ability ability to print consecutive strings.
+;	In:	HL = Pointer to string
+print_str_simple:
+	ld	a, (hl)					; Get next character
+	inc	hl					; Increment pointer
+	and	a					; Test if value is zero
+	jr	z, print_str_simple_end			; Check whether NULL character
+	call	monlib_console_out			; Print character
+	jr	print_str_simple			; Loop
+print_str_simple_end:
+	ret
+
 ; # print_str
 ; #################################
 ;  Prints a null terminated string.
