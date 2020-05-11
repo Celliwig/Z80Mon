@@ -259,3 +259,43 @@ lcd_test_key_exit:
 	call	print_newline
 
 	ret
+
+; ###########################################################################
+; #                                                                         #
+; #                            Dictionary Test                              #
+; #                                                                         #
+; ###########################################################################
+
+orgmem  extras_cmd_base+0x0300
+	db	0xA5,0xE5,0xE0,0xA5					; signiture bytes
+	db	254,'4',0,0						; id (254=cmd)
+	db	0,0,0,0							; prompt code vector
+	db	0,0,0,0							; reserved
+	db	0,0,0,0							; reserved
+	db	0,0,0,0							; reserved
+	db	0,0,0,0							; user defined
+	db	255,255,255,255						; length and checksum (255=unused)
+	db	"Dictionary Test",0
+
+orgmem  extras_cmd_base+0x0340
+dictionary_test:
+	call	nc100_lcd_clear_screen					; Clear screen
+
+	ld	hl, str_dictionary_test
+	call	print_cstr
+
+dictionary_test_key_exit:
+	; Check if escape depressed
+	; Exit if it is
+	ld	a, (nc100_keyboard_raw_control)
+	and	nc100_rawkey_stop ^ 0x80
+	cp	nc100_rawkey_stop ^ 0x80
+	jp	nz, dictionary_test_key_exit
+
+	call	print_newline
+
+	ret
+
+str_dictionary_test:	db		235,236,237,238,239,240,241,13
+			db		242,243,244,245,246,247,13
+			db		248,249,250,251,252,253,254,255,14

@@ -2228,13 +2228,13 @@ stop_loop:
 ;21 - or		53 - baud		85 - more		117 - checksum
 ;22 - of		54 - when		86 - available		118 - instruction
 ;23 - no		55 - rate		87 - help		119 - unchanged
-;24 - intel		56 - can		88 - edit		120 - paul
+;24 - intel		56 - can		88 - edit		120 - end
 ;25 - flash		57 - are		89 - well		121 - transfer
 ;26 - external		58 - use		90 - user		122 - time
 ;27 - errors		59 - serial		91 - dump		123 - any
 ;28 - editing		60 - auto		92 - delays		124 - skip
 ;29 - digits		61 - port		93 - these		125 - name
-;30 - command		62 - all		94 - terminal		126 - stoffregen
+;30 - command		62 - all		94 - terminal		126 - address
 ;31 - begin		63 - make		95 - system		127 - print
 common_words:
 	db	0x82, 0x90, 0xE8, 0x23, 0x86, 0x05, 0x4C, 0xF8
@@ -2286,10 +2286,10 @@ common_words:
 	db	0x60, 0x25, 0x41, 0x2F, 0xE3, 0x01, 0x56, 0x27
 	db	0x93, 0x09, 0xFE, 0x11, 0xFE, 0x79, 0xBA, 0x60
 	db	0x75, 0x42, 0xEA, 0x62, 0x58, 0xA0, 0xE5, 0x1F
-	db	0x53, 0x4F, 0xD1, 0xC0, 0xA3, 0x09, 0x42, 0x53
-	db	0xF7, 0x12, 0x04, 0x62, 0x1B, 0x30, 0xF5, 0x05
-	db	0xF7, 0x69, 0x0C, 0x35, 0x1B, 0x70, 0x82, 0x2F
-	db	0x2F, 0x14, 0x4F, 0x51, 0xC0, 0x64, 0x25, 0x00
+	db	0x53, 0x4F, 0xD1, 0x10, 0xd5, 0x20, 0x34, 0x75
+	db	0x2f, 0x41, 0x20, 0xb6, 0x01, 0x53, 0x5f, 0x70
+	db	0x9f, 0xc6, 0x50, 0xb3, 0x01, 0xd3, 0x4d, 0x71
+	db	0x07, 0x4c, 0x56, 0x02
 
 ; # List of strings
 ; #################################
@@ -2308,9 +2308,9 @@ str_reg_sp:		db	" SP =&",0
 str_reg_sra:		db	" SRA =&",0
 
 ;str_logon1:		db	"Welcome",128," z80Mon v0.1",13,14			; Welcome string (OLD)
+;str_logon2:	 	db	32,32,"See",148,"2.DOC,",148,"2.EQU",164
+;			db	148,"2.HDR",180,213,141,".",14				; Documentation string
 str_logon1:		db	"Welcome",128," z80Mon v0.1",14				; Welcome string
-str_logon2:	 	db	32,32,"See",148,"2.DOC,",148,"2.EQU",164
-			db	148,"2.HDR",180,213,141,".",14				; Documentation string
 
 ;str_prompt1:		db	148,"2 Loc:",0						; Paulmon2 Loc: (OLD)
 str_prompt1:		db	"z80Mon:",0						; z80Mon:
@@ -2362,11 +2362,11 @@ str_abort:		db	" ",31,158,31,160,"!",14				;  Command Abort!\n
 str_runs:		db	13,134,"ning",130," @",0				; \nRunning program @
 
 ;str_edit1: 		db	13,13,31,156,154,146,",",140,128,200,14			; \n\nEditing external ram, esc to quit\n (OLD)
-str_edit1: 		db	13,13,31,156,31,146,",",31,140,128,200,14			; \n\nEditing Ram, Esc to quit\n
+str_edit1: 		db	13,13,31,156,31,146,",",31,140,128,200,14		; \n\nEditing Ram, Esc to quit\n
 str_edit2: 		db	"  ",31,156,193,",",142,129,247,13,14			;   Editing complete, this location unchanged\n\n
 
-str_start_addr:		db	"Start Address: ",0
-str_end_addr:		db	"End Address:",32,32,0
+str_start_addr:		db	31,143,31,254,": ",0
+str_end_addr:		db	31,248,31,254,": ",0
 str_sure:		db	31,185,161," sure?",0					; Are you sure?
 str_clrcomp:		db	31,131,237,193,14					; Memory clear complete\n
 
