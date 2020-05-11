@@ -98,10 +98,10 @@ nc100_lcd_print_lf_8x8:
 	jr	c, nc100_lcd_print_lf_8x8_set_position
 	bit	nc100_draw_attrib_scroll_bit, b				; Test scroll bit
 	jr	nz, nc100_lcd_print_lf_8x8_scroll_screen
-;	xor	a
-;	ld	d, a							; Reset Y position
-;	jr	nc100_lcd_print_lf_8x8_set_position
-	jp	nc100_lcd_clear_screen
+	xor	a
+	ld	d, a							; Reset Y position
+	jr	nc100_lcd_print_lf_8x8_set_position
+;	jp	nc100_lcd_clear_screen
 nc100_lcd_print_lf_8x8_scroll_screen:
 	ld	a, d
 	sub	0x08							; Undo previous add
