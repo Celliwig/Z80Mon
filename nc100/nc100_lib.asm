@@ -73,6 +73,12 @@ include	"nc100/lcd_basic.asm"
 ; Provides LCD 8x8 font
 include "nc100/lcd_font_8x8.asm"
 
+; Memory routines
+include	"nc100/memory.asm"
+
+; Power routines
+include	"nc100/power.asm"
+
 ; Keyboard routines
 include	"nc100/keyboard.asm"
 
@@ -284,9 +290,9 @@ endif
 	call	nc100_lcd_set_raster_addr
 
 	xor	a							; Clear attributes
-	;set	nc100_draw_attrib_invert, a				; Set inverted attributes
-	;set	nc100_draw_attrib_merge, a				; Overwrite
-	set	nc100_draw_attrib_scroll, a				; Scroll screen
+	;set	nc100_draw_attrib_invert_bit, a				; Set inverted attributes
+	;set	nc100_draw_attrib_merge_bit, a				; Overwrite
+	set	nc100_draw_attrib_scroll_bit, a				; Scroll screen
 	call	nc100_lcd_set_attributes
 	call	nc100_lcd_clear_screen					; Clear screen memory
 
@@ -369,4 +375,370 @@ orgmem  nc100_cmd_base+0x0500
 
 orgmem  nc100_cmd_base+0x0540
 setup_cmd:
+	ld	a, nc100_draw_attrib_invert_mask
+	call	nc100_lcd_set_attributes				; No scroll, inverted
+
+	call	nc100_lcd_clear_screen					; Not need here, but if converting for serial...
+	call	setup_cmd_border_print					; Print border
+
+	call	setup_cmd_selector_print
+	call	setup_cmd_window_clear
+
+	call	setup_cmd_window_status
+
+setup_cmd_key_exit:
+	; Check if escape depressed
+	; Exit if it is
+	ld	a, (nc100_keyboard_raw_control)
+	and	nc100_rawkey_stop ^ 0x80
+	cp	nc100_rawkey_stop ^ 0x80
+	jp	nz, setup_cmd_key_exit
+
+	call	print_newline
+
 	ret
+
+; # Date/Time window
+; #################################
+setup_cmd_window_date:
+	ld	de, 0x080e						; Initial position (14,8)
+	ld	l, 0
+	ld	a, nc100_draw_attrib_invert_mask
+	call	nc100_lcd_set_attributes				; No scroll, inverted
+	call	nc100_lcd_set_cursor_by_grid
+
+	ret
+
+; # Console window
+; #################################
+setup_cmd_window_console:
+	ld	de, 0x080e						; Initial position (14,8)
+	ld	l, 0
+	ld	a, nc100_draw_attrib_invert_mask
+	call	nc100_lcd_set_attributes				; No scroll, inverted
+	call	nc100_lcd_set_cursor_by_grid
+
+	ret
+
+; # Serial window
+; #################################
+setup_cmd_window_serial:
+	ld	de, 0x080e						; Initial position (14,8)
+	ld	l, 0
+	ld	a, nc100_draw_attrib_invert_mask
+	call	nc100_lcd_set_attributes				; No scroll, inverted
+	call	nc100_lcd_set_cursor_by_grid
+
+	ret
+
+; # Status window
+; #################################
+setup_cmd_window_status:
+	ld	a, nc100_draw_attrib_invert_mask
+	call	nc100_lcd_set_attributes				; No scroll, inverted
+
+setup_cmd_window_status_draw:
+	ld	de, 0x0811						; Initial position (17,8)
+	ld	l, 0
+	call	nc100_lcd_set_cursor_by_grid
+	ld	bc, 0x0000
+	call	print_hex16
+	ld	de, 0x081b						; Initial position (27,8)
+	ld	l, 0
+	call	nc100_lcd_set_cursor_by_grid
+	ld	bc, 0x4000
+	call	print_hex16
+	ld	de, 0x0825						; Initial position (37,8)
+	ld	l, 0
+	call	nc100_lcd_set_cursor_by_grid
+	ld	bc, 0x8000
+	call	print_hex16
+	ld	de, 0x082f						; Initial position (47,8)
+	ld	l, 0
+	call	nc100_lcd_set_cursor_by_grid
+	ld	bc, 0xc000
+	call	print_hex16
+
+	ld	de, 0x1010						; Initial position (16,16)
+	ld	l, 0
+	call	nc100_lcd_set_cursor_by_grid
+	ld	hl, str_setup_status_mem_top
+	call	print_str_repeat
+
+	ld	de, 0x1810						; Initial position (16,24)
+	ld	l, 0
+	call	nc100_lcd_set_cursor_by_grid
+	ld	hl, str_setup_status_mem_middle
+	call	print_str_repeat
+
+	ld	de, 0x2010						; Initial position (16,32)
+	ld	l, 0
+	call	nc100_lcd_set_cursor_by_grid
+	ld	hl, str_setup_status_mem_bottom
+	call	print_str_repeat
+
+	ld	de, 0x280f						; Initial position (15,40)
+	ld	l, 0
+	call	nc100_lcd_set_cursor_by_grid
+	ld	hl, str_memory_card
+	call	print_str_simple
+
+	ld	de, 0x3013						; Initial position (19,48)
+	ld	l, 0
+	call	nc100_lcd_set_cursor_by_grid
+	ld	hl, str_battery
+	call	print_str_simple
+
+	ld	de, 0x2826						; Initial position (38,40)
+	ld	l, 0
+	call	nc100_lcd_set_cursor_by_grid
+	ld	hl, str_power_in
+	call	print_str_simple
+
+	ld	de, 0x3028						; Initial position (40,48)
+	ld	l, 0
+	call	nc100_lcd_set_cursor_by_grid
+	ld	hl, str_backup
+	call	print_str_simple
+
+setup_cmd_window_status_update:
+setup_cmd_window_status_update_page_src:
+	ld	de, 0x1812						; Initial position (18,24)
+	ld	l, 0
+	ld	c, nc100_io_membank_A
+setup_cmd_window_status_update_page_src_loop:
+	push	bc							; Save C
+	call	nc100_lcd_set_cursor_by_grid
+	pop	bc							; Restore C
+	call	nc100_memory_page_get
+	ld	a, b							; Get page source bits
+	rlc	a
+	rlc	a
+	and	0x03
+	ld	hl, str_memtype_rom
+	ld	de, 0x05
+	cp	0
+setup_cmd_window_status_update_page_src_str_loop:
+	jr	z, setup_cmd_window_status_update_page_src_write
+	add	hl, de							; Next string pointer
+	dec	a
+	jr	setup_cmd_window_status_update_page_src_str_loop
+setup_cmd_window_status_update_page_src_write:
+	call	print_str
+	ld	a, ':'
+	call	monlib_console_out
+	ld	a, b
+	and	0x3f
+	call	print_hex8
+	ld	de, (nc100_lcd_pos_xy)					; Get current position
+	ld	a, 0x03							; Value to add to X
+	add	e
+	ld	e, a							; Set new position
+	ld	l, 0
+	inc	c
+	ld	a, c
+	cp	nc100_io_membank_D+1
+	jr	nz, setup_cmd_window_status_update_page_src_loop
+
+setup_cmd_window_status_update_memcard:
+	call	nc100_memory_memcard_present
+	jr	nc, setup_cmd_window_status_update_memcard_missing
+	ld	de, 0x281b						; Initial position (27,40)
+	ld	l, 0
+	call	nc100_lcd_set_cursor_by_grid
+	ld	hl, str_present
+	call	print_str_simple
+	ld	de, 0x301b						; Initial position (27,48)
+	ld	l, 0
+	call	nc100_lcd_set_cursor_by_grid
+	ld	hl, str_okay
+	call	nc100_power_check_battery_memcard			; Check memory card battery status
+	jr	c, setup_cmd_window_status_update_memcard_battery_write
+	ld	hl, str_failed
+setup_cmd_window_status_update_memcard_battery_write:
+	call	print_str_simple
+	jr	setup_cmd_window_status_update_power
+setup_cmd_window_status_update_memcard_missing:
+	ld	de, 0x281b						; Initial position (27,40)
+	ld	l, 0
+	call	nc100_lcd_set_cursor_by_grid
+	ld	hl, str_missing
+	call	print_str_simple
+	ld	de, 0x301b						; Initial position (27,48)
+	ld	l, 0
+	call	nc100_lcd_set_cursor_by_grid
+	ld	hl, str_na
+	call	print_str_simple
+
+setup_cmd_window_status_update_power:
+setup_cmd_window_status_update_power_in:
+	ld	de, 0x282f						; Initial position (47,40)
+	ld	l, 0
+	call	nc100_lcd_set_cursor_by_grid
+	ld	hl, str_okay
+	call	nc100_power_check_in_gt_4v
+	jr	c, setup_cmd_window_status_update_power_in_write
+	ld	hl, str_poor
+	call	nc100_power_check_in_gt_3v
+	jr	c, setup_cmd_window_status_update_power_in_write
+	ld	hl, str_failed
+setup_cmd_window_status_update_power_in_write:
+	call	print_str_simple
+setup_cmd_window_status_update_power_backup:
+	ld	de, 0x302f						; Initial position (47,48)
+	ld	l, 0
+	call	nc100_lcd_set_cursor_by_grid
+	ld	hl, str_okay
+	call	nc100_power_check_battery_backup
+	jr	c, setup_cmd_window_status_update_power_backup_write
+	ld	hl, str_failed
+setup_cmd_window_status_update_power_backup_write:
+	call	print_str_simple
+
+	ret
+
+; # Clear window
+; #################################
+setup_cmd_window_clear:
+	ld	de, 0x080e						; Initial position (14,8)
+	ld	l, 0
+	ld	a, nc100_draw_attrib_invert_mask
+	call	nc100_lcd_set_attributes				; No scroll, inverted
+setup_cmd_window_clear_set_row:
+	call	nc100_lcd_set_cursor_by_grid
+	ld	b, 0x2d							; Number of characters to clear
+setup_cmd_window_clear_write_char:
+	ld	a, ' '
+	call	monlib_console_out
+	djnz	setup_cmd_window_clear_write_char
+	ld	a, d
+	add	0x08
+	ld	d, a							; Next row
+	cp	0x38							; Check if on last row
+	jr	nz, setup_cmd_window_clear_set_row
+	ret
+
+; # Print the window selector
+; #################################
+setup_cmd_selector_print:
+setup_cmd_selector_print_datetime:
+	ld	a, (var_setup_selected)
+	cp	0
+	jr	z, setup_cmd_selector_print_datetime_selected
+setup_cmd_selector_print_datetime_unselected:
+	ld	a, nc100_draw_attrib_invert_mask
+	call	nc100_lcd_set_attributes				; No scroll, inverted
+	jr	setup_cmd_selector_print_datetime_draw
+setup_cmd_selector_print_datetime_selected:
+	xor	a
+	call	nc100_lcd_set_attributes				; No scroll
+setup_cmd_selector_print_datetime_draw:
+	ld	de, 0x0802
+	ld	l, 0x00
+	call	nc100_lcd_set_cursor_by_grid				; Set cursor (2,8)
+	ld	hl, str_setup_datetime
+	call	print_str_simple
+setup_cmd_selector_print_console:
+	ld	a, (var_setup_selected)
+	cp	1
+	jr	z, setup_cmd_selector_print_console_selected
+setup_cmd_selector_print_console_unselected:
+	ld	a, nc100_draw_attrib_invert_mask
+	call	nc100_lcd_set_attributes				; No scroll, inverted
+	jr	setup_cmd_selector_print_console_draw
+setup_cmd_selector_print_console_selected:
+	xor	a
+	call	nc100_lcd_set_attributes				; No scroll
+setup_cmd_selector_print_console_draw:
+	ld	de, 0x1002
+	ld	l, 0x00
+	call	nc100_lcd_set_cursor_by_grid				; Set cursor (2,16)
+	ld	hl, str_setup_console
+	call	print_str_simple
+setup_cmd_selector_print_serial:
+	ld	a, (var_setup_selected)
+	cp	2
+	jr	z, setup_cmd_selector_print_serial_selected
+setup_cmd_selector_print_serial_unselected:
+	ld	a, nc100_draw_attrib_invert_mask
+	call	nc100_lcd_set_attributes				; No scroll, inverted
+	jr	setup_cmd_selector_print_serial_draw
+setup_cmd_selector_print_serial_selected:
+	xor	a
+	call	nc100_lcd_set_attributes				; No scroll
+setup_cmd_selector_print_serial_draw:
+	ld	de, 0x1802
+	ld	l, 0x00
+	call	nc100_lcd_set_cursor_by_grid				; Set cursor (2,24)
+	ld	hl, str_setup_serial
+	call	print_str_simple
+setup_cmd_selector_print_status:
+	ld	a, (var_setup_selected)
+	cp	3
+	jr	z, setup_cmd_selector_print_status_selected
+setup_cmd_selector_print_status_unselected:
+	ld	a, nc100_draw_attrib_invert_mask
+	call	nc100_lcd_set_attributes				; No scroll, inverted
+	jr	setup_cmd_selector_print_status_draw
+setup_cmd_selector_print_status_selected:
+	xor	a
+	call	nc100_lcd_set_attributes				; No scroll
+setup_cmd_selector_print_status_draw:
+	ld	de, 0x2002
+	ld	l, 0x00
+	call	nc100_lcd_set_cursor_by_grid				; Set cursor (2,32)
+	ld	hl, str_setup_status
+	call	print_str_simple
+	ret
+
+; # Prints the border for the setup interface
+; #################################
+setup_cmd_border_print:
+	ld	de, 0x0000
+	ld	l, 0x00
+	call	nc100_lcd_set_cursor_by_grid				; Reset cursor (0,0)
+	ld	hl, str_setup_border_top
+	call	print_str_repeat					; Print top
+	ld	d, 0x6
+setup_cmd_border_print_loop:
+	ld	hl, str_setup_border_middle
+	call	print_str_repeat					; Print middle
+	dec	d
+	jr	nz, setup_cmd_border_print_loop
+	ld	hl, str_setup_border_bottom
+	call	print_str_repeat					; Print bottom
+	ret
+
+; # Variables
+; #################################
+var_setup_selected:		db		0x03
+
+; # Strings
+; #################################
+str_setup_border_top:		db		0x01,0xc9,0x0c,0xcd,0x01,0xcb,0x2d,0xcd,0x01,0xbb,0x00
+str_setup_border_middle:	db		0x01,0xba,0x0c,0x20,0x01,0xba,0x2d,0x20,0x01,0xba,0x00
+str_setup_border_bottom:	db		0x01,0xc8,0x0c,0xcd,0x01,0xca,0x2d,0xcd,0x01,0xbc,0x00
+
+str_setup_status_mem_top:	db		0x01,0xda,0x09,0xc4,0x01,0xc2,0x09,0xc4,0x01,0xc2,0x09,0xc4,0x01,0xc2,0x09,0xc4,0x01,0xbf,0x00
+str_setup_status_mem_middle:	db		0x01,0xb3,0x09,0x20,0x01,0xb3,0x09,0x20,0x01,0xb3,0x09,0x20,0x01,0xb3,0x09,0x20,0x01,0xb3,0x00
+str_setup_status_mem_bottom:	db		0x01,0xc0,0x09,0xc4,0x01,0xc1,0x09,0xc4,0x01,0xc1,0x09,0xc4,0x01,0xc1,0x09,0xc4,0x01,0xd9,0x00
+
+str_setup_datetime:		db		"Date/Time",0
+str_setup_console:		db		" Console ",0
+str_setup_serial:		db		"  Serial ",0
+str_setup_status:		db		"  Status ",0
+
+str_memtype_rom:		db		" ROM",0
+str_memtype_ram:		db		" RAM",0
+str_memtype_cram:		db		"CRAM",0
+
+str_memory_card:		db		"Memory Card:",0
+str_backup:			db		"Backup:",0
+str_battery:			db		"Battery:",0
+str_power_in:			db		"Power In: ",0
+str_present:			db		"Present",0
+str_missing:			db		"Missing",0
+str_okay:			db		"Okay",0
+str_poor:			db		"Poor",0
+str_failed:			db		"Failed",0
+str_na:				db		"N/A",0
