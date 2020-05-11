@@ -95,10 +95,10 @@
 ; ###########################################################################
 	nc100_memcard_present:		equ	1 << 7		; 0 = Present, 1 = Not present
 	nc100_memcard_write_prot:	equ	1 << 6		; 0 = Read/Writable, 1 = Read only
-	nc100_volt_in:			equ	1 << 5		; 1 if voltage in okay (>= 4V)
+	nc100_volt_in_gt_4v:		equ	1 << 5		; 1 if voltage in okay (>= 4V)
 	nc100_volt_memcard_battery:	equ	1 << 4		; 1 if battery okay
-	nc100_volt_alkaline_battery:	equ	1 << 3		; 0 if on batteries okay (>= 3.2V)
-	nc100_volt_lithium_cell:	equ	1 << 2		; 0 if onboard backup battery okay (>= 2.7V)
+	nc100_volt_in_gt_3v:		equ	1 << 3		; 0 if on batteries okay (>= 3.2V)
+	nc100_volt_backup_cell:		equ	1 << 2		; 0 if onboard backup battery okay (>= 2.7V)
 	nc100_parallel_busy:		equ	1 << 1		; 0 if parallel port busy
 	nc100_parallel_ack:		equ	1 << 0		; 1 if parallel port ack
 
