@@ -16,9 +16,13 @@ extras_cmd_base:			equ	nc100_cmd_base+0x1000	; nc100_lib commands offset
 
 ; # LCD draw attributes
 ; ###########################################################################
-nc100_draw_attrib_invert:			equ	0		; 1 = Draw output inverted (complemented)
+nc100_draw_attrib_invert_bit:			equ	0		; 1 = Draw output inverted (complemented)
 									; 0 = Draw output normally
-nc100_draw_attrib_merge:			equ	1		; 1 = Merge new data with existing data
+nc100_draw_attrib_merge_bit:			equ	1		; 1 = Merge new data with existing data
 									; 0 = Write over existing data
-nc100_draw_attrib_scroll:			equ	7		; 1 = Scroll screen on newline (at end of screen)
+nc100_draw_attrib_scroll_bit:			equ	7		; 1 = Scroll screen on newline (at end of screen)
 									; 0 = Screen cleared, cursor reset to (0,0)
+
+nc100_draw_attrib_invert_mask:			equ	1 << 0
+nc100_draw_attrib_merge_mask:			equ	1 << 1
+nc100_draw_attrib_scroll_mask:			equ	1 << 7

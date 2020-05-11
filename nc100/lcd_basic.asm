@@ -39,7 +39,7 @@ nc100_lcd_clear_screen:
 	ld	de, 0x1000						; Num. bytes to clear
 	ld	b, 0x00							; Set normal screen clear value
 	ld	a, (nc100_lcd_draw_attributes)				; Get draw attributes
-	bit	nc100_draw_attrib_invert, a				; Test invert flag
+	bit	nc100_draw_attrib_invert_bit, a				; Test invert flag
 	jr	z, nc100_lcd_clear_screen_loop
 	ld	b, 0xff							; Set inverted screen clear value
 nc100_lcd_clear_screen_loop:
@@ -211,14 +211,14 @@ nc100_lcd_write_screen_actual_attrib:
 	ld	c, a							; Save attributes
 	ex	af, af'							; Restore screen data
 nc100_lcd_write_screen_actual_attrib_invert:
-	bit	nc100_draw_attrib_invert, c				; Test invert flag
+	bit	nc100_draw_attrib_invert_bit, c				; Test invert flag
 	jr	z, nc100_lcd_write_screen_actual_attrib_merge		; Skip invert
 	cpl								; Invert screen data
 nc100_lcd_write_screen_actual_attrib_merge:
-	bit	nc100_draw_attrib_merge, c				; Test merge flag
+	bit	nc100_draw_attrib_merge_bit, c				; Test merge flag
 	jr	z, nc100_lcd_write_screen_actual_write			; Skip merge
 	ld	b, (hl)							; Read existing data
-	bit	nc100_draw_attrib_invert, c				; If normal - OR, if inverted - AND
+	bit	nc100_draw_attrib_invert_bit, c				; If normal - OR, if inverted - AND
 	jr	nz, nc100_lcd_write_screen_actual_attrib_merge_AND
 	or	b							; Merge: OR
 	jr	nc100_lcd_write_screen_actual_write
