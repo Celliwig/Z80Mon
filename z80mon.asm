@@ -400,6 +400,28 @@ print_str_simple:
 print_str_simple_end:
 	ret
 
+; # print_str_repeat
+; #################################
+;  Prints a string of repeated character.
+;  Format:	n(0) = Num. char. to print, n(1) = Character to print
+;		Repeats until null character
+;	In:	HL = Pointer to string
+print_str_repeat:
+	ld	a, (hl)
+	inc	hl					; Increment pointer
+	and	a
+	jr	z, print_str_repeat_end
+	ld	b, a					; Character count
+	ld	c, (hl)					; Get character to print
+	inc	hl					; Increment pointer
+print_str_repeat_loop:
+	ld	a, c
+	call	monlib_console_out			; Print character
+	djnz	print_str_repeat_loop
+	jr	print_str_repeat
+print_str_repeat_end:
+	ret
+
 ; # print_str
 ; #################################
 ;  Prints a null terminated string.
