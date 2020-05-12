@@ -375,24 +375,72 @@ orgmem  nc100_cmd_base+0x0500
 
 orgmem  nc100_cmd_base+0x0540
 setup_cmd:
+	call	nc100_lcd_clear_screen
 	ld	a, nc100_draw_attrib_invert_mask
 	call	nc100_lcd_set_attributes				; No scroll, inverted
-
-	call	nc100_lcd_clear_screen					; Not need here, but if converting for serial...
 	call	setup_cmd_border_print					; Print border
 
+setup_cmd_loop:
 	call	setup_cmd_selector_print
-	call	setup_cmd_window_clear
 
-	call	setup_cmd_window_status
-
-setup_cmd_key_exit:
-	; Check if escape depressed
-	; Exit if it is
-	ld	a, (nc100_keyboard_raw_control)
-	and	nc100_rawkey_stop ^ 0x80
-	cp	nc100_rawkey_stop ^ 0x80
-	jp	nz, setup_cmd_key_exit
+setup_cmd_loop_draw:
+	ld	a, (var_setup_selected)					; Get index
+	bit	7, a							; Check if need to redraw
+	jr	z, setup_cmd_loop_update
+	and	0x7f
+	ld	(var_setup_selected), a					; Save filtered index
+	ld	hl, setup_cmd_loop_update				; Push return address
+	push	hl							; For the following jumps
+	cp	0
+	jr	z, setup_cmd_window_datetime_draw
+	cp	1
+	jr	z, setup_cmd_window_console_draw
+	cp	2
+	jp	z, setup_cmd_window_serial_draw
+	cp	3
+	jp	z, setup_cmd_window_status_draw
+	pop	af							; Should never reach here
+									; So pop to re-align stack
+setup_cmd_loop_update:
+	ld	a, (var_setup_selected)					; Get index
+	ld	hl, setup_cmd_loop_check_key				; Push return address
+	push	hl							; For the following jumps
+	cp	0
+	jr	z, setup_cmd_window_datetime_update
+	cp	1
+	jr	z, setup_cmd_window_console_update
+	cp	2
+	jp	z, setup_cmd_window_serial_update
+	cp	3
+	jp	z, setup_cmd_window_status_update
+	pop	af							; Should never reach here
+									; So pop to re-align stack
+setup_cmd_loop_check_key:
+	call	nc100_keyboard_char_in					; Check for key press
+	jr	nc, setup_cmd_loop					; Just loop if no key
+setup_cmd_loop_check_key_up:
+	cp	character_code_up					; Check if up
+	jr	nz, setup_cmd_loop_check_key_down
+	ld	a, (var_setup_selected)					; Get selected index
+	and	a							; Check if zero
+	jr	z, setup_cmd_loop					; If already zero, just loop
+	dec	a							; Index--
+	set	7, a							; Set msb (used to force a redraw)
+	ld	(var_setup_selected), a					; Save selected index
+	jr	setup_cmd_loop						; Loop
+setup_cmd_loop_check_key_down:
+	cp	character_code_down					; Check if down
+	jr	nz, setup_cmd_loop_check_key_exit
+	ld	a, (var_setup_selected)					; Get selected index
+	cp	setup_cmd_screens_max-1					; Check if last screen
+	jr	z, setup_cmd_loop					; If on last screen, just loop
+	inc	a							; Index++
+	set	7, a							; Set msb (used to force a redraw)
+	ld	(var_setup_selected), a					; Save selected index
+	jr	setup_cmd_loop						; Loop
+setup_cmd_loop_check_key_exit:
+	cp	character_code_escape
+	jr	nz, setup_cmd_loop
 
 	call	print_newline
 
@@ -400,44 +448,78 @@ setup_cmd_key_exit:
 
 ; # Date/Time window
 ; #################################
-setup_cmd_window_date:
+setup_cmd_window_datetime_draw:
+	ld	a, nc100_draw_attrib_invert_mask
+	call	nc100_lcd_set_attributes				; No scroll, inverted
+
+	call	setup_cmd_window_clear					; First clear any previous screen
+
 	ld	de, 0x080e						; Initial position (14,8)
 	ld	l, 0
 	ld	a, nc100_draw_attrib_invert_mask
 	call	nc100_lcd_set_attributes				; No scroll, inverted
 	call	nc100_lcd_set_cursor_by_grid
 
+	ld	hl, str_setup_datetime
+	call	print_str_simple
+
+	ret
+
+setup_cmd_window_datetime_update:
 	ret
 
 ; # Console window
 ; #################################
-setup_cmd_window_console:
+setup_cmd_window_console_draw:
+	ld	a, nc100_draw_attrib_invert_mask
+	call	nc100_lcd_set_attributes				; No scroll, inverted
+
+	call	setup_cmd_window_clear					; First clear any previous screen
+
 	ld	de, 0x080e						; Initial position (14,8)
 	ld	l, 0
 	ld	a, nc100_draw_attrib_invert_mask
 	call	nc100_lcd_set_attributes				; No scroll, inverted
 	call	nc100_lcd_set_cursor_by_grid
 
+	ld	hl, str_setup_console
+	call	print_str_simple
+
+	ret
+
+setup_cmd_window_console_update:
 	ret
 
 ; # Serial window
 ; #################################
-setup_cmd_window_serial:
+setup_cmd_window_serial_draw:
+	ld	a, nc100_draw_attrib_invert_mask
+	call	nc100_lcd_set_attributes				; No scroll, inverted
+
+	call	setup_cmd_window_clear					; First clear any previous screen
+
 	ld	de, 0x080e						; Initial position (14,8)
 	ld	l, 0
 	ld	a, nc100_draw_attrib_invert_mask
 	call	nc100_lcd_set_attributes				; No scroll, inverted
 	call	nc100_lcd_set_cursor_by_grid
 
+	ld	hl, str_setup_serial
+	call	print_str_simple
+
+	ret
+
+setup_cmd_window_serial_update:
 	ret
 
 ; # Status window
 ; #################################
-setup_cmd_window_status:
+setup_cmd_window_status_draw:
 	ld	a, nc100_draw_attrib_invert_mask
 	call	nc100_lcd_set_attributes				; No scroll, inverted
 
-setup_cmd_window_status_draw:
+	call	setup_cmd_window_clear					; First clear any previous screen
+
 	ld	de, 0x0811						; Initial position (17,8)
 	ld	l, 0
 	call	nc100_lcd_set_cursor_by_grid
@@ -458,50 +540,47 @@ setup_cmd_window_status_draw:
 	call	nc100_lcd_set_cursor_by_grid
 	ld	bc, 0xc000
 	call	print_hex16
-
 	ld	de, 0x1010						; Initial position (16,16)
 	ld	l, 0
 	call	nc100_lcd_set_cursor_by_grid
 	ld	hl, str_setup_status_mem_top
 	call	print_str_repeat
-
 	ld	de, 0x1810						; Initial position (16,24)
 	ld	l, 0
 	call	nc100_lcd_set_cursor_by_grid
 	ld	hl, str_setup_status_mem_middle
 	call	print_str_repeat
-
 	ld	de, 0x2010						; Initial position (16,32)
 	ld	l, 0
 	call	nc100_lcd_set_cursor_by_grid
 	ld	hl, str_setup_status_mem_bottom
 	call	print_str_repeat
-
 	ld	de, 0x280f						; Initial position (15,40)
 	ld	l, 0
 	call	nc100_lcd_set_cursor_by_grid
 	ld	hl, str_memory_card
 	call	print_str_simple
-
 	ld	de, 0x3013						; Initial position (19,48)
 	ld	l, 0
 	call	nc100_lcd_set_cursor_by_grid
 	ld	hl, str_battery
 	call	print_str_simple
-
 	ld	de, 0x2826						; Initial position (38,40)
 	ld	l, 0
 	call	nc100_lcd_set_cursor_by_grid
 	ld	hl, str_power_in
 	call	print_str_simple
-
 	ld	de, 0x3028						; Initial position (40,48)
 	ld	l, 0
 	call	nc100_lcd_set_cursor_by_grid
 	ld	hl, str_backup
 	call	print_str_simple
+	ret
 
 setup_cmd_window_status_update:
+	ld	a, nc100_draw_attrib_invert_mask
+	call	nc100_lcd_set_attributes				; No scroll, inverted
+
 setup_cmd_window_status_update_page_src:
 	ld	de, 0x1812						; Initial position (18,24)
 	ld	l, 0
@@ -594,7 +673,6 @@ setup_cmd_window_status_update_power_backup:
 	ld	hl, str_failed
 setup_cmd_window_status_update_power_backup_write:
 	call	print_str_simple
-
 	ret
 
 ; # Clear window
@@ -623,6 +701,7 @@ setup_cmd_window_clear_write_char:
 setup_cmd_selector_print:
 setup_cmd_selector_print_datetime:
 	ld	a, (var_setup_selected)
+	and	0x7f
 	cp	0
 	jr	z, setup_cmd_selector_print_datetime_selected
 setup_cmd_selector_print_datetime_unselected:
@@ -640,6 +719,7 @@ setup_cmd_selector_print_datetime_draw:
 	call	print_str_simple
 setup_cmd_selector_print_console:
 	ld	a, (var_setup_selected)
+	and	0x7f
 	cp	1
 	jr	z, setup_cmd_selector_print_console_selected
 setup_cmd_selector_print_console_unselected:
@@ -657,6 +737,7 @@ setup_cmd_selector_print_console_draw:
 	call	print_str_simple
 setup_cmd_selector_print_serial:
 	ld	a, (var_setup_selected)
+	and	0x7f
 	cp	2
 	jr	z, setup_cmd_selector_print_serial_selected
 setup_cmd_selector_print_serial_unselected:
@@ -674,6 +755,7 @@ setup_cmd_selector_print_serial_draw:
 	call	print_str_simple
 setup_cmd_selector_print_status:
 	ld	a, (var_setup_selected)
+	and	0x7f
 	cp	3
 	jr	z, setup_cmd_selector_print_status_selected
 setup_cmd_selector_print_status_unselected:
@@ -711,7 +793,8 @@ setup_cmd_border_print_loop:
 
 ; # Variables
 ; #################################
-var_setup_selected:		db		0x03
+setup_cmd_screens_max:		equ		0x04			; Number of different screens
+var_setup_selected:		db		0x80
 
 ; # Strings
 ; #################################
