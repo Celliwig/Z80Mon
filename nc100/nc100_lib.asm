@@ -29,30 +29,18 @@ orgmem	mem_base+0x40
 ; # Config variables
 ; #################################
 nc100_config:
-nc100_config1:
-					db	0x0
-nc100_config2:
-					db	0x0
-nc100_config3:
-					db	0x0
-nc100_config4:
-					db	0x0
-nc100_config5:
-					db	0x0
-nc100_config6:
-					db	0x0
-nc100_config7:
-					db	0x0
-nc100_config8:
-					db	0x0
-nc100_config9:
-					db	0x0
-nc100_config10:
-					db	0x0
-nc100_config11:
-					db	0x0
-nc100_config_chksum:
-					db	0x0
+nc100_config_uart_mode:			db	0xbd			; Holds the UART mode byte
+nc100_config2:				db	0x0
+nc100_config3:				db	0x0
+nc100_config4:				db	0x0
+nc100_config5:				db	0x0
+nc100_config6:				db	0x0
+nc100_config7:				db	0x0
+nc100_config8:				db	0x0
+nc100_config9:				db	0x0
+nc100_config10:				db	0x0
+nc100_config11:				db	0x0
+nc100_config_chksum:			db	0x0
 
 orgmem	nc100_lib_base
 ; # Font data
@@ -456,8 +444,6 @@ setup_cmd_window_datetime_draw:
 
 	ld	de, 0x080e						; Initial position (14,8)
 	ld	l, 0
-	ld	a, nc100_draw_attrib_invert_mask
-	call	nc100_lcd_set_attributes				; No scroll, inverted
 	call	nc100_lcd_set_cursor_by_grid
 
 	ld	hl, str_setup_datetime
@@ -478,8 +464,6 @@ setup_cmd_window_console_draw:
 
 	ld	de, 0x080e						; Initial position (14,8)
 	ld	l, 0
-	ld	a, nc100_draw_attrib_invert_mask
-	call	nc100_lcd_set_attributes				; No scroll, inverted
 	call	nc100_lcd_set_cursor_by_grid
 
 	ld	hl, str_setup_console
@@ -498,18 +482,101 @@ setup_cmd_window_serial_draw:
 
 	call	setup_cmd_window_clear					; First clear any previous screen
 
-	ld	de, 0x080e						; Initial position (14,8)
+	ld	de, 0x1029						; Initial position (41,16)
 	ld	l, 0
-	ld	a, nc100_draw_attrib_invert_mask
-	call	nc100_lcd_set_attributes				; No scroll, inverted
 	call	nc100_lcd_set_cursor_by_grid
-
-	ld	hl, str_setup_serial
+	ld	hl, str_enabled
 	call	print_str_simple
-
+	ld	hl, str_checkbox
+	call	print_str_simple
+	ld	de, 0x1015						; Initial position (21,16)
+	ld	l, 0
+	call	nc100_lcd_set_cursor_by_grid
+	ld	hl, str_baud
+	call	print_str_simple
+	ld	de, 0x1813						; Initial position (19,24)
+	ld	l, 0
+	call	nc100_lcd_set_cursor_by_grid
+	ld	hl, str_length
+	call	print_str_simple
+	ld	de, 0x2013						; Initial position (19,32)
+	ld	l, 0
+	call	nc100_lcd_set_cursor_by_grid
+	ld	hl, str_parity
+	call	print_str_simple
+	ld	de, 0x2810						; Initial position (16,40)
+	ld	l, 0
+	call	nc100_lcd_set_cursor_by_grid
+	ld	hl, str_stopbit
+	call	print_str_simple
 	ret
 
 setup_cmd_window_serial_update:
+	ld	a, nc100_draw_attrib_invert_mask
+	call	nc100_lcd_set_attributes				; No scroll, inverted
+
+setup_cmd_window_serial_update_enabled:
+	ld	de, 0x1032						; Initial position (50,16)
+	ld	l, 0
+	call	nc100_lcd_set_cursor_by_grid
+	ld	a, 'X'
+	call	monlib_console_out
+
+setup_cmd_window_serial_update_baud:
+	ld	de, 0x101b						; Initial position (27,16)
+	ld	l, 0
+	call	nc100_lcd_set_cursor_by_grid
+	ld	hl, str_baud_150
+	call	print_str_simple
+
+setup_cmd_window_serial_update_char_len:
+	ld	de, 0x181b						; Initial position (27,24)
+	ld	l, 0
+	call	nc100_lcd_set_cursor_by_grid
+	ld	a, (nc100_config_uart_mode)				; Get current UART mode
+	and	0x0c							; Filter bits
+	rrc	a							; Rotate to zero
+	rrc	a
+	add	a, '5'							; Create character
+	call	monlib_console_out
+
+setup_cmd_window_serial_update_parity:
+	ld	de, 0x201b						; Initial position (27,32)
+	ld	l, 0
+	call	nc100_lcd_set_cursor_by_grid
+	ld	a, (nc100_config_uart_mode)				; Get current UART mode
+	and	0x30							; Filter bits
+	cp	uPD71051_reg_mode_parity_none
+	ld	hl, str_none
+	jr	z, setup_cmd_window_serial_update_parity_print
+	cp	uPD71051_reg_mode_parity_odd
+	ld	hl, str_odd
+	jr	z, setup_cmd_window_serial_update_parity_print
+	cp	uPD71051_reg_mode_parity_even
+	ld	hl, str_even
+	jr	z, setup_cmd_window_serial_update_parity_print
+	ld	hl, str_unknown
+setup_cmd_window_serial_update_parity_print:
+	call	print_str_simple
+
+setup_cmd_window_serial_update_stopbit:
+	ld	de, 0x281b						; Initial position (27,40)
+	ld	l, 0
+	call	nc100_lcd_set_cursor_by_grid
+	ld	a, (nc100_config_uart_mode)				; Get current UART mode
+	and	0xc0							; Filter bits
+	cp	uPD71051_reg_mode_stopbit_1
+	ld	hl, str_sb_1
+	jr	z, setup_cmd_window_serial_update_stopbit_print
+	cp	uPD71051_reg_mode_stopbit_15
+	ld	hl, str_sb_15
+	jr	z, setup_cmd_window_serial_update_stopbit_print
+	cp	uPD71051_reg_mode_stopbit_2
+	ld	hl, str_sb_2
+	jr	z, setup_cmd_window_serial_update_stopbit_print
+	ld	hl, str_unknown
+setup_cmd_window_serial_update_stopbit_print:
+	call	print_str_simple
 	ret
 
 ; # Status window
@@ -810,6 +877,34 @@ str_setup_datetime:		db		"Date/Time",0
 str_setup_console:		db		" Console ",0
 str_setup_serial:		db		"  Serial ",0
 str_setup_status:		db		"  Status ",0
+
+str_enabled:			db		"Enabled",0
+str_checkbox:			db		" [ ]",0
+
+str_baud:			db		"Baud:",0
+; Baud string packed to the same length
+str_baud_150:			db		"150",0,0,0
+str_baud_300:			db		"300",0,0,0
+str_baud_600:			db		"600",0,0,0
+str_baud_1200:			db		"1200",0,0
+str_baud_2400:			db		"2400",0,0
+str_baud_4800:			db		"4800",0,0
+str_baud_9600:			db		"9600",0,0
+str_baud_19200:			db		"19200",0
+str_baud_38400:			db		"38400",0
+
+str_length:			db		"Length:",0
+str_parity:			db		"Parity:",0
+str_stopbit:			db		"Stop Bits:",0
+
+str_none:			db		"None",0
+str_odd:			db		"Odd",0
+str_even:			db		"Even",0
+str_unknown:			db		"Unknown",0
+
+str_sb_1:			db		"1",0
+str_sb_15:			db		"1.5",0
+str_sb_2:			db		"2",0
 
 str_memtype_rom:		db		" ROM",0
 str_memtype_ram:		db		" RAM",0

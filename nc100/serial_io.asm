@@ -23,7 +23,7 @@ uPD71051_reg_mode_parity_none:		equ		0x00		; Parity: None
 uPD71051_reg_mode_parity_odd:		equ		0x10		; Parity: Odd
 uPD71051_reg_mode_parity_even:		equ		0x30		; Parity: Even
 uPD71051_reg_mode_stopbit_1:		equ		0x40		; Stop Bit(s): 1
-uPD71051_reg_mode_stopbit_12:		equ		0x80		; Stop Bit(s): 1.5
+uPD71051_reg_mode_stopbit_15:		equ		0x80		; Stop Bit(s): 1.5
 uPD71051_reg_mode_stopbit_2:		equ		0xc0		; Stop Bit(s): 2
 
 ; Command register bits
