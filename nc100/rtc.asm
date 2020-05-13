@@ -200,12 +200,12 @@ nc100_rtc_datetime_format_check_not:
 ; # nc100_rtc_datetime_get
 ; #################################
 ;  Retrieves the current RTC date/time
-;	Out:	B = Seconds
-;		C = Minutes
-;		D = Hours
-;		E = Day
-;		H = Month
-;		L = Year
+;	Out:	B = Minutes
+;		C = Seconds
+;		D = Day
+;		E = Hours
+;		H = Year
+;		L = Month
 nc100_rtc_datetime_get:
 	di								; Disable interrupts
 									; while reading clock
@@ -214,23 +214,23 @@ nc100_rtc_datetime_get:
 	; Get datetime
 	ld	c, nc100_rtc_base_register+tm8521_register_timer_second_10
 	call	nc100_rtc_datetime_get_pair
-	ld	h, a							; Temporaily save seconds
+	ld	l, a							; Temporaily save seconds
 	ld	c, nc100_rtc_base_register+tm8521_register_timer_minute_10
 	call	nc100_rtc_datetime_get_pair
-	ld	l, a							; Temporaily save minutes
+	ld	h, a							; Temporaily save minutes
 	push	hl							; Save for later
 	ld	c, nc100_rtc_base_register+tm8521_register_timer_hour_10
 	call	nc100_rtc_datetime_get_pair
-	ld	d, a							; Save hours
+	ld	e, a							; Save hours
 	ld	c, nc100_rtc_base_register+tm8521_register_timer_day_10
 	call	nc100_rtc_datetime_get_pair
-	ld	e, a							; Save days
+	ld	d, a							; Save days
 	ld	c, nc100_rtc_base_register+tm8521_register_timer_month_10
 	call	nc100_rtc_datetime_get_pair
-	ld	h, a							; Save months
+	ld	l, a							; Save months
 	ld	c, nc100_rtc_base_register+tm8521_register_timer_year_10
 	call	nc100_rtc_datetime_get_pair
-	ld	l, a							; Save year
+	ld	h, a							; Save year
 	pop	bc							; Restore saved values
 
 ; Disabled the timer so don't need to re-read
@@ -267,35 +267,35 @@ nc100_rtc_datetime_get:
 ; # nc100_rtc_datetime_set
 ; #################################
 ;  Sets the current RTC date/time
-;	Out:	B = Seconds
-;		C = Minutes
-;		D = Hours
-;		E = Day
-;		H = Month
-;		L = Year
+;	In:	B = Minutes
+;		C = Seconds
+;		D = Day
+;		E = Hours
+;		H = Year
+;		L = Month
 nc100_rtc_datetime_set:
 	di								; Disable interrupts
 	call	nc100_rtc_register_timer_disabled
 
 	; Set date/time
 	push	bc							; Because it's going to get nuked
-	ld	a, l							; Set year
+	ld	a, h							; Set year
 	ld	c, nc100_rtc_base_register+tm8521_register_timer_year_10
 	call	nc100_rtc_datetime_set_pair
-	ld	a, h							; Set month
+	ld	a, l							; Set month
 	ld	c, nc100_rtc_base_register+tm8521_register_timer_month_10
 	call	nc100_rtc_datetime_set_pair
-	ld	a, e							; Set day
+	ld	a, d							; Set day
 	ld	c, nc100_rtc_base_register+tm8521_register_timer_day_10
 	call	nc100_rtc_datetime_set_pair
-	ld	a, d							; Set hour
+	ld	a, e							; Set hour
 	ld	c, nc100_rtc_base_register+tm8521_register_timer_hour_10
 	call	nc100_rtc_datetime_set_pair
 	pop	hl							; Restore saved values
-	ld	a, l							; Set minutes
+	ld	a, h							; Set minutes
 	ld	c, nc100_rtc_base_register+tm8521_register_timer_minute_10
 	call	nc100_rtc_datetime_set_pair
-	ld	a, h							; Set seconds
+	ld	a, l							; Set seconds
 	ld	c, nc100_rtc_base_register+tm8521_register_timer_second_10
 	call	nc100_rtc_datetime_set_pair
 
@@ -352,8 +352,8 @@ nc100_rtc_alarm_check_disabled:
 ; # nc100_rtc_alarm_get
 ; #################################
 ;  Retrieves the current RTC alarm
-;	Out:	D = Minutes
-;		E = Hours
+;	Out:	D = Hours
+;		E = Minutes
 nc100_rtc_alarm_get:
 	ld	b, tm8521_register_page_alarm
 	call	nc100_rtc_register_set_page				; Select alarm page
@@ -361,26 +361,26 @@ nc100_rtc_alarm_get:
 	; Get alarm
 	ld	c, nc100_rtc_base_register+tm8521_register_alarm_minute_10
 	call	nc100_rtc_datetime_get_pair
-	ld	d, a							; Save minutes
+	ld	e, a							; Save minutes
 	ld	c, nc100_rtc_base_register+tm8521_register_alarm_hour_10
 	call	nc100_rtc_datetime_get_pair
-	ld	e, a							; Save hours
+	ld	d, a							; Save hours
 	ret
 
 ; # nc100_rtc_alarm_set
 ; #################################
 ;  Sets the current RTC alarm
-;	Out:	D = Minutes
-;		E = Hours
+;	In:	D = Hours
+;		E = Minutes
 nc100_rtc_alarm_set:
 	ld	b, tm8521_register_page_alarm
 	call	nc100_rtc_register_set_page				; Select alarm page
 
 	; Set alarm
-	ld	a, e							; Set hour
+	ld	a, d							; Set hour
 	ld	c, nc100_rtc_base_register+tm8521_register_alarm_hour_10
 	call	nc100_rtc_datetime_set_pair
-	ld	a, d							; Set minutes
+	ld	a, e							; Set minutes
 	ld	c, nc100_rtc_base_register+tm8521_register_alarm_minute_10
 	call	nc100_rtc_datetime_set_pair
 	ret

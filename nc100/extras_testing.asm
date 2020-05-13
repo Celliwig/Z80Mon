@@ -144,29 +144,33 @@ rtc_test_loop:
 	call	print_spacex2
 
 	call	nc100_rtc_datetime_get
-	ld	a, d
-	call	print_dec8u						; Print hours
+	ld	(rtc_var_sec), bc
+	ld	(rtc_var_hour), de
+	ld	(rtc_var_month), hl
+
+	ld	a, (rtc_var_hour)
+	call	print_hex8						; Print hours
 	ld	a, ':'
 	call	monlib_console_out
-	ld	a, c
-	call	print_dec8u						; Print minutes
+	ld	a, (rtc_var_min)
+	call	print_hex8						; Print minutes
 	ld	a, ':'
 	call	monlib_console_out
-	ld	a, b
-	call	print_dec8u						; Print seconds
+	ld	a, (rtc_var_sec)
+	call	print_hex8						; Print seconds
 
 	call	print_spacex2
 
-	ld	a, e
-	call	print_dec8u
+	ld	a, (rtc_var_day)
+	call	print_hex8
 	ld	a, '/'
 	call	monlib_console_out
-	ld	a, h
-	call	print_dec8u
+	ld	a, (rtc_var_month)
+	call	print_hex8
 	ld	a, '/'
 	call	monlib_console_out
-	ld	a, l
-	call	print_dec8u
+	ld	a, (rtc_var_year)
+	call	print_hex8
 
 rtc_test_key_set:
 	; Check if function depressed
@@ -177,12 +181,12 @@ rtc_test_key_set:
 	jr	nz, rtc_test_key_ram
 
 	; Set date/time
-	ld	b, 0
-	ld	c, 39
-	ld	d, 17
-	ld	e, 1
-	ld	h, 2
-	ld	l, 77
+	ld	b, 0x39
+	ld	c, 0x00
+	ld	d, 0x01
+	ld	e, 0x17
+	ld	h, 0x77
+	ld	l, 0x02
 	call	nc100_rtc_datetime_set
 
 rtc_test_key_ram:
@@ -213,6 +217,13 @@ rtc_test_key_exit:
 	call	print_newline
 
 	ret
+
+rtc_var_sec:		db	0x0
+rtc_var_min:		db	0x0
+rtc_var_hour:		db	0x0
+rtc_var_day:		db	0x0
+rtc_var_month:		db	0x0
+rtc_var_year:		db	0x0
 
 str_rtc_timedate:	db	"Time/Date:",0
 rtc_test_ramblk1:	db	"Hello World",0				; 12 bytes of storage to copy into RTC RAM
