@@ -398,7 +398,7 @@ setup_cmd_loop_update:
 	ld	hl, setup_cmd_loop_check_key				; Push return address
 	push	hl							; For the following jumps
 	cp	0
-	jr	z, setup_cmd_window_datetime_update
+	jp	z, setup_cmd_window_datetime_update
 	cp	1
 	jp	z, setup_cmd_window_console_update
 	cp	2
@@ -440,9 +440,9 @@ setup_cmd_loop_check_key_enter:
 	ld	hl, setup_cmd_loop_check_key_exit			; Push return address
 	push	hl							; For the following jumps
 	cp	0
-	jr	z, setup_cmd_window_datetime_edit
+	jp	z, setup_cmd_window_datetime_edit
 	cp	1
-	jr	z, setup_cmd_window_console_edit
+	jp	z, setup_cmd_window_console_edit
 	cp	2
 	jp	z, setup_cmd_window_serial_edit
 	cp	3
@@ -465,11 +465,48 @@ setup_cmd_window_datetime_draw:
 	call	setup_cmd_set_attributes_inverted
 	call	setup_cmd_window_clear					; First clear any previous screen
 
-	ld	de, 0x080e						; Initial position (14,8)
+	ld	de, 0x080f						; Initial position (15,8)
 	ld	l, 0
 	call	nc100_lcd_set_cursor_by_grid
+	ld	hl, str_current
+	call	print_str_simple
 
-	ld	hl, str_setup_datetime
+	ld	de, 0x1014						; Initial position (20,16)
+	ld	l, 0
+	call	nc100_lcd_set_cursor_by_grid
+	ld	hl, str_time
+	call	print_str_simple
+
+	ld	de, 0x1028						; Initial position (40,16)
+	ld	l, 0
+	call	nc100_lcd_set_cursor_by_grid
+	ld	hl, str_clk_format
+	call	print_str_simple
+
+	ld	de, 0x1814						; Initial position (20,24)
+	ld	l, 0
+	call	nc100_lcd_set_cursor_by_grid
+	ld	hl, str_date
+	call	print_str_simple
+
+	ld	de, 0x200f						; Initial position (15,32)
+	ld	l, 0
+	call	nc100_lcd_set_cursor_by_grid
+	ld	hl, str_alarm
+	call	print_str_simple
+
+	ld	de, 0x2814						; Initial position (20,40)
+	ld	l, 0
+	call	nc100_lcd_set_cursor_by_grid
+	ld	hl, str_time
+	call	print_str_simple
+
+	ld	de, 0x2828						; Initial position (40,40)
+	ld	l, 0
+	call	nc100_lcd_set_cursor_by_grid
+	ld	hl, str_enabled
+	call	print_str_simple
+	ld	hl, str_checkbox
 	call	print_str_simple
 
 	ret
@@ -477,6 +514,94 @@ setup_cmd_window_datetime_draw:
 ; # setup_cmd_window_datetime_update
 ; #################################
 setup_cmd_window_datetime_update:
+	call	setup_cmd_set_attributes_inverted
+
+setup_cmd_window_console_update_time:
+	ld	a, (var_setup_selected_item)				; Is this the selected item
+	cp	0
+	call	z,setup_cmd_set_attributes_normal			; Set attributes appropriately
+	call	nz,setup_cmd_set_attributes_inverted
+	ld	de, 0x101a						; Initial position (26,16)
+	ld	l, 0
+	call	nc100_lcd_set_cursor_by_grid
+	call	nc100_rtc_datetime_get
+	ld	a, d
+	call	print_hex8
+	ld	a, ':'
+	call	monlib_console_out
+	ld	a, c
+	call	print_hex8
+	ld	a, ':'
+	call	monlib_console_out
+	ld	a, b
+	call	print_hex8
+
+setup_cmd_window_console_update_date:
+	ld	a, (var_setup_selected_item)				; Is this the selected item
+	cp	1
+	call	z,setup_cmd_set_attributes_normal			; Set attributes appropriately
+	call	nz,setup_cmd_set_attributes_inverted
+	ld	de, 0x181a						; Initial position (26,24)
+	ld	l, 0
+	call	nc100_lcd_set_cursor_by_grid
+	call	nc100_rtc_datetime_get
+	ld	a, e
+	call	print_hex8
+	ld	a, '/'
+	call	monlib_console_out
+	ld	a, h
+	call	print_hex8
+	ld	a, '/'
+	call	monlib_console_out
+	ld	a, l
+	call	print_hex8
+
+setup_cmd_window_console_update_format:
+	ld	a, (var_setup_selected_item)				; Is this the selected item
+	cp	2
+	call	z,setup_cmd_set_attributes_normal			; Set attributes appropriately
+	call	nz,setup_cmd_set_attributes_inverted
+	ld	de, 0x1030						; Initial position (48,16)
+	ld	l, 0
+	call	nc100_lcd_set_cursor_by_grid
+	call	nc100_rtc_datetime_format_check
+	ld	hl, str_format_12
+	jr	nc, setup_cmd_window_console_update_format_print
+	ld	hl, str_format_24
+setup_cmd_window_console_update_format_print:
+	call	print_str_simple
+
+setup_cmd_window_console_update_alarm_time:
+	ld	a, (var_setup_selected_item)				; Is this the selected item
+	cp	3
+	call	z,setup_cmd_set_attributes_normal			; Set attributes appropriately
+	call	nz,setup_cmd_set_attributes_inverted
+	ld	de, 0x281a						; Initial position (26,40)
+	ld	l, 0
+	call	nc100_lcd_set_cursor_by_grid
+	call	nc100_rtc_alarm_get
+	ld	a, e
+	call	print_hex8
+	ld	a, ':'
+	call	monlib_console_out
+	ld	a, d
+	call	print_hex8
+
+setup_cmd_window_console_update_alarm_enabled:
+	ld	a, (var_setup_selected_item)				; Is this the selected item
+	cp	4
+	call	z,setup_cmd_set_attributes_normal			; Set attributes appropriately
+	call	nz,setup_cmd_set_attributes_inverted
+	ld	de, 0x2831						; Initial position (49,40)
+	ld	l, 0
+	call	nc100_lcd_set_cursor_by_grid
+	call	nc100_rtc_alarm_check					; Check whether alarm is enabled
+	ld	a, ' '
+	jr	nc, setup_cmd_window_console_update_alarm_enabled_print
+	ld	a, 'X'
+setup_cmd_window_console_update_alarm_enabled_print:
+	call	monlib_console_out
+
 	ret
 
 ; # setup_cmd_window_datetime_edit
@@ -1028,6 +1153,14 @@ str_setup_datetime:		db		"Date/Time",0
 str_setup_console:		db		" Console ",0
 str_setup_serial:		db		"  Serial ",0
 str_setup_status:		db		"  Status ",0
+
+str_current:			db		"Current",0
+str_time:			db		"Time:   :  ",0
+str_date:			db		"Date:   /  /  ",0
+str_clk_format:			db		"Format:    hour",0
+str_format_12:			db		"12",0
+str_format_24:			db		"24",0
+str_alarm:			db		"Alarm",0
 
 str_enabled:			db		"Enabled",0
 str_checkbox:			db		" [ ]",0
