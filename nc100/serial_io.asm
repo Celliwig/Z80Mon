@@ -12,16 +12,20 @@ uPD71051_reg_status_StncBrk:		equ		6		;
 uPD71051_reg_status_DSR:		equ		7		; DSR state (active low): 1 = DSR(0), 0 = DSR(1)
 
 ; Mode register bits
+uPD71051_reg_mode_bclk_mask:		equ		0x03
 uPD71051_reg_mode_bclk_x1:		equ		0x01		; Baud rate clock x1
 uPD71051_reg_mode_bclk_x16:		equ		0x02		; Baud rate clock x16
 uPD71051_reg_mode_bclk_x64:		equ		0x03		; Baud rate clock x64
+uPD71051_reg_mode_chrlen_mask:		equ		0x0c
 uPD71051_reg_mode_chrlen_5:		equ		0x00		; Character length: 5 bits
 uPD71051_reg_mode_chrlen_6:		equ		0x04		; Character length: 6 bits
 uPD71051_reg_mode_chrlen_7:		equ		0x08		; Character length: 7 bits
 uPD71051_reg_mode_chrlen_8:		equ		0x0c		; Character length: 8 bits
+uPD71051_reg_mode_parity_mask:		equ		0x30
 uPD71051_reg_mode_parity_none:		equ		0x00		; Parity: None
 uPD71051_reg_mode_parity_odd:		equ		0x10		; Parity: Odd
 uPD71051_reg_mode_parity_even:		equ		0x30		; Parity: Even
+uPD71051_reg_mode_stopbit_mask:		equ		0xc0
 uPD71051_reg_mode_stopbit_1:		equ		0x40		; Stop Bit(s): 1
 uPD71051_reg_mode_stopbit_15:		equ		0x80		; Stop Bit(s): 1.5
 uPD71051_reg_mode_stopbit_2:		equ		0xc0		; Stop Bit(s): 2
@@ -52,6 +56,11 @@ uPD71051_reg_commask_handshake:		equ		uPD71051_reg_commask_DTR | uPD71051_reg_co
 ; Combined full
 uPD71051_reg_commask_full:		equ		uPD71051_reg_commask_enable | uPD71051_reg_commask_handshake | uPD71051_reg_commask_ECl
 
+; Baud config bits
+; [3-0] are currently used for the baud rate.
+nc100_config_uart_baud_always:		equ		7		; The serial port is always enabled, and requests to shut it down are ignored.
+									; The one exception to this is when the UART is reconfigured, but it will then be reenabled afterwards.
+nc100_config_uart_baud_on:		equ		6		; The serial port is currently enabled.
 
 ; # nc100_serial_setup_delay
 ; #################################
@@ -114,6 +123,177 @@ nc100_serial_config:
 	ld	a, uPD71051_reg_commask_full
 	out	(nc100_uart_control_register), a 			; Write command byte
 	call	nc100_serial_setup_delay
+	ret
+
+; # nc100_serial_always_enabled
+; #################################
+;  This overrides any calls to shutdown the serial subsystem.
+;  The one exception to this is when the UART configuration is changed.
+;  However once the new configuration is loaded, the UART is enabled
+;  once again.
+nc100_serial_always_enabled:
+	ld	a, (nc100_config_uart_baud)				; Get UART baud config
+	set	nc100_config_uart_baud_always, a
+	ld	(nc100_config_uart_baud), a				; Save UART baud config
+	ret
+
+nc100_serial_always_clear:
+	ld	a, (nc100_config_uart_baud)				; Get UART baud config
+	res	nc100_config_uart_baud_always, a
+	ld	(nc100_config_uart_baud), a				; Save UART baud config
+	ret
+
+nc100_serial_always_toggle:
+	ld	a, (nc100_config_uart_baud)				; Get UART baud config
+	xor	1 << nc100_config_uart_baud_always
+	ld	(nc100_config_uart_baud), a				; Save UART baud config
+	ret
+
+; # nc100_serial_baud_dec
+; #################################
+nc100_serial_baud_dec:
+	ld	a, (nc100_config_uart_baud)				; Get UART baud config
+	ld	b, a
+	and	0xf0							; Clear baud bits
+	ld	c, a							; Store for later
+	ld	a, b
+	and	0x0f							; Get baud bits
+	jr	nz, nc100_serial_baud_dec_do				; Check if at zero
+	ld	a, 0x08							; Reset value if zero
+	jr	nc100_serial_baud_dec_end
+nc100_serial_baud_dec_do:
+	dec	a							; Decrement selected baud
+	and	0x0f							; Get baud bits
+nc100_serial_baud_dec_end:
+	or	c							; Combine with saved value
+	ld	(nc100_config_uart_baud), a				; Save UART mode config
+	ret
+
+; # nc100_serial_baud_inc
+; #################################
+nc100_serial_baud_inc:
+	ld	a, (nc100_config_uart_baud)				; Get UART baud config
+	ld	b, a
+	and	0xf0							; Clear baud bits
+	ld	c, a							; Store for later
+	ld	a, b
+	and	0x0f							; Get baud bits
+	cp	0x08							; Check if reached end of baud list
+	jr	nz, nc100_serial_baud_inc_do
+	xor	a							; Reset baud value
+	jr	nc100_serial_baud_inc_end
+nc100_serial_baud_inc_do:
+	inc	a							; Increment selected baud
+	and	0x0f							; Get baud bits
+nc100_serial_baud_inc_end:
+	or	c							; Combine with saved value
+	ld	(nc100_config_uart_baud), a				; Save UART mode config
+	ret
+
+; # nc100_serial_character_length_dec
+; #################################
+nc100_serial_character_length_dec:
+	ld	a, (nc100_config_uart_mode)				; Get UART mode config
+	ld	b, a
+	and	0xff^uPD71051_reg_mode_chrlen_mask			; Clear character length bits
+	ld	c, a							; Store for later
+	ld	a, b
+	and	uPD71051_reg_mode_chrlen_mask				; Get character length bits
+	sub	0x04							; Decrement character length
+	and	uPD71051_reg_mode_chrlen_mask				; Get character length bits
+	or	c							; Combine with saved value
+	ld	(nc100_config_uart_mode), a				; Save UART mode config
+	ret
+
+; # nc100_serial_character_length_inc
+; #################################
+nc100_serial_character_length_inc:
+	ld	a, (nc100_config_uart_mode)				; Get UART mode config
+	ld	b, a
+	and	0xff^uPD71051_reg_mode_chrlen_mask			; Clear character length bits
+	ld	c, a							; Store for later
+	ld	a, b
+	and	uPD71051_reg_mode_chrlen_mask				; Get character length bits
+	add	0x04							; Increment character length
+	and	uPD71051_reg_mode_chrlen_mask				; Get character length bits
+	or	c							; Combine with saved value
+	ld	(nc100_config_uart_mode), a				; Save UART mode config
+	ret
+
+; # nc100_serial_parity_dec
+; #################################
+nc100_serial_parity_dec:
+	ld	a, (nc100_config_uart_mode)				; Get UART mode config
+	ld	b, a
+	and	0xff^uPD71051_reg_mode_parity_mask			; Clear parity bits
+	ld	c, a							; Store for later
+	ld	a, b
+	and	uPD71051_reg_mode_parity_mask				; Get parity bits
+	sub	0x10							; Decrement
+	and	uPD71051_reg_mode_parity_mask				; Get parity bits
+	cp	0x20							; Check for annoying gap
+	jr	nz, nc100_serial_parity_dec_end
+	ld	a, 0x10
+nc100_serial_parity_dec_end:
+	or	c							; Combine with saved value
+	ld	(nc100_config_uart_mode), a				; Save UART mode config
+	ret
+
+; # nc100_serial_parity_inc
+; #################################
+nc100_serial_parity_inc:
+	ld	a, (nc100_config_uart_mode)				; Get UART mode config
+	ld	b, a
+	and	0xff^uPD71051_reg_mode_parity_mask			; Clear parity bits
+	ld	c, a							; Store for later
+	ld	a, b
+	and	uPD71051_reg_mode_parity_mask				; Get parity bits
+	add	0x10							; Increment
+	and	uPD71051_reg_mode_parity_mask				; Get parity bits
+	cp	0x20							; Check for annoying gap
+	jr	nz, nc100_serial_parity_inc_end
+	ld	a, 0x30
+nc100_serial_parity_inc_end:
+	or	c							; Combine with saved value
+	ld	(nc100_config_uart_mode), a				; Save UART mode config
+	ret
+
+; # nc100_serial_stopbits_dec
+; #################################
+nc100_serial_stopbits_dec:
+	ld	a, (nc100_config_uart_mode)				; Get UART mode config
+	ld	b, a
+	and	0xff^uPD71051_reg_mode_stopbit_mask			; Clear stopbits bits
+	ld	c, a							; Store for later
+	ld	a, b
+	and	uPD71051_reg_mode_stopbit_mask				; Get stopbits bits
+	sub	0x40							; Decrement
+	and	uPD71051_reg_mode_stopbit_mask				; Get stopbits bits
+	cp	0x00							; Check for annoying gap
+	jr	nz, nc100_serial_stopbits_dec_end
+	ld	a, 0xc0
+nc100_serial_stopbits_dec_end:
+	or	c							; Combine with saved value
+	ld	(nc100_config_uart_mode), a				; Save UART mode config
+	ret
+
+; # nc100_serial_stopbits_inc
+; #################################
+nc100_serial_stopbits_inc:
+	ld	a, (nc100_config_uart_mode)				; Get UART mode config
+	ld	b, a
+	and	0xff^uPD71051_reg_mode_stopbit_mask			; Clear stopbits bits
+	ld	c, a							; Store for later
+	ld	a, b
+	and	uPD71051_reg_mode_stopbit_mask				; Get stopbits bits
+	add	0x40							; Increment
+	and	uPD71051_reg_mode_stopbit_mask				; Get stopbits bits
+	cp	0x00							; Check for annoying gap
+	jr	nz, nc100_serial_stopbits_inc_end
+	ld	a, 0x40
+nc100_serial_stopbits_inc_end:
+	or	c							; Combine with saved value
+	ld	(nc100_config_uart_mode), a				; Save UART mode config
 	ret
 
 ; # Polling routines
