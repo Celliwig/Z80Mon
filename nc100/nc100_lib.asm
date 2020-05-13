@@ -29,8 +29,8 @@ orgmem	mem_base+0x40
 ; # Config variables
 ; #################################
 nc100_config:
-nc100_config_uart_mode:			db	0xbd			; Holds the UART mode byte
-nc100_config2:				db	0x0
+nc100_config_uart_mode:			db	0x0			; Holds the UART mode byte
+nc100_config_uart_baud:			db	0x0			; Holds UART baud [3-0], current state [6], permanently enable [7]
 nc100_config3:				db	0x0
 nc100_config4:				db	0x0
 nc100_config5:				db	0x0
@@ -363,6 +363,11 @@ orgmem  nc100_cmd_base+0x0500
 
 orgmem  nc100_cmd_base+0x0540
 setup_cmd:
+	ld	a, 0x80							; Initialise state variables
+	ld	(var_setup_selected_config), a
+	ld	a, 0xff
+	ld	(var_setup_selected_item), a
+
 	call	nc100_lcd_clear_screen
 	call	setup_cmd_set_attributes_inverted
 	call	setup_cmd_border_print					; Print border
@@ -453,6 +458,8 @@ setup_cmd_loop_check_key_exit:
 	ret
 
 ; # Date/Time window
+; ##################################################
+; # setup_cmd_window_datetime_draw
 ; #################################
 setup_cmd_window_datetime_draw:
 	call	setup_cmd_set_attributes_inverted
@@ -467,13 +474,19 @@ setup_cmd_window_datetime_draw:
 
 	ret
 
+; # setup_cmd_window_datetime_update
+; #################################
 setup_cmd_window_datetime_update:
 	ret
 
+; # setup_cmd_window_datetime_edit
+; #################################
 setup_cmd_window_datetime_edit:
 	ret
 
 ; # Console window
+; ##################################################
+; # setup_cmd_window_console_draw
 ; #################################
 setup_cmd_window_console_draw:
 	call	setup_cmd_set_attributes_inverted
@@ -488,13 +501,19 @@ setup_cmd_window_console_draw:
 
 	ret
 
+; # setup_cmd_window_console_update
+; #################################
 setup_cmd_window_console_update:
 	ret
 
+; # setup_cmd_window_console_edit
+; #################################
 setup_cmd_window_console_edit:
 	ret
 
 ; # Serial window
+; ##################################################
+; # setup_cmd_window_serial_draw
 ; #################################
 setup_cmd_window_serial_draw:
 	call	setup_cmd_set_attributes_inverted
@@ -529,27 +548,38 @@ setup_cmd_window_serial_draw:
 	call	print_str_simple
 	ret
 
+; # setup_cmd_window_serial_update
+; #################################
 setup_cmd_window_serial_update:
 	call	setup_cmd_set_attributes_inverted
-
-setup_cmd_window_serial_update_enabled:
-	ld	de, 0x1032						; Initial position (50,16)
-	ld	l, 0
-	call	nc100_lcd_set_cursor_by_grid
-	ld	a, 'X'
-	call	monlib_console_out
 
 setup_cmd_window_serial_update_baud:
 	ld	de, 0x101b						; Initial position (27,16)
 	ld	l, 0
 	call	nc100_lcd_set_cursor_by_grid
-	ld	hl, str_baud_150
+	ld	a, (var_setup_selected_item)				; Is this the selected item
+	cp	0
+	call	z,setup_cmd_set_attributes_normal			; Set attributes appropriately
+	call	nz,setup_cmd_set_attributes_inverted
+	ld	a, (nc100_config_uart_baud)				; Get baud
+	and	0x0f							; Filter bits
+	inc	a							; Convert index to count
+	ld	b, a
+	ld	hl, str_baud_150-0x06					; String table base
+	ld	de, 0x0006
+setup_cmd_window_serial_update_baud_offset_loop:			; Calculate offset
+	add	hl, de
+	djnz	setup_cmd_window_serial_update_baud_offset_loop
 	call	print_str_simple
 
 setup_cmd_window_serial_update_char_len:
 	ld	de, 0x181b						; Initial position (27,24)
 	ld	l, 0
 	call	nc100_lcd_set_cursor_by_grid
+	ld	a, (var_setup_selected_item)				; Is this the selected item
+	cp	1
+	call	z,setup_cmd_set_attributes_normal			; Set attributes appropriately
+	call	nz,setup_cmd_set_attributes_inverted
 	ld	a, (nc100_config_uart_mode)				; Get current UART mode
 	and	0x0c							; Filter bits
 	rrc	a							; Rotate to zero
@@ -561,6 +591,10 @@ setup_cmd_window_serial_update_parity:
 	ld	de, 0x201b						; Initial position (27,32)
 	ld	l, 0
 	call	nc100_lcd_set_cursor_by_grid
+	ld	a, (var_setup_selected_item)				; Is this the selected item
+	cp	2
+	call	z,setup_cmd_set_attributes_normal			; Set attributes appropriately
+	call	nz,setup_cmd_set_attributes_inverted
 	ld	a, (nc100_config_uart_mode)				; Get current UART mode
 	and	0x30							; Filter bits
 	cp	uPD71051_reg_mode_parity_none
@@ -580,6 +614,10 @@ setup_cmd_window_serial_update_stopbit:
 	ld	de, 0x281b						; Initial position (27,40)
 	ld	l, 0
 	call	nc100_lcd_set_cursor_by_grid
+	ld	a, (var_setup_selected_item)				; Is this the selected item
+	cp	3
+	call	z,setup_cmd_set_attributes_normal			; Set attributes appropriately
+	call	nz,setup_cmd_set_attributes_inverted
 	ld	a, (nc100_config_uart_mode)				; Get current UART mode
 	and	0xc0							; Filter bits
 	cp	uPD71051_reg_mode_stopbit_1
@@ -594,12 +632,105 @@ setup_cmd_window_serial_update_stopbit:
 	ld	hl, str_unknown
 setup_cmd_window_serial_update_stopbit_print:
 	call	print_str_simple
+
+setup_cmd_window_serial_update_enabled:
+	ld	de, 0x1032						; Initial position (50,16)
+	ld	l, 0
+	call	nc100_lcd_set_cursor_by_grid
+	ld	a, (var_setup_selected_item)				; Is this the selected item
+	cp	4
+	call	z,setup_cmd_set_attributes_normal			; Set attributes appropriately
+	call	nz,setup_cmd_set_attributes_inverted
+	ld	a, (nc100_config_uart_baud)				; Get enabled status
+	bit	nc100_config_uart_baud_always, a
+	ld	a, ' '
+	jr	z, setup_cmd_window_serial_update_enabled_print
+	ld	a, 'X'
+setup_cmd_window_serial_update_enabled_print:
+	call	monlib_console_out
+
+setup_cmd_window_serial_update_finish:
 	ret
 
+; # setup_cmd_window_serial_edit
+; #################################
 setup_cmd_window_serial_edit:
+	call	setup_cmd_window_serial_update				; Update pane
+
+setup_cmd_window_serial_edit_check_key:
+	call	nc100_keyboard_char_in					; Check for key press
+	jr	nc, setup_cmd_window_serial_edit			; Just loop if no key
+setup_cmd_window_serial_edit_check_key_up:
+	cp	character_code_up					; Check if up
+	jr	nz, setup_cmd_window_serial_edit_check_key_down
+	ld	a, (var_setup_selected_item)				; Get selected index
+	and	a							; Check if zero
+	jr	z, setup_cmd_window_serial_edit				; If already zero, just loop
+	dec	a							; Index--
+	ld	(var_setup_selected_item), a				; Save selected index
+	jr	setup_cmd_window_serial_edit				; Loop
+setup_cmd_window_serial_edit_check_key_down:
+	cp	character_code_down					; Check if down
+	jr	nz, setup_cmd_window_serial_edit_check_key_left
+	ld	a, (var_setup_selected_item)				; Get selected index
+	cp	4
+	jr	z, setup_cmd_window_serial_edit				; If on last screen, just loop
+	inc	a							; Index++
+	ld	(var_setup_selected_item), a				; Save selected index
+	jr	setup_cmd_window_serial_edit				; Loop
+setup_cmd_window_serial_edit_check_key_left:
+	cp	character_code_left					; Check if left
+	jr	nz, setup_cmd_window_serial_edit_check_key_space
+	ld	a, (var_setup_selected_item)				; Get selected index
+	ld	hl, setup_cmd_window_serial_edit			; Push return address
+	push	hl							; For the following jumps
+	cp	0
+	jp	z, nc100_serial_baud_dec
+	cp	1
+	jp	z, nc100_serial_character_length_dec
+	cp	2
+	jp	z, nc100_serial_parity_dec
+	cp	3
+	jp	z, nc100_serial_stopbits_dec
+	cp	4
+	jp	z, nc100_serial_always_toggle
+	ret								; Should never reach here
+									; So pop to re-align stack
+setup_cmd_window_serial_edit_check_key_space:
+	cp	' '							; Check if space
+	jr	nz, setup_cmd_window_serial_edit_check_key_right
+	jr	setup_cmd_window_serial_edit_check_key_right_do
+setup_cmd_window_serial_edit_check_key_right:
+	cp	character_code_right					; Check if right
+	jr	nz, setup_cmd_window_serial_edit_check_key_exit
+setup_cmd_window_serial_edit_check_key_right_do:
+	ld	a, (var_setup_selected_item)				; Get selected index
+	ld	hl, setup_cmd_window_serial_edit			; Push return address
+	push	hl							; For the following jumps
+	cp	0
+	jp	z, nc100_serial_baud_inc
+	cp	1
+	jp	z, nc100_serial_character_length_inc
+	cp	2
+	jp	z, nc100_serial_parity_inc
+	cp	3
+	jp	z, nc100_serial_stopbits_inc
+	cp	4
+	jp	z, nc100_serial_always_toggle
+	ret								; Should never reach here
+									; So pop to re-align stack
+setup_cmd_window_serial_edit_check_key_exit:
+	cp	character_code_escape
+	jp	nz, setup_cmd_window_serial_edit
+
+	ld	a, 0xff
+	ld	(var_setup_selected_item), a				; Reset selected item
 	ret
+
 
 ; # Status window
+; ##################################################
+; # setup_cmd_window_status_draw
 ; #################################
 setup_cmd_window_status_draw:
 	call	setup_cmd_set_attributes_inverted
@@ -662,6 +793,8 @@ setup_cmd_window_status_draw:
 	call	print_str_simple
 	ret
 
+; # setup_cmd_window_status_update
+; #################################
 setup_cmd_window_status_update:
 	call	setup_cmd_set_attributes_inverted
 
@@ -682,11 +815,11 @@ setup_cmd_window_status_update_page_src_loop:
 	ld	de, 0x05
 	cp	0
 setup_cmd_window_status_update_page_src_str_loop:
-	jr	z, setup_cmd_window_status_update_page_src_write
+	jr	z, setup_cmd_window_status_update_page_src_print
 	add	hl, de							; Next string pointer
 	dec	a
 	jr	setup_cmd_window_status_update_page_src_str_loop
-setup_cmd_window_status_update_page_src_write:
+setup_cmd_window_status_update_page_src_print:
 	call	print_str
 	ld	a, ':'
 	call	monlib_console_out
@@ -716,9 +849,9 @@ setup_cmd_window_status_update_memcard:
 	call	nc100_lcd_set_cursor_by_grid
 	ld	hl, str_okay
 	call	nc100_power_check_battery_memcard			; Check memory card battery status
-	jr	c, setup_cmd_window_status_update_memcard_battery_write
+	jr	c, setup_cmd_window_status_update_memcard_battery_print
 	ld	hl, str_failed
-setup_cmd_window_status_update_memcard_battery_write:
+setup_cmd_window_status_update_memcard_battery_print:
 	call	print_str_simple
 	jr	setup_cmd_window_status_update_power
 setup_cmd_window_status_update_memcard_missing:
@@ -740,12 +873,12 @@ setup_cmd_window_status_update_power_in:
 	call	nc100_lcd_set_cursor_by_grid
 	ld	hl, str_okay
 	call	nc100_power_check_in_gt_4v
-	jr	c, setup_cmd_window_status_update_power_in_write
+	jr	c, setup_cmd_window_status_update_power_in_print
 	ld	hl, str_poor
 	call	nc100_power_check_in_gt_3v
-	jr	c, setup_cmd_window_status_update_power_in_write
+	jr	c, setup_cmd_window_status_update_power_in_print
 	ld	hl, str_failed
-setup_cmd_window_status_update_power_in_write:
+setup_cmd_window_status_update_power_in_print:
 	call	print_str_simple
 setup_cmd_window_status_update_power_backup:
 	ld	de, 0x302f						; Initial position (47,48)
@@ -753,14 +886,18 @@ setup_cmd_window_status_update_power_backup:
 	call	nc100_lcd_set_cursor_by_grid
 	ld	hl, str_okay
 	call	nc100_power_check_battery_backup
-	jr	c, setup_cmd_window_status_update_power_backup_write
+	jr	c, setup_cmd_window_status_update_power_backup_print
 	ld	hl, str_failed
-setup_cmd_window_status_update_power_backup_write:
+setup_cmd_window_status_update_power_backup_print:
 	call	print_str_simple
 	ret
 
+; # setup_cmd_window_status_edit
+; #################################
 setup_cmd_window_status_edit:
 	ret
+
+; ##################################################
 
 ; # setup_cmd_window_clear
 ; #################################
@@ -897,13 +1034,13 @@ str_checkbox:			db		" [ ]",0
 
 str_baud:			db		"Baud:",0
 ; Baud string packed to the same length
-str_baud_150:			db		"150",0,0,0
-str_baud_300:			db		"300",0,0,0
-str_baud_600:			db		"600",0,0,0
-str_baud_1200:			db		"1200",0,0
-str_baud_2400:			db		"2400",0,0
-str_baud_4800:			db		"4800",0,0
-str_baud_9600:			db		"9600",0,0
+str_baud_150:			db		"150  ",0
+str_baud_300:			db		"300  ",0
+str_baud_600:			db		"600  ",0
+str_baud_1200:			db		"1200 ",0
+str_baud_2400:			db		"2400 ",0
+str_baud_4800:			db		"4800 ",0
+str_baud_9600:			db		"9600 ",0
 str_baud_19200:			db		"19200",0
 str_baud_38400:			db		"38400",0
 
@@ -912,13 +1049,13 @@ str_parity:			db		"Parity:",0
 str_stopbit:			db		"Stop Bits:",0
 
 str_none:			db		"None",0
-str_odd:			db		"Odd",0
+str_odd:			db		"Odd ",0
 str_even:			db		"Even",0
 str_unknown:			db		"Unknown",0
 
-str_sb_1:			db		"1",0
+str_sb_1:			db		"1  ",0
 str_sb_15:			db		"1.5",0
-str_sb_2:			db		"2",0
+str_sb_2:			db		"2  ",0
 
 str_memtype_rom:		db		" ROM",0
 str_memtype_ram:		db		" RAM",0
