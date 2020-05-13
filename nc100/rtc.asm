@@ -112,23 +112,6 @@ nc100_rtc_datetime_set_pair:
 	out	(c), a							; Write out 1's unit
 	ret
 
-; # nc100_rtc_register_set_page_timer_disabled
-; #################################
-;  Updates the selected page, without disturbing the alarm bit, disable timer bit
-;	In:	B = Selected page
-nc100_rtc_register_set_page_timer_disabled:
-	in	a, (nc100_rtc_base_register+tm8521_register_page)	; Get current page/alarm/timer bits
-	and	tm8521_register_page_enable_alarm			; Filter out everything but alarm bit
-	jr	nc100_rtc_register_set_page_writeback
-; # nc100_rtc_register_set_page_timer_enabled
-; #################################
-;  Updates the selected page, without disturbing the alarm bit, enable timer bit
-;	In:	B = Selected page
-nc100_rtc_register_set_page_timer_enabled:
-	in	a, (nc100_rtc_base_register+tm8521_register_page)	; Get current page/alarm/timer bits
-	and	tm8521_register_page_enable_alarm			; Filter out everything but alarm bit
-	or	tm8521_register_page_enable_timer			; Ensure timer bit set
-	jr	nc100_rtc_register_set_page_writeback
 ; # nc100_rtc_register_set_page
 ; #################################
 ;  Updates the selected page, without disturbing the alarm/timer bits
@@ -144,6 +127,27 @@ nc100_rtc_register_set_page_writeback:
 ; ###########################################################################
 ; # Timer (Clock) routines
 ; #################################
+
+; # nc100_rtc_register_timer_disabled
+; #################################
+;  Disables timer, selects timer page
+nc100_rtc_register_timer_disabled:
+	in	a, (nc100_rtc_base_register+tm8521_register_page)	; Get current page/alarm/timer bits
+	and	tm8521_register_page_enable_alarm			; Filter out everything but alarm bit
+	or	tm8521_register_page_timer				; Select timer page
+	out	(nc100_rtc_base_register+tm8521_register_page), a	; Write value back
+	ret
+
+; # nc100_rtc_register_timer_enabled
+; #################################
+;  Enables timer, selects timer page
+nc100_rtc_register_timer_enabled:
+	in	a, (nc100_rtc_base_register+tm8521_register_page)	; Get current page/alarm/timer bits
+	and	tm8521_register_page_enable_alarm			; Filter out everything but alarm bit
+	or	tm8521_register_page_enable_timer			; Ensure timer bit set
+	or	tm8521_register_page_timer				; Select timer page
+	out	(nc100_rtc_base_register+tm8521_register_page), a	; Write value back
+	ret
 
 ; # nc100_rtc_datetime_format_set_12h
 ; #################################
@@ -205,8 +209,7 @@ nc100_rtc_datetime_format_check_not:
 nc100_rtc_datetime_get:
 	di								; Disable interrupts
 									; while reading clock
-	ld	b, tm8521_register_page_timer
-	call	nc100_rtc_register_set_page_timer_disabled
+	call	nc100_rtc_register_timer_disabled
 
 	; Get datetime
 	ld	c, nc100_rtc_base_register+tm8521_register_timer_second_10
@@ -257,8 +260,7 @@ nc100_rtc_datetime_get:
 ;	cp	l							; Check years
 ;	jr	nz, nc100_rtc_datetime_get				; Don't match so reload
 
-	ld	b, tm8521_register_page_timer
-	call	nc100_rtc_register_set_page_timer_enabled
+	call	nc100_rtc_register_timer_enabled
 	ei								; Enable interrupts again
 	ret
 
@@ -273,8 +275,7 @@ nc100_rtc_datetime_get:
 ;		L = Year
 nc100_rtc_datetime_set:
 	di								; Disable interrupts
-	ld	b, tm8521_register_page_timer
-	call	nc100_rtc_register_set_page_timer_disabled
+	call	nc100_rtc_register_timer_disabled
 
 	; Set date/time
 	push	bc							; Because it's going to get nuked
@@ -298,8 +299,7 @@ nc100_rtc_datetime_set:
 	ld	c, nc100_rtc_base_register+tm8521_register_timer_second_10
 	call	nc100_rtc_datetime_set_pair
 
-	ld	b, tm8521_register_page_timer
-	call	nc100_rtc_register_set_page_timer_enabled
+	call	nc100_rtc_register_timer_enabled
 	ei								; Enable interrupts
 	ret
 
