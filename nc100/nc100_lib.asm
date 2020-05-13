@@ -367,6 +367,7 @@ setup_cmd:
 	ld	(var_setup_selected_config), a
 	ld	a, 0xff
 	ld	(var_setup_selected_item), a
+	ld	(var_setup_selected_editor), a
 
 	call	nc100_lcd_clear_screen
 	call	setup_cmd_set_attributes_inverted
@@ -430,7 +431,6 @@ setup_cmd_loop_check_key_down:
 	set	7, a							; Set msb (used to force a redraw)
 	ld	(var_setup_selected_config), a				; Save selected index
 	jr	setup_cmd_loop						; Loop
-
 setup_cmd_loop_check_key_enter:
 	cp	character_code_carriage_return				; Check if enter
 	jr	nz, setup_cmd_loop_check_key_exit
@@ -459,6 +459,12 @@ setup_cmd_loop_check_key_exit:
 
 ; # Date/Time window
 ; ##################################################
+setup_cmd_window_datetime_item_time:		equ		0x00
+setup_cmd_window_datetime_item_date:		equ		0x01
+setup_cmd_window_datetime_item_format:		equ		0x02
+setup_cmd_window_datetime_item_alarm_time:	equ		0x03
+setup_cmd_window_datetime_item_alarm_enabled:	equ		0x04
+
 ; # setup_cmd_window_datetime_draw
 ; #################################
 setup_cmd_window_datetime_draw:
@@ -470,37 +476,31 @@ setup_cmd_window_datetime_draw:
 	call	nc100_lcd_set_cursor_by_grid
 	ld	hl, str_current
 	call	print_str_simple
-
 	ld	de, 0x1014						; Initial position (20,16)
 	ld	l, 0
 	call	nc100_lcd_set_cursor_by_grid
 	ld	hl, str_time
 	call	print_str_simple
-
 	ld	de, 0x1028						; Initial position (40,16)
 	ld	l, 0
 	call	nc100_lcd_set_cursor_by_grid
 	ld	hl, str_clk_format
 	call	print_str_simple
-
 	ld	de, 0x1814						; Initial position (20,24)
 	ld	l, 0
 	call	nc100_lcd_set_cursor_by_grid
 	ld	hl, str_date
 	call	print_str_simple
-
 	ld	de, 0x200f						; Initial position (15,32)
 	ld	l, 0
 	call	nc100_lcd_set_cursor_by_grid
 	ld	hl, str_alarm
 	call	print_str_simple
-
 	ld	de, 0x2814						; Initial position (20,40)
 	ld	l, 0
 	call	nc100_lcd_set_cursor_by_grid
 	ld	hl, str_time
 	call	print_str_simple
-
 	ld	de, 0x2828						; Initial position (40,40)
 	ld	l, 0
 	call	nc100_lcd_set_cursor_by_grid
@@ -516,90 +516,116 @@ setup_cmd_window_datetime_draw:
 setup_cmd_window_datetime_update:
 	call	setup_cmd_set_attributes_inverted
 
-setup_cmd_window_console_update_time:
-	ld	a, (var_setup_selected_item)				; Is this the selected item
-	cp	0
-	call	z,setup_cmd_set_attributes_normal			; Set attributes appropriately
-	call	nz,setup_cmd_set_attributes_inverted
+	call	nc100_rtc_datetime_get					; Get Date/Time
+	ld	(var_setup_time_second), bc				; Save to memory
+	ld	(var_setup_time_hour), de
+	ld	(var_setup_date_month), hl
+
+setup_cmd_window_datetime_update_time:
 	ld	de, 0x101a						; Initial position (26,16)
 	ld	l, 0
 	call	nc100_lcd_set_cursor_by_grid
-	call	nc100_rtc_datetime_get
-	ld	a, d
-	call	print_hex8
-	ld	a, ':'
-	call	monlib_console_out
-	ld	a, c
-	call	print_hex8
-	ld	a, ':'
-	call	monlib_console_out
-	ld	a, b
-	call	print_hex8
-
-setup_cmd_window_console_update_date:
+setup_cmd_window_datetime_update_time_edit:
+	ld	a, (var_setup_selected_editor)				; Is this being editted?
+	cp	setup_cmd_window_datetime_item_time
+	jr	nz, setup_cmd_window_datetime_update_time_actual
+	call	setup_cmd_draw_datetime_editor
+	jr	setup_cmd_window_datetime_update_date
+setup_cmd_window_datetime_update_time_actual:
 	ld	a, (var_setup_selected_item)				; Is this the selected item
-	cp	1
+	cp	setup_cmd_window_datetime_item_time
 	call	z,setup_cmd_set_attributes_normal			; Set attributes appropriately
 	call	nz,setup_cmd_set_attributes_inverted
+	ld	a, (var_setup_time_hour)
+	call	print_hex8
+	ld	a, ':'
+	call	monlib_console_out
+	ld	a, (var_setup_time_minute)
+	call	print_hex8
+	ld	a, ':'
+	call	monlib_console_out
+	ld	a, (var_setup_time_second)
+	call	print_hex8
+
+setup_cmd_window_datetime_update_date:
 	ld	de, 0x181a						; Initial position (26,24)
 	ld	l, 0
 	call	nc100_lcd_set_cursor_by_grid
-	call	nc100_rtc_datetime_get
-	ld	a, e
-	call	print_hex8
-	ld	a, '/'
-	call	monlib_console_out
-	ld	a, h
-	call	print_hex8
-	ld	a, '/'
-	call	monlib_console_out
-	ld	a, l
-	call	print_hex8
-
-setup_cmd_window_console_update_format:
+setup_cmd_window_datetime_update_date_edit:
+	ld	a, (var_setup_selected_editor)				; Is this being editted?
+	cp	setup_cmd_window_datetime_item_date
+	jr	nz, setup_cmd_window_datetime_update_date_actual
+	call	setup_cmd_draw_datetime_editor
+	jr	setup_cmd_window_datetime_update_format
+setup_cmd_window_datetime_update_date_actual:
 	ld	a, (var_setup_selected_item)				; Is this the selected item
-	cp	2
+	cp	setup_cmd_window_datetime_item_date
 	call	z,setup_cmd_set_attributes_normal			; Set attributes appropriately
 	call	nz,setup_cmd_set_attributes_inverted
+	ld	a, (var_setup_date_day)
+	call	print_hex8
+	ld	a, '/'
+	call	monlib_console_out
+	ld	a, (var_setup_date_month)
+	call	print_hex8
+	ld	a, '/'
+	call	monlib_console_out
+	ld	a, (var_setup_date_year)
+	call	print_hex8
+
+setup_cmd_window_datetime_update_format:
 	ld	de, 0x1030						; Initial position (48,16)
 	ld	l, 0
 	call	nc100_lcd_set_cursor_by_grid
-	call	nc100_rtc_datetime_format_check
-	ld	hl, str_format_12
-	jr	nc, setup_cmd_window_console_update_format_print
-	ld	hl, str_format_24
-setup_cmd_window_console_update_format_print:
-	call	print_str_simple
-
-setup_cmd_window_console_update_alarm_time:
 	ld	a, (var_setup_selected_item)				; Is this the selected item
-	cp	3
+	cp	setup_cmd_window_datetime_item_format
 	call	z,setup_cmd_set_attributes_normal			; Set attributes appropriately
 	call	nz,setup_cmd_set_attributes_inverted
+	call	nc100_rtc_datetime_format_check
+	ld	hl, str_format_12
+	jr	nc, setup_cmd_window_datetime_update_format_print
+	ld	hl, str_format_24
+setup_cmd_window_datetime_update_format_print:
+	call	print_str_simple
+
+	call	nc100_rtc_alarm_get					; Get alarm time
+	ld	(var_setup_alarm_minute), de
+
+setup_cmd_window_datetime_update_alarm_time:
 	ld	de, 0x281a						; Initial position (26,40)
 	ld	l, 0
 	call	nc100_lcd_set_cursor_by_grid
-	call	nc100_rtc_alarm_get
-	ld	a, e
+setup_cmd_window_datetime_update_alarm_time_edit:
+	ld	a, (var_setup_selected_editor)				; Is this being editted?
+	cp	setup_cmd_window_datetime_item_alarm_time
+	jr	nz, setup_cmd_window_datetime_update_alarm_time_actual
+	call	setup_cmd_draw_datetime_editor
+	jr	setup_cmd_window_datetime_update_alarm_enabled
+setup_cmd_window_datetime_update_alarm_time_actual:
+	ld	a, (var_setup_selected_item)				; Is this the selected item
+	cp	setup_cmd_window_datetime_item_alarm_time
+	call	z,setup_cmd_set_attributes_normal			; Set attributes appropriately
+	call	nz,setup_cmd_set_attributes_inverted
+	ld	a, (var_setup_alarm_hour)
 	call	print_hex8
 	ld	a, ':'
 	call	monlib_console_out
-	ld	a, d
+	ld	a, (var_setup_alarm_minute)
 	call	print_hex8
 
-setup_cmd_window_console_update_alarm_enabled:
-	ld	a, (var_setup_selected_item)				; Is this the selected item
-	cp	4
-	call	z,setup_cmd_set_attributes_normal			; Set attributes appropriately
-	call	nz,setup_cmd_set_attributes_inverted
+setup_cmd_window_datetime_update_alarm_enabled:
 	ld	de, 0x2831						; Initial position (49,40)
 	ld	l, 0
 	call	nc100_lcd_set_cursor_by_grid
+	ld	a, (var_setup_selected_item)				; Is this the selected item
+	cp	setup_cmd_window_datetime_item_alarm_enabled
+	call	z,setup_cmd_set_attributes_normal			; Set attributes appropriately
+	call	nz,setup_cmd_set_attributes_inverted
 	call	nc100_rtc_alarm_check					; Check whether alarm is enabled
 	ld	a, ' '
-	jr	nc, setup_cmd_window_console_update_alarm_enabled_print
+	jr	nc, setup_cmd_window_datetime_update_alarm_enabled_print
 	ld	a, 'X'
-setup_cmd_window_console_update_alarm_enabled_print:
+setup_cmd_window_datetime_update_alarm_enabled_print:
 	call	monlib_console_out
 
 	ret
@@ -607,6 +633,148 @@ setup_cmd_window_console_update_alarm_enabled_print:
 ; # setup_cmd_window_datetime_edit
 ; #################################
 setup_cmd_window_datetime_edit:
+	call	setup_cmd_window_datetime_update			; Update pane
+
+setup_cmd_window_datetime_edit_check_key:
+	call	nc100_keyboard_char_in					; Check for key press
+	jr	nc, setup_cmd_window_datetime_edit			; Just loop if no key
+setup_cmd_window_datetime_edit_check_key_up:
+	cp	character_code_up					; Check if up
+	jr	nz, setup_cmd_window_datetime_edit_check_key_down
+	ld	a, (var_setup_selected_item)				; Get selected index
+	and	a							; Check if zero
+	jr	z, setup_cmd_window_datetime_edit			; If already zero, just loop
+	dec	a							; Index--
+	ld	(var_setup_selected_item), a				; Save selected index
+	jr	setup_cmd_window_datetime_edit				; Loop
+setup_cmd_window_datetime_edit_check_key_down:
+	cp	character_code_down					; Check if down
+	jr	nz, setup_cmd_window_datetime_edit_check_key_left
+	ld	a, (var_setup_selected_item)				; Get selected index
+	cp	4
+	jr	z, setup_cmd_window_datetime_edit			; If on last screen, just loop
+	inc	a							; Index++
+	ld	(var_setup_selected_item), a				; Save selected index
+	jr	setup_cmd_window_datetime_edit				; Loop
+setup_cmd_window_datetime_edit_check_key_left:
+	cp	character_code_left					; Check if left
+	jr	nz, setup_cmd_window_datetime_edit_check_key_space
+	ld	a, (var_setup_selected_item)				; Get selected index
+	ld	hl, setup_cmd_window_datetime_edit			; Push return address
+	push	hl							; For the following jumps
+	cp	setup_cmd_window_datetime_item_format
+	jp	z, nc100_rtc_datetime_format_toggle
+	cp	setup_cmd_window_datetime_item_alarm_enabled
+	jp	z, nc100_rtc_alarm_toggle
+	ret								; Should never reach here
+									; So pop to re-align stack
+setup_cmd_window_datetime_edit_check_key_space:
+	cp	' '							; Check if space
+	jr	nz, setup_cmd_window_datetime_edit_check_key_right
+	jr	setup_cmd_window_datetime_edit_check_key_right_do
+setup_cmd_window_datetime_edit_check_key_right:
+	cp	character_code_right					; Check if right
+	jr	nz, setup_cmd_window_datetime_edit_check_key_enter
+setup_cmd_window_datetime_edit_check_key_right_do:
+	ld	a, (var_setup_selected_item)				; Get selected index
+	ld	hl, setup_cmd_window_datetime_edit			; Push return address
+	push	hl							; For the following jumps
+	cp	setup_cmd_window_datetime_item_format
+	jp	z, nc100_rtc_datetime_format_toggle
+	cp	setup_cmd_window_datetime_item_alarm_enabled
+	jp	z, nc100_rtc_alarm_toggle
+	ret								; Should never reach here
+									; So pop to re-align stack
+setup_cmd_window_datetime_edit_check_key_enter:
+	cp	character_code_carriage_return				; Check if enter
+	jr	nz, setup_cmd_window_datetime_edit_check_key_exit
+	ld	a, (var_setup_selected_item)				; Get selected index
+	ld	hl, setup_cmd_window_datetime_edit			; Push return address
+	push	hl							; For the following jumps
+	cp	setup_cmd_window_datetime_item_time
+	jp	z, setup_cmd_window_datetime_editor_time
+	cp	setup_cmd_window_datetime_item_date
+	jp	z, setup_cmd_window_datetime_editor_date
+	cp	setup_cmd_window_datetime_item_alarm_time
+	jp	z, setup_cmd_window_datetime_editor_alarm_time
+	ret								; Should never reach here
+									; So pop to re-align stack
+setup_cmd_window_datetime_edit_check_key_exit:
+	cp	character_code_escape
+	jp	nz, setup_cmd_window_datetime_edit
+
+	ld	a, 0xff
+	ld	(var_setup_selected_item), a				; Reset selected item
+	ret
+
+; # setup_cmd_window_datetime_editor_time
+; #################################
+setup_cmd_window_datetime_editor_time:
+	ld	a, setup_cmd_window_datetime_item_time
+	ld	(var_setup_selected_editor), a
+	ld	a, ':'
+	ld	(var_setup_editor_separator), a
+
+	ld	a, (var_setup_time_hour)
+	ld	(var_setup_editor_temp1), a
+	ld	a, (var_setup_time_minute)
+	ld	(var_setup_editor_temp2), a
+	ld	a, (var_setup_time_second)
+	ld	(var_setup_editor_temp3), a
+
+setup_cmd_window_datetime_editor_time_loop:
+	call	setup_cmd_window_datetime_update			; Update pane
+
+setup_cmd_window_datetime_editor_time_check_key:
+	call	nc100_keyboard_char_in					; Check for key press
+	jr	nc, setup_cmd_window_datetime_editor_time_loop		; Just loop if no key
+;setup_cmd_window_datetime_edit_check_key_left:
+;	cp	character_code_left					; Check if left
+;	jr	nz, setup_cmd_window_datetime_edit_check_key_space
+;	ld	a, (var_setup_selected_item)				; Get selected index
+;	ld	hl, setup_cmd_window_datetime_edit			; Push return address
+;	push	hl							; For the following jumps
+;	cp	setup_cmd_window_datetime_item_format
+;	jp	z, nc100_rtc_datetime_format_toggle
+;	cp	setup_cmd_window_datetime_item_alarm_enabled
+;	jp	z, nc100_rtc_alarm_toggle
+;	ret								; Should never reach here
+									; So pop to re-align stack
+;setup_cmd_window_datetime_edit_check_key_right:
+;	cp	character_code_right					; Check if right
+;	jr	nz, setup_cmd_window_datetime_edit_check_key_enter
+;setup_cmd_window_datetime_edit_check_key_right_do:
+;	ld	a, (var_setup_selected_item)				; Get selected index
+;	ld	hl, setup_cmd_window_datetime_edit			; Push return address
+;	push	hl							; For the following jumps
+;	cp	setup_cmd_window_datetime_item_format
+;	jp	z, nc100_rtc_datetime_format_toggle
+;	cp	setup_cmd_window_datetime_item_alarm_enabled
+;	jp	z, nc100_rtc_alarm_toggle
+;	ret								; Should never reach here
+;									; So pop to re-align stack
+;setup_cmd_window_datetime_editor_time_check_key_enter:
+;	cp	character_code_carriage_return				; Check if enter
+;	jr	nz, setup_cmd_window_datetime_editor_time_check_key_exit
+;
+;	jr	setup_cmd_window_datetime_editor_time_finish
+setup_cmd_window_datetime_editor_time_check_key_exit:
+	cp	character_code_escape
+	jp	nz, setup_cmd_window_datetime_editor_time_loop
+
+setup_cmd_window_datetime_editor_time_finish:
+	ld	a, 0xff
+	ld	(var_setup_selected_editor), a				; Reset selected item
+	ret
+
+; # setup_cmd_window_datetime_editor_date
+; #################################
+setup_cmd_window_datetime_editor_date:
+	ret
+
+; # setup_cmd_window_datetime_editor_alarm_time
+; #################################
+setup_cmd_window_datetime_editor_alarm_time:
 	ret
 
 ; # Console window
@@ -638,6 +806,12 @@ setup_cmd_window_console_edit:
 
 ; # Serial window
 ; ##################################################
+setup_cmd_window_serial_item_baud:		equ		0x00
+setup_cmd_window_serial_item_char_len:		equ		0x01
+setup_cmd_window_serial_item_parity:		equ		0x02
+setup_cmd_window_serial_item_stopbits:		equ		0x03
+setup_cmd_window_serial_item_always:		equ		0x04
+
 ; # setup_cmd_window_serial_draw
 ; #################################
 setup_cmd_window_serial_draw:
@@ -683,7 +857,7 @@ setup_cmd_window_serial_update_baud:
 	ld	l, 0
 	call	nc100_lcd_set_cursor_by_grid
 	ld	a, (var_setup_selected_item)				; Is this the selected item
-	cp	0
+	cp	setup_cmd_window_serial_item_baud
 	call	z,setup_cmd_set_attributes_normal			; Set attributes appropriately
 	call	nz,setup_cmd_set_attributes_inverted
 	ld	a, (nc100_config_uart_baud)				; Get baud
@@ -702,7 +876,7 @@ setup_cmd_window_serial_update_char_len:
 	ld	l, 0
 	call	nc100_lcd_set_cursor_by_grid
 	ld	a, (var_setup_selected_item)				; Is this the selected item
-	cp	1
+	cp	setup_cmd_window_serial_item_char_len
 	call	z,setup_cmd_set_attributes_normal			; Set attributes appropriately
 	call	nz,setup_cmd_set_attributes_inverted
 	ld	a, (nc100_config_uart_mode)				; Get current UART mode
@@ -717,7 +891,7 @@ setup_cmd_window_serial_update_parity:
 	ld	l, 0
 	call	nc100_lcd_set_cursor_by_grid
 	ld	a, (var_setup_selected_item)				; Is this the selected item
-	cp	2
+	cp	setup_cmd_window_serial_item_parity
 	call	z,setup_cmd_set_attributes_normal			; Set attributes appropriately
 	call	nz,setup_cmd_set_attributes_inverted
 	ld	a, (nc100_config_uart_mode)				; Get current UART mode
@@ -740,7 +914,7 @@ setup_cmd_window_serial_update_stopbit:
 	ld	l, 0
 	call	nc100_lcd_set_cursor_by_grid
 	ld	a, (var_setup_selected_item)				; Is this the selected item
-	cp	3
+	cp	setup_cmd_window_serial_item_stopbits
 	call	z,setup_cmd_set_attributes_normal			; Set attributes appropriately
 	call	nz,setup_cmd_set_attributes_inverted
 	ld	a, (nc100_config_uart_mode)				; Get current UART mode
@@ -763,7 +937,7 @@ setup_cmd_window_serial_update_enabled:
 	ld	l, 0
 	call	nc100_lcd_set_cursor_by_grid
 	ld	a, (var_setup_selected_item)				; Is this the selected item
-	cp	4
+	cp	setup_cmd_window_serial_item_always
 	call	z,setup_cmd_set_attributes_normal			; Set attributes appropriately
 	call	nz,setup_cmd_set_attributes_inverted
 	ld	a, (nc100_config_uart_baud)				; Get enabled status
@@ -809,15 +983,15 @@ setup_cmd_window_serial_edit_check_key_left:
 	ld	a, (var_setup_selected_item)				; Get selected index
 	ld	hl, setup_cmd_window_serial_edit			; Push return address
 	push	hl							; For the following jumps
-	cp	0
+	cp	setup_cmd_window_serial_item_baud
 	jp	z, nc100_serial_baud_dec
-	cp	1
+	cp	setup_cmd_window_serial_item_char_len
 	jp	z, nc100_serial_character_length_dec
-	cp	2
+	cp	setup_cmd_window_serial_item_parity
 	jp	z, nc100_serial_parity_dec
-	cp	3
+	cp	setup_cmd_window_serial_item_stopbits
 	jp	z, nc100_serial_stopbits_dec
-	cp	4
+	cp	setup_cmd_window_serial_item_always
 	jp	z, nc100_serial_always_toggle
 	ret								; Should never reach here
 									; So pop to re-align stack
@@ -832,15 +1006,15 @@ setup_cmd_window_serial_edit_check_key_right_do:
 	ld	a, (var_setup_selected_item)				; Get selected index
 	ld	hl, setup_cmd_window_serial_edit			; Push return address
 	push	hl							; For the following jumps
-	cp	0
+	cp	setup_cmd_window_serial_item_baud
 	jp	z, nc100_serial_baud_inc
-	cp	1
+	cp	setup_cmd_window_serial_item_char_len
 	jp	z, nc100_serial_character_length_inc
-	cp	2
+	cp	setup_cmd_window_serial_item_parity
 	jp	z, nc100_serial_parity_inc
-	cp	3
+	cp	setup_cmd_window_serial_item_stopbits
 	jp	z, nc100_serial_stopbits_inc
-	cp	4
+	cp	setup_cmd_window_serial_item_always
 	jp	z, nc100_serial_always_toggle
 	ret								; Should never reach here
 									; So pop to re-align stack
@@ -851,7 +1025,6 @@ setup_cmd_window_serial_edit_check_key_exit:
 	ld	a, 0xff
 	ld	(var_setup_selected_item), a				; Reset selected item
 	ret
-
 
 ; # Status window
 ; ##################################################
@@ -1118,6 +1291,24 @@ setup_cmd_border_print_loop:
 	call	print_str_repeat					; Print bottom
 	ret
 
+; # setup_cmd_draw_datetime_editor
+; #################################
+;  Draws the editor contents with highlighting
+setup_cmd_draw_datetime_editor:
+	ld	a, (var_setup_editor_separator)
+	ld	b, a
+	ld	a, (var_setup_editor_temp1)
+	call	print_hex8
+	ld	a, b
+	call	monlib_console_out
+	ld	a, (var_setup_editor_temp2)
+	call	print_hex8
+	ld	a, b
+	call	monlib_console_out
+	ld	a, (var_setup_editor_temp3)
+	call	print_hex8
+	ret
+
 ; # setup_cmd_set_attributes_normal
 ; #################################
 setup_cmd_set_attributes_normal:
@@ -1138,6 +1329,21 @@ setup_cmd_set_attributes_inverted:
 setup_cmd_screens_max:		equ		0x04			; Number of different screens
 var_setup_selected_config:	db		0x80			; msb set to force redraw
 var_setup_selected_item:	db		0xff
+var_setup_selected_editor:	db		0xff
+
+var_setup_time_second:		db		0x00
+var_setup_time_minute:		db		0x00
+var_setup_time_hour:		db		0x00
+var_setup_date_day:		db		0x00
+var_setup_date_month:		db		0x00
+var_setup_date_year:		db		0x00
+var_setup_alarm_minute:		db		0x00
+var_setup_alarm_hour:		db		0x00
+
+var_setup_editor_temp1:		db		0x00
+var_setup_editor_temp2:		db		0x00
+var_setup_editor_temp3:		db		0x00
+var_setup_editor_separator:	db		0x00
 
 ; # Strings
 ; #################################
