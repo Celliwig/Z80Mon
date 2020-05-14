@@ -1,5 +1,6 @@
 ; # Configuration program (Main)
 ; ###########################################################################
+;  Must start here
 setup_cmd:
 	ld	a, 0x80							; Initialise state variables
 	ld	(var_setup_selected_config), a
@@ -94,3 +95,124 @@ setup_cmd_loop_check_key_exit:
 	call	print_newline
 
 	ret
+
+; # Basic functions
+; ##################################################
+
+; # setup_cmd_window_clear
+; #################################
+;  Clears the window (right hand pane)
+setup_cmd_window_clear:
+	ld	de, 0x080e						; Initial position (14,8)
+	ld	l, 0
+	call	setup_cmd_set_attributes_inverted
+setup_cmd_window_clear_set_row:
+	call	nc100_lcd_set_cursor_by_grid
+	ld	b, 0x2d							; Number of characters to clear
+setup_cmd_window_clear_write_char:
+	ld	a, ' '
+	call	monlib_console_out
+	djnz	setup_cmd_window_clear_write_char
+	ld	a, d
+	add	0x08
+	ld	d, a							; Next row
+	cp	0x38							; Check if on last row
+	jr	nz, setup_cmd_window_clear_set_row
+	ret
+
+; # setup_cmd_selector_print
+; #################################
+;  Print the window selector
+setup_cmd_selector_print:
+setup_cmd_selector_print_datetime:
+	ld	a, (var_setup_selected_config)
+	and	0x7f
+	cp	0
+	call	z, setup_cmd_set_attributes_normal
+	call	nz, setup_cmd_set_attributes_inverted
+	ld	de, 0x0802
+	ld	l, 0x00
+	call	nc100_lcd_set_cursor_by_grid				; Set cursor (2,8)
+	ld	hl, str_setup_datetime
+	call	print_str_simple
+
+setup_cmd_selector_print_console:
+	ld	a, (var_setup_selected_config)
+	and	0x7f
+	cp	1
+	call	z, setup_cmd_set_attributes_normal
+	call	nz, setup_cmd_set_attributes_inverted
+	ld	de, 0x1002
+	ld	l, 0x00
+	call	nc100_lcd_set_cursor_by_grid				; Set cursor (2,16)
+	ld	hl, str_setup_console
+	call	print_str_simple
+
+setup_cmd_selector_print_serial:
+	ld	a, (var_setup_selected_config)
+	and	0x7f
+	cp	2
+	call	z, setup_cmd_set_attributes_normal
+	call	nz, setup_cmd_set_attributes_inverted
+	ld	de, 0x1802
+	ld	l, 0x00
+	call	nc100_lcd_set_cursor_by_grid				; Set cursor (2,24)
+	ld	hl, str_setup_serial
+	call	print_str_simple
+
+setup_cmd_selector_print_status:
+	ld	a, (var_setup_selected_config)
+	and	0x7f
+	cp	3
+	call	z, setup_cmd_set_attributes_normal
+	call	nz, setup_cmd_set_attributes_inverted
+	ld	de, 0x2002
+	ld	l, 0x00
+	call	nc100_lcd_set_cursor_by_grid				; Set cursor (2,32)
+	ld	hl, str_setup_status
+	call	print_str_simple
+
+	ret
+
+; # setup_cmd_border_print
+; #################################
+;  Prints the border for the setup interface
+setup_cmd_border_print:
+	ld	de, 0x0000
+	ld	l, 0x00
+	call	nc100_lcd_set_cursor_by_grid				; Reset cursor (0,0)
+	ld	hl, str_setup_border_top
+	call	print_str_repeat					; Print top
+	ld	d, 0x6
+setup_cmd_border_print_loop:
+	ld	hl, str_setup_border_middle
+	call	print_str_repeat					; Print middle
+	dec	d
+	jr	nz, setup_cmd_border_print_loop
+	ld	hl, str_setup_border_bottom
+	call	print_str_repeat					; Print bottom
+	ret
+
+; # setup_cmd_set_attributes_normal
+; #################################
+setup_cmd_set_attributes_normal:
+	xor	a
+	call	nc100_lcd_set_attributes				; No scroll
+	ret
+
+; # setup_cmd_set_attributes_inverted
+; #################################
+setup_cmd_set_attributes_inverted:
+	ld	a, nc100_draw_attrib_invert_mask
+	call	nc100_lcd_set_attributes				; No scroll, inverted
+	ret
+
+; # Includes
+; ##################################################
+include	"nc100/setup_panel_datetime.asm"
+include	"nc100/setup_panel_general.asm"
+include	"nc100/setup_panel_serial.asm"
+include	"nc100/setup_panel_status.asm"
+
+; # Variables
+; ##################################################
