@@ -171,6 +171,31 @@ math_divide_16b_check:
 	jr	nz, math_divide_16b_loop
 	ret
 
+; # math_bcd_2_hex
+; #################################
+;  Converts an 8 bit bcd encoded value to hex
+;	In:	A = BCD value
+;	Out:	A = Hex value
+math_bcd_2_hex:
+	ld	b, a					; Save value
+	and	0x0f					; Extract lower nibble
+	ld	c, a					; Save for later
+	ld	a, b
+	srl	a					; Shift upper nibble to lower
+	srl	a
+	srl	a
+	srl	a
+	ld	b, a					; Setup 10s loop
+	xor	a					; Clear A
+	cp	b					; Test 10s digit
+	jr	z, math_bcd_2_hex_combine		; No 10s, so finish
+math_bcd_2_hex_loop:
+	add	0x0a					; Add 10
+	djnz	math_bcd_2_hex_loop
+math_bcd_2_hex_combine:
+	add	c					; Combine values
+	ret
+
 ; # Print routines
 ; ###########################################################################
 ; Note: will not alter any registers other than AF.
