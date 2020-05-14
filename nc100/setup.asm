@@ -26,7 +26,7 @@ setup_cmd_loop_draw:
 	cp	0
 	jp	z, setup_cmd_window_datetime_draw
 	cp	1
-	jp	z, setup_cmd_window_console_draw
+	jp	z, setup_cmd_window_general_draw
 	cp	2
 	jp	z, setup_cmd_window_serial_draw
 	cp	3
@@ -40,7 +40,7 @@ setup_cmd_loop_update:
 	cp	0
 	jp	z, setup_cmd_window_datetime_update
 	cp	1
-	jp	z, setup_cmd_window_console_update
+	jp	z, setup_cmd_window_general_update
 	cp	2
 	jp	z, setup_cmd_window_serial_update
 	cp	3
@@ -81,7 +81,7 @@ setup_cmd_loop_check_key_enter:
 	cp	0
 	jp	z, setup_cmd_window_datetime_edit
 	cp	1
-	jp	z, setup_cmd_window_console_edit
+	jp	z, setup_cmd_window_general_edit
 	cp	2
 	jp	z, setup_cmd_window_serial_edit
 	cp	3
@@ -145,7 +145,7 @@ setup_cmd_selector_print_console:
 	ld	de, 0x1002
 	ld	l, 0x00
 	call	nc100_lcd_set_cursor_by_grid				; Set cursor (2,16)
-	ld	hl, str_setup_console
+	ld	hl, str_setup_general
 	call	print_str_simple
 
 setup_cmd_selector_print_serial:
@@ -234,7 +234,7 @@ str_setup_status_mem_middle:			db		0x01,0xb3,0x09,0x20,0x01,0xb3,0x09,0x20,0x01,
 str_setup_status_mem_bottom:			db		0x01,0xc0,0x09,0xc4,0x01,0xc1,0x09,0xc4,0x01,0xc1,0x09,0xc4,0x01,0xc1,0x09,0xc4,0x01,0xd9,0x00
 
 str_setup_datetime:				db		"Date/Time",0
-str_setup_console:				db		" Console ",0
+str_setup_general:				db		" General ",0
 str_setup_serial:				db		"  Serial ",0
 str_setup_status:				db		"  Status ",0
 

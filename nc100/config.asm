@@ -23,7 +23,27 @@ nc100_config_uart_baud_always:		equ		7		; The serial port is always enabled, and
 ;  General system parameters
 nc100_config_misc_console:		equ		0		; Console interface: 1 = Serial, 0 = Local (LCD/Keyboard)
 
+nc100_config_misc_console_mask:		equ		1 << nc100_config_misc_console
+
 ; ###########################################################################
 ; # nc100_config_draw_attributes
 ; #################################
 ;  Copy of the LCD draw attributes
+
+; # nc100_config_misc_console_toggle
+; #################################
+;  Toggle the console source/destination.
+nc100_config_misc_console_toggle:
+	ld	a, (nc100_config_misc)					; Get console target
+	xor	nc100_config_misc_console_mask				; Toggle console target flag
+	ld	(nc100_config_misc), a					; Save console target
+	ret
+
+; # nc100_config_draw_attrib_invert_toggle
+; #################################
+;  Toggle the state of the invert draw attribute in the config copy.
+nc100_config_draw_attrib_invert_toggle:
+	ld	a, (nc100_config_draw_attributes)			; Get config draw attributes
+	xor	nc100_draw_attrib_invert_mask				; Toggle invert flag
+	ld	(nc100_config_draw_attributes), a			; Save config draw attributes
+	ret
