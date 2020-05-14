@@ -1,10 +1,38 @@
 ; # Configuration program (Panel: Serial)
 ; ###########################################################################
+
+; # Defines
+; ##################################################
 setup_cmd_window_serial_item_baud:		equ		0x00
 setup_cmd_window_serial_item_char_len:		equ		0x01
 setup_cmd_window_serial_item_parity:		equ		0x02
 setup_cmd_window_serial_item_stopbits:		equ		0x03
 setup_cmd_window_serial_item_always:		equ		0x04
+
+str_baud:					db		"Baud:",0
+; Baud string packed to the same length
+str_baud_150:					db		"150  ",0
+str_baud_300:					db		"300  ",0
+str_baud_600:					db		"600  ",0
+str_baud_1200:					db		"1200 ",0
+str_baud_2400:					db		"2400 ",0
+str_baud_4800:					db		"4800 ",0
+str_baud_9600:					db		"9600 ",0
+str_baud_19200:					db		"19200",0
+str_baud_38400:					db		"38400",0
+str_length:					db		"Length:",0
+str_parity:					db		"Parity:",0
+str_stopbit:					db		"Stop Bits:",0
+str_none:					db		"None",0
+str_odd:					db		"Odd ",0
+str_even:					db		"Even",0
+str_unknown:					db		"Unknown",0
+str_sb_1:					db		"1  ",0
+str_sb_15:					db		"1.5",0
+str_sb_2:					db		"2  ",0
+
+; # Variables
+; ##################################################
 
 ; # setup_cmd_window_serial_draw
 ; #################################
