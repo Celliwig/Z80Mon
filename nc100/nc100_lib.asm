@@ -31,8 +31,8 @@ orgmem	mem_base+0x40
 nc100_config:
 nc100_config_uart_mode:			db	0x0			; Holds the UART mode byte
 nc100_config_uart_baud:			db	0x0			; Holds UART baud [3-0], current state [6], permanently enable [7]
-nc100_config3:				db	0x0
-nc100_config4:				db	0x0
+nc100_config_misc:			db	0x0			; Stores various parameters
+nc100_config_draw_attributes:		db	0x0			; Copy of draw attributes
 nc100_config5:				db	0x0
 nc100_config6:				db	0x0
 nc100_config7:				db	0x0
@@ -75,6 +75,9 @@ include	"nc100/serial_io.asm"
 
 ; RTC routines
 include "nc100/rtc.asm"
+
+; Config routines
+include	"nc100/config.asm"
 
 ; Interrupt routines
 include	"nc100/interrupts.asm"

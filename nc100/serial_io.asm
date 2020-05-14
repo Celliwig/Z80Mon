@@ -1,6 +1,8 @@
 ; # Serial routines
 ; ###########################################################################
 
+; # Defines
+; ##################################################
 ; Status register bits
 uPD71051_reg_status_TxRdy:		equ		0		; Transmit Data Buffer: 1 = Empty, 0 = Full
 uPD71051_reg_status_RxRdy:		equ		1		; Receive Data Buffer: 1 = Full, 0 = Not Ready
@@ -55,12 +57,6 @@ uPD71051_reg_commask_enable:		equ		uPD71051_reg_commask_TxEn | uPD71051_reg_comm
 uPD71051_reg_commask_handshake:		equ		uPD71051_reg_commask_DTR | uPD71051_reg_commask_RTS
 ; Combined full
 uPD71051_reg_commask_full:		equ		uPD71051_reg_commask_enable | uPD71051_reg_commask_handshake | uPD71051_reg_commask_ECl
-
-; Baud config bits
-; [3-0] are currently used for the baud rate.
-nc100_config_uart_baud_always:		equ		7		; The serial port is always enabled, and requests to shut it down are ignored.
-									; The one exception to this is when the UART is reconfigured, but it will then be reenabled afterwards.
-nc100_config_uart_baud_on:		equ		6		; The serial port is currently enabled.
 
 ; # nc100_serial_setup_delay
 ; #################################
