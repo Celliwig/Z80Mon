@@ -8,6 +8,7 @@ setup_cmd_window_datetime_item_date:		equ		0x01
 setup_cmd_window_datetime_item_format:		equ		0x02
 setup_cmd_window_datetime_item_alarm_time:	equ		0x03
 setup_cmd_window_datetime_item_alarm_enabled:	equ		0x04
+setup_cmd_window_datetime_item_max:		equ		0x04
 
 str_time:					db		"Time:",0
 str_date:					db		"Date:",0
@@ -220,7 +221,7 @@ setup_cmd_window_datetime_edit_check_key_down:
 	cp	character_code_down					; Check if down
 	jr	nz, setup_cmd_window_datetime_edit_check_key_left
 	ld	a, (var_setup_selected_item)				; Get selected index
-	cp	4
+	cp	setup_cmd_window_datetime_item_max
 	jr	z, setup_cmd_window_datetime_edit			; If on last screen, just loop
 	inc	a							; Index++
 	ld	(var_setup_selected_item), a				; Save selected index

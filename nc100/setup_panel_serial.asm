@@ -8,6 +8,7 @@ setup_cmd_window_serial_item_char_len:		equ		0x01
 setup_cmd_window_serial_item_parity:		equ		0x02
 setup_cmd_window_serial_item_stopbits:		equ		0x03
 setup_cmd_window_serial_item_always:		equ		0x04
+setup_cmd_window_serial_item_max:		equ		0x04
 
 str_baud:					db		"Baud:",0
 ; Baud string packed to the same length
@@ -194,7 +195,7 @@ setup_cmd_window_serial_edit_check_key_down:
 	cp	character_code_down					; Check if down
 	jr	nz, setup_cmd_window_serial_edit_check_key_left
 	ld	a, (var_setup_selected_item)				; Get selected index
-	cp	4
+	cp	setup_cmd_window_serial_item_max
 	jr	z, setup_cmd_window_serial_edit				; If on last screen, just loop
 	inc	a							; Index++
 	ld	(var_setup_selected_item), a				; Save selected index
