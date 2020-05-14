@@ -1,10 +1,34 @@
 ; # Configuration program (Panel: Date/Time)
 ; ###########################################################################
+
+; # Defines
+; ##################################################
 setup_cmd_window_datetime_item_time:		equ		0x00
 setup_cmd_window_datetime_item_date:		equ		0x01
 setup_cmd_window_datetime_item_format:		equ		0x02
 setup_cmd_window_datetime_item_alarm_time:	equ		0x03
 setup_cmd_window_datetime_item_alarm_enabled:	equ		0x04
+
+str_time:					db		"Time:",0
+str_date:					db		"Date:",0
+str_clk_format:					db		"Format:    hour",0
+str_format_12:					db		"12",0
+str_format_24:					db		"24",0
+
+; # Variables
+; ##################################################
+var_setup_time_second:				db		0x00
+var_setup_time_minute:				db		0x00
+var_setup_time_hour:				db		0x00
+var_setup_date_day:				db		0x00
+var_setup_date_month:				db		0x00
+var_setup_date_year:				db		0x00
+var_setup_alarm_minute:				db		0x00
+var_setup_alarm_hour:				db		0x00
+
+var_setup_editor_temp1:				db		0x00
+var_setup_editor_temp2:				db		0x00
+var_setup_editor_temp3:				db		0x00
 
 ; # setup_cmd_window_datetime_draw
 ; #################################
