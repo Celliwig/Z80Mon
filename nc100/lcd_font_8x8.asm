@@ -62,6 +62,10 @@ nc100_lcd_print_glyph_only_8x8:
 nc100_lcd_print_glyph_8x8:
 	call	nc100_lcd_print_glyph_only_8x8
 
+; # nc100_lcd_position_increment_8x8
+; #################################
+; Increment the screen pointer by one position
+nc100_lcd_position_increment_8x8:
 	; Increment position
 	inc	e							; Increment x position
 	ld	a, 60							; Maximum number of characters per line
