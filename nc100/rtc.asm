@@ -46,6 +46,7 @@ tm8521_register_alarm_minute_10:	equ		0x3		; Minute: -/40/20/10
 tm8521_register_alarm_hour_1:		equ		0x4		; Hour: 8/4/2/1
 tm8521_register_alarm_hour_10:		equ		0x5		; Hour: -/-/20/10
 tm8521_register_alarm_12_24:		equ		0xa		; Selects whether clock operates as 12 or 24 hour
+tm8521_register_alarm_leap_year:	equ		0xb		; Leap year configuration
 
 ; ###########################################################################
 ; # Time routines
@@ -262,6 +263,18 @@ nc100_rtc_datetime_get:
 
 	call	nc100_rtc_register_timer_enabled
 	ei								; Enable interrupts again
+	ret
+
+; # nc100_rtc_leap_year_set
+; #################################
+;  Sets the leap year digits
+;	In:	C = Leap year config
+nc100_rtc_leap_year_set:
+	ld	b, tm8521_register_page_alarm
+	call	nc100_rtc_register_set_page				; Select alarm page
+	ld	a, c
+	and	0x03							; Filter value
+	out	(nc100_rtc_base_register+tm8521_register_alarm_leap_year), a
 	ret
 
 ; # nc100_rtc_datetime_set

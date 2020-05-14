@@ -1154,6 +1154,16 @@ setup_cmd_window_datetime_editor_date:
 	ld	a, (var_setup_editor_temp3)
 	ld	(var_setup_date_year), a
 
+	call	math_bcd_2_hex						; Convert from BCD
+setup_cmd_window_datetime_editor_date_leap_loop:
+	cp	0x04
+	jr	c, setup_cmd_window_datetime_editor_date_leap_set
+	sub	0x04
+	jr	setup_cmd_window_datetime_editor_date_leap_loop
+setup_cmd_window_datetime_editor_date_leap_set:
+	ld	c, a							; Set the leap year digits
+	call	nc100_rtc_leap_year_set
+
 	ld	bc, (var_setup_time_second)				; Load registers
 	ld	de, (var_setup_time_hour)
 	ld	hl, (var_setup_date_month)
