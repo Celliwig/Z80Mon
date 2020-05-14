@@ -529,7 +529,7 @@ setup_cmd_window_datetime_update_time_edit:
 	ld	a, (var_setup_selected_editor)				; Is this being editted?
 	cp	setup_cmd_window_datetime_item_time
 	jr	nz, setup_cmd_window_datetime_update_time_actual
-	call	setup_cmd_draw_datetime_editor
+	call	setup_cmd_window_datetime_editor_draw
 	jr	setup_cmd_window_datetime_update_date
 setup_cmd_window_datetime_update_time_actual:
 	ld	a, (var_setup_selected_item)				; Is this the selected item
@@ -555,7 +555,7 @@ setup_cmd_window_datetime_update_date_edit:
 	ld	a, (var_setup_selected_editor)				; Is this being editted?
 	cp	setup_cmd_window_datetime_item_date
 	jr	nz, setup_cmd_window_datetime_update_date_actual
-	call	setup_cmd_draw_datetime_editor
+	call	setup_cmd_window_datetime_editor_draw
 	jr	setup_cmd_window_datetime_update_format
 setup_cmd_window_datetime_update_date_actual:
 	ld	a, (var_setup_selected_item)				; Is this the selected item
@@ -599,7 +599,7 @@ setup_cmd_window_datetime_update_alarm_time_edit:
 	ld	a, (var_setup_selected_editor)				; Is this being editted?
 	cp	setup_cmd_window_datetime_item_alarm_time
 	jr	nz, setup_cmd_window_datetime_update_alarm_time_actual
-	call	setup_cmd_draw_datetime_editor
+	call	setup_cmd_window_datetime_editor_draw
 	jr	setup_cmd_window_datetime_update_alarm_enabled
 setup_cmd_window_datetime_update_alarm_time_actual:
 	ld	a, (var_setup_selected_item)				; Is this the selected item
@@ -611,6 +611,10 @@ setup_cmd_window_datetime_update_alarm_time_actual:
 	ld	a, ':'
 	call	monlib_console_out
 	ld	a, (var_setup_alarm_minute)
+	call	print_hex8
+	ld	a, ':'
+	call	monlib_console_out
+	ld	a, 0x00							; Draw fake seconds for the datetime editor
 	call	print_hex8
 
 setup_cmd_window_datetime_update_alarm_enabled:
@@ -707,74 +711,483 @@ setup_cmd_window_datetime_edit_check_key_exit:
 	ld	(var_setup_selected_item), a				; Reset selected item
 	ret
 
+; # setup_cmd_window_datetime_editor_draw
+; #################################
+;  Draws the editor contents with highlighting
+setup_cmd_window_datetime_editor_draw:
+	ld	a, (var_setup_selected_editor_index)
+	cp	0
+	call	z,setup_cmd_set_attributes_inverted
+	call	nz,setup_cmd_set_attributes_normal
+	ld	a, (var_setup_editor_temp1)
+	ld	b, a
+	and	0xf0
+	srl	a
+	srl	a
+	srl	a
+	srl	a
+	call	print_hex_digit
+	ld	a, (var_setup_selected_editor_index)
+	cp	1
+	call	z,setup_cmd_set_attributes_inverted
+	call	nz,setup_cmd_set_attributes_normal
+	ld	a, b
+	and	0x0f
+	call	print_hex_digit
+
+	call	nc100_lcd_position_increment_8x8
+
+	ld	a, (var_setup_selected_editor_index)
+	cp	2
+	call	z,setup_cmd_set_attributes_inverted
+	call	nz,setup_cmd_set_attributes_normal
+	ld	a, (var_setup_editor_temp2)
+	ld	b, a
+	and	0xf0
+	srl	a
+	srl	a
+	srl	a
+	srl	a
+	call	print_hex_digit
+	ld	a, (var_setup_selected_editor_index)
+	cp	3
+	call	z,setup_cmd_set_attributes_inverted
+	call	nz,setup_cmd_set_attributes_normal
+	ld	a, b
+	and	0x0f
+	call	print_hex_digit
+
+	call	nc100_lcd_position_increment_8x8
+
+	ld	a, (var_setup_selected_editor_index)
+	cp	4
+	call	z,setup_cmd_set_attributes_inverted
+	call	nz,setup_cmd_set_attributes_normal
+	ld	a, (var_setup_editor_temp3)
+	ld	b, a
+	and	0xf0
+	srl	a
+	srl	a
+	srl	a
+	srl	a
+	call	print_hex_digit
+	ld	a, (var_setup_selected_editor_index)
+	cp	5
+	call	z,setup_cmd_set_attributes_inverted
+	call	nz,setup_cmd_set_attributes_normal
+	ld	a, b
+	and	0x0f
+	call	print_hex_digit
+	ret
+
+; # setup_cmd_window_datetime_editor
+; #################################
+;  Editor for date/time fields
+;	IY:	Pointer to table of routines to handle each digit position
+;	Out:	Carry flag set if return pressed
+;		Carry flag cleared if escaped pressed
+setup_cmd_window_datetime_editor:
+	call	setup_cmd_window_datetime_update			; Update pane
+
+setup_cmd_window_datetime_editor_check_key:
+	call	nc100_keyboard_char_in					; Check for key press
+	jr	nc, setup_cmd_window_datetime_editor			; Just loop if no key
+
+setup_cmd_window_datetime_editor_check_digit:
+	cp	'0'							; Check if '0' or above
+	jr	c, setup_cmd_window_datetime_editor_check_key_backspace
+	cp	':'							; Check if greater than '9'
+	jr	nc, setup_cmd_window_datetime_editor_check_key_backspace
+	sub	'0'
+	ld	b, a							; Save digit value
+	ld	hl, setup_cmd_window_datetime_editor
+	push	hl							; Push return address on stack
+	ld	a, (var_setup_selected_editor_index)			; Get current editor index
+	cp	0							; Check if this digit
+	jr	nz, $+9							; If not skip
+	ld	l, (iy+0)						; Jump address: LSB
+	ld	h, (iy+1)						; Jump address: MSB
+	jp	(hl)							; Jump to digit routine
+	cp	1							; Check if this digit
+	jr	nz, $+9							; If not skip
+	ld	l, (iy+2)						; Jump address: LSB
+	ld	h, (iy+3)						; Jump address: MSB
+	jp	(hl)							; Jump to digit routine
+	cp	2							; Check if this digit
+	jr	nz, $+9							; If not skip
+	ld	l, (iy+4)						; Jump address: LSB
+	ld	h, (iy+5)						; Jump address: MSB
+	jp	(hl)							; Jump to digit routine
+	cp	3							; Check if this digit
+	jr	nz, $+9							; If not skip
+	ld	l, (iy+6)						; Jump address: LSB
+	ld	h, (iy+7)						; Jump address: MSB
+	jp	(hl)							; Jump to digit routine
+	cp	4							; Check if this digit
+	jr	nz, $+9							; If not skip
+	ld	l, (iy+8)						; Jump address: LSB
+	ld	h, (iy+9)						; Jump address: MSB
+	jp	(hl)							; Jump to digit routine
+	cp	5							; Check if this digit
+	jr	nz, $+9							; If not skip
+	ld	l, (iy+10)						; Jump address: LSB
+	ld	h, (iy+11)						; Jump address: MSB
+	jp	(hl)							; Jump to digit routine
+	ret								; Should never reach here
+									; So pop to re-align stack
+setup_cmd_window_datetime_editor_check_key_backspace:
+	cp	character_code_backspace				; Check if backspace
+	jr	nz, setup_cmd_window_datetime_editor_check_key_left
+	jr	setup_cmd_window_datetime_editor_check_key_left_do
+setup_cmd_window_datetime_editor_check_key_left:
+	cp	character_code_left					; Check if left
+	jr	nz, setup_cmd_window_datetime_editor_check_key_right
+setup_cmd_window_datetime_editor_check_key_left_do:
+	ld	a, (var_setup_selected_editor_index)			; Get current editor index
+	cp	0
+	jr	z, setup_cmd_window_datetime_editor			; Loop if maxed
+	dec	a
+	ld	(var_setup_selected_editor_index), a			; Save current editor index
+	jr	setup_cmd_window_datetime_editor
+setup_cmd_window_datetime_editor_check_key_right:
+	cp	character_code_right					; Check if right
+	jr	nz, setup_cmd_window_datetime_editor_check_key_enter
+	ld	a, (var_setup_selected_editor_index)			; Get current editor index
+	cp	5
+	jr	z, setup_cmd_window_datetime_editor			; Loop if maxed
+	inc	a
+	ld	(var_setup_selected_editor_index), a			; Save current editor index
+	jp	setup_cmd_window_datetime_editor
+setup_cmd_window_datetime_editor_check_key_enter:
+	cp	character_code_carriage_return				; Check if enter
+	jr	nz, setup_cmd_window_datetime_editor_check_key_exit
+	ld	a, 0xff
+	ld	(var_setup_selected_editor), a				; Reset selected item
+	scf								; Set Carry flag
+	ret
+setup_cmd_window_datetime_editor_check_key_exit:
+	cp	character_code_escape					; Check if escape
+	jp	nz, setup_cmd_window_datetime_editor
+	ld	a, 0xff
+	ld	(var_setup_selected_editor), a				; Reset selected item
+	scf								; Clear Carry flag
+	ccf
+	ret
+
+; #################################
+; # Time editor
+; #################################
+setup_cmd_window_datetime_editor_time_table:
+	dw	setup_cmd_window_datetime_editor_time_digit1
+	dw	setup_cmd_window_datetime_editor_time_digit2
+	dw	setup_cmd_window_datetime_editor_time_digit3
+	dw	setup_cmd_window_datetime_editor_time_digit4
+	dw	setup_cmd_window_datetime_editor_time_digit5
+	dw	setup_cmd_window_datetime_editor_time_digit6
+setup_cmd_window_datetime_editor_time_digit1:
+	ld	a, b							; Get digit value
+	cp	3							; Check if value greater than 2
+	ret	nc							; Just return if it is
+	sla	a							; Shift to upper nibble
+	sla	a
+	sla	a
+	sla	a
+	ld	b, a							; Save value
+
+	ld	a, (var_setup_editor_temp1)				; Get number to update
+	and	0x0f							; Strip first digit
+	or	b							; Combine with new digit
+	ld	(var_setup_editor_temp1), a				; Save digit
+
+	ld	a, (var_setup_selected_editor_index)			; Get current editor index
+	inc	a
+	ld	(var_setup_selected_editor_index), a			; Save current editor index
+	ret
+setup_cmd_window_datetime_editor_time_digit2:
+	ld	a, (var_setup_editor_temp1)				; Check first digit
+	srl	a							; Upper nibble to lower
+	srl	a
+	srl	a
+	srl	a
+	cp	2							; Check if first digit is 2
+	jr	nz, setup_cmd_window_datetime_editor_time_digit2_update
+	ld	a, b
+	cp	4							; Check if value greater than 3
+	ret	nc							; Just return if it is
+setup_cmd_window_datetime_editor_time_digit2_update:
+	ld	a, (var_setup_editor_temp1)				; Get number to update
+	and	0xf0							; Strip second digit
+	or	b							; Combine with new digit
+	ld	(var_setup_editor_temp1), a				; Save digit
+
+	ld	a, (var_setup_selected_editor_index)			; Get current editor index
+	inc	a
+	ld	(var_setup_selected_editor_index), a			; Save current editor index
+	ret
+setup_cmd_window_datetime_editor_time_digit3:
+	ld	a, b							; Get digit value
+	cp	6							; Check if value greater than 5
+	ret	nc							; Just return if it is
+	sla	a							; Shift to upper nibble
+	sla	a
+	sla	a
+	sla	a
+	ld	b, a							; Save value
+
+	ld	a, (var_setup_editor_temp2)				; Get number to update
+	and	0x0f							; Strip first digit
+	or	b							; Combine with new digit
+	ld	(var_setup_editor_temp2), a				; Save digit
+
+	ld	a, (var_setup_selected_editor_index)			; Get current editor index
+	inc	a
+	ld	(var_setup_selected_editor_index), a			; Save current editor index
+	ret
+setup_cmd_window_datetime_editor_time_digit4:
+	ld	a, (var_setup_editor_temp2)				; Get number to update
+	and	0xf0							; Strip second digit
+	or	b							; Combine with new digit
+	ld	(var_setup_editor_temp2), a				; Save digit
+
+	ld	a, (var_setup_selected_editor_index)			; Get current editor index
+	inc	a
+	ld	(var_setup_selected_editor_index), a			; Save current editor index
+	ret
+setup_cmd_window_datetime_editor_time_digit5:
+	ld	a, b							; Get digit value
+	cp	6							; Check if value greater than 5
+	ret	nc							; Just return if it is
+	sla	a							; Shift to upper nibble
+	sla	a
+	sla	a
+	sla	a
+	ld	b, a							; Save value
+
+	ld	a, (var_setup_editor_temp3)				; Get number to update
+	and	0x0f							; Strip first digit
+	or	b							; Combine with new digit
+	ld	(var_setup_editor_temp3), a				; Save digit
+
+	ld	a, (var_setup_selected_editor_index)			; Get current editor index
+	inc	a
+	ld	(var_setup_selected_editor_index), a			; Save current editor index
+	ret
+setup_cmd_window_datetime_editor_time_digit6:
+	ld	a, (var_setup_editor_temp3)				; Get number to update
+	and	0xf0							; Strip second digit
+	or	b							; Combine with new digit
+	ld	(var_setup_editor_temp3), a				; Save digit
+	ret
+
+; #################################
+; # Date editor
+; #################################
+setup_cmd_window_datetime_editor_date_table:
+	dw	setup_cmd_window_datetime_editor_date_digit1
+	dw	setup_cmd_window_datetime_editor_date_digit2
+	dw	setup_cmd_window_datetime_editor_date_digit3
+	dw	setup_cmd_window_datetime_editor_date_digit4
+	dw	setup_cmd_window_datetime_editor_date_digit5
+	dw	setup_cmd_window_datetime_editor_date_digit6
+setup_cmd_window_datetime_editor_date_digit1:
+	ld	a, b							; Get digit value
+	cp	4							; Check if value greater than 3
+	ret	nc							; Just return if it is
+	sla	a							; Shift to upper nibble
+	sla	a
+	sla	a
+	sla	a
+	ld	b, a							; Save value
+
+	ld	a, (var_setup_editor_temp1)				; Get number to update
+	and	0x0f							; Strip first digit
+	or	b							; Combine with new digit
+	ld	(var_setup_editor_temp1), a				; Save digit
+
+	ld	a, (var_setup_selected_editor_index)			; Get current editor index
+	inc	a
+	ld	(var_setup_selected_editor_index), a			; Save current editor index
+	ret
+setup_cmd_window_datetime_editor_date_digit2:
+	ld	a, (var_setup_editor_temp1)				; Check first digit
+	srl	a							; Upper nibble to lower
+	srl	a
+	srl	a
+	srl	a
+	cp	3							; Check if first digit is 3
+	jr	nz, setup_cmd_window_datetime_editor_date_digit2_update
+	ld	a, b
+	cp	2							; Check if value greater than 1
+	ret	nc							; Just return if it is
+setup_cmd_window_datetime_editor_date_digit2_update:
+	ld	a, (var_setup_editor_temp1)				; Get number to update
+	and	0xf0							; Strip second digit
+	or	b							; Combine with new digit
+	ret	z							; If the combined value is zero, return
+	ld	(var_setup_editor_temp1), a				; Save digit
+
+	ld	a, (var_setup_selected_editor_index)			; Get current editor index
+	inc	a
+	ld	(var_setup_selected_editor_index), a			; Save current editor index
+	ret
+setup_cmd_window_datetime_editor_date_digit3:
+	ld	a, b							; Get digit value
+	cp	2							; Check if value greater than 1
+	ret	nc							; Just return if it is
+	sla	a							; Shift to upper nibble
+	sla	a
+	sla	a
+	sla	a
+	ld	b, a							; Save value
+
+	ld	a, (var_setup_editor_temp2)				; Get number to update
+	and	0x0f							; Strip first digit
+	or	b							; Combine with new digit
+	ld	(var_setup_editor_temp2), a				; Save digit
+
+	ld	a, (var_setup_selected_editor_index)			; Get current editor index
+	inc	a
+	ld	(var_setup_selected_editor_index), a			; Save current editor index
+	ret
+setup_cmd_window_datetime_editor_date_digit4:
+	ld	a, (var_setup_editor_temp2)				; Check first digit
+	srl	a							; Upper nibble to lower
+	srl	a
+	srl	a
+	srl	a
+	cp	1							; Check if first digit is 1
+	jr	nz, setup_cmd_window_datetime_editor_date_digit4_update
+	ld	a, b
+	cp	3							; Check if value greater than 2
+	ret	nc							; Just return if it is
+setup_cmd_window_datetime_editor_date_digit4_update:
+	ld	a, (var_setup_editor_temp2)				; Get number to update
+	and	0xf0							; Strip second digit
+	or	b							; Combine with new digit
+	ret	z							; If the combined value is zero, return
+	ld	(var_setup_editor_temp2), a				; Save digit
+
+	ld	a, (var_setup_selected_editor_index)			; Get current editor index
+	inc	a
+	ld	(var_setup_selected_editor_index), a			; Save current editor index
+	ret
+setup_cmd_window_datetime_editor_date_digit5:
+	ld	a, b							; Get digit value
+	sla	a							; Shift to upper nibble
+	sla	a
+	sla	a
+	sla	a
+	ld	b, a							; Save value
+
+	ld	a, (var_setup_editor_temp3)				; Get number to update
+	and	0x0f							; Strip first digit
+	or	b							; Combine with new digit
+	ld	(var_setup_editor_temp3), a				; Save digit
+
+	ld	a, (var_setup_selected_editor_index)			; Get current editor index
+	inc	a
+	ld	(var_setup_selected_editor_index), a			; Save current editor index
+	ret
+setup_cmd_window_datetime_editor_date_digit6:
+	ld	a, (var_setup_editor_temp3)				; Get number to update
+	and	0xf0							; Strip second digit
+	or	b							; Combine with new digit
+	ld	(var_setup_editor_temp3), a				; Save digit
+	ret
+
 ; # setup_cmd_window_datetime_editor_time
 ; #################################
 setup_cmd_window_datetime_editor_time:
 	ld	a, setup_cmd_window_datetime_item_time
-	ld	(var_setup_selected_editor), a
-	ld	a, ':'
-	ld	(var_setup_editor_separator), a
+	ld	(var_setup_selected_editor), a				; Set selected editor
+	xor	a
+	ld	(var_setup_selected_editor_index), a			; Reset editor index
 
-	ld	a, (var_setup_time_hour)
+	ld	a, (var_setup_time_hour)				; Copy value to edit
 	ld	(var_setup_editor_temp1), a
 	ld	a, (var_setup_time_minute)
 	ld	(var_setup_editor_temp2), a
 	ld	a, (var_setup_time_second)
 	ld	(var_setup_editor_temp3), a
 
-setup_cmd_window_datetime_editor_time_loop:
-	call	setup_cmd_window_datetime_update			; Update pane
+	ld	iy, setup_cmd_window_datetime_editor_time_table
+	call	setup_cmd_window_datetime_editor
+	ret	nc							; Just exit if escape pressed
 
-setup_cmd_window_datetime_editor_time_check_key:
-	call	nc100_keyboard_char_in					; Check for key press
-	jr	nc, setup_cmd_window_datetime_editor_time_loop		; Just loop if no key
-;setup_cmd_window_datetime_edit_check_key_left:
-;	cp	character_code_left					; Check if left
-;	jr	nz, setup_cmd_window_datetime_edit_check_key_space
-;	ld	a, (var_setup_selected_item)				; Get selected index
-;	ld	hl, setup_cmd_window_datetime_edit			; Push return address
-;	push	hl							; For the following jumps
-;	cp	setup_cmd_window_datetime_item_format
-;	jp	z, nc100_rtc_datetime_format_toggle
-;	cp	setup_cmd_window_datetime_item_alarm_enabled
-;	jp	z, nc100_rtc_alarm_toggle
-;	ret								; Should never reach here
-									; So pop to re-align stack
-;setup_cmd_window_datetime_edit_check_key_right:
-;	cp	character_code_right					; Check if right
-;	jr	nz, setup_cmd_window_datetime_edit_check_key_enter
-;setup_cmd_window_datetime_edit_check_key_right_do:
-;	ld	a, (var_setup_selected_item)				; Get selected index
-;	ld	hl, setup_cmd_window_datetime_edit			; Push return address
-;	push	hl							; For the following jumps
-;	cp	setup_cmd_window_datetime_item_format
-;	jp	z, nc100_rtc_datetime_format_toggle
-;	cp	setup_cmd_window_datetime_item_alarm_enabled
-;	jp	z, nc100_rtc_alarm_toggle
-;	ret								; Should never reach here
-;									; So pop to re-align stack
-;setup_cmd_window_datetime_editor_time_check_key_enter:
-;	cp	character_code_carriage_return				; Check if enter
-;	jr	nz, setup_cmd_window_datetime_editor_time_check_key_exit
-;
-;	jr	setup_cmd_window_datetime_editor_time_finish
-setup_cmd_window_datetime_editor_time_check_key_exit:
-	cp	character_code_escape
-	jp	nz, setup_cmd_window_datetime_editor_time_loop
+	ld	a,(var_setup_editor_temp1)				; Copy editor value back
+	ld	(var_setup_time_hour), a
+	ld	a, (var_setup_editor_temp2)
+	ld	(var_setup_time_minute), a
+	ld	a, (var_setup_editor_temp3)
+	ld	(var_setup_time_second), a
 
-setup_cmd_window_datetime_editor_time_finish:
-	ld	a, 0xff
-	ld	(var_setup_selected_editor), a				; Reset selected item
+	ld	bc, (var_setup_time_second)				; Load registers
+	ld	de, (var_setup_time_hour)
+	ld	hl, (var_setup_date_month)
+	call	nc100_rtc_datetime_set					; Set Date/Time
+
 	ret
 
 ; # setup_cmd_window_datetime_editor_date
 ; #################################
 setup_cmd_window_datetime_editor_date:
+	ld	a, setup_cmd_window_datetime_item_date
+	ld	(var_setup_selected_editor), a				; Set selected editor
+	xor	a
+	ld	(var_setup_selected_editor_index), a			; Reset editor index
+
+	ld	a, (var_setup_date_day)					; Copy value to edit
+	ld	(var_setup_editor_temp1), a
+	ld	a, (var_setup_date_month)
+	ld	(var_setup_editor_temp2), a
+	ld	a, (var_setup_date_year)
+	ld	(var_setup_editor_temp3), a
+
+	ld	iy, setup_cmd_window_datetime_editor_date_table
+	call	setup_cmd_window_datetime_editor
+	ret	nc							; Just exit if escape pressed
+
+	ld	a,(var_setup_editor_temp1)				; Copy editor value back
+	ld	(var_setup_date_day), a
+	ld	a, (var_setup_editor_temp2)
+	ld	(var_setup_date_month), a
+	ld	a, (var_setup_editor_temp3)
+	ld	(var_setup_date_year), a
+
+	ld	bc, (var_setup_time_second)				; Load registers
+	ld	de, (var_setup_time_hour)
+	ld	hl, (var_setup_date_month)
+	call	nc100_rtc_datetime_set					; Set Date/Time
+
 	ret
 
 ; # setup_cmd_window_datetime_editor_alarm_time
 ; #################################
 setup_cmd_window_datetime_editor_alarm_time:
+	ld	a, setup_cmd_window_datetime_item_alarm_time
+	ld	(var_setup_selected_editor), a				; Set selected editor
+	xor	a
+	ld	(var_setup_selected_editor_index), a			; Reset editor index
+
+	ld	a, (var_setup_alarm_hour)				; Copy value to edit
+	ld	(var_setup_editor_temp1), a
+	ld	a, (var_setup_alarm_minute)
+	ld	(var_setup_editor_temp2), a
+	xor	a							; No seconds on the alarm
+	ld	(var_setup_editor_temp3), a
+
+	ld	iy, setup_cmd_window_datetime_editor_time_table
+	call	setup_cmd_window_datetime_editor
+	ret	nc							; Just exit if escape pressed
+
+	ld	a, (var_setup_editor_temp1)				; Copy editor value back
+	ld	(var_setup_alarm_hour), a
+	ld	a, (var_setup_editor_temp2)
+	ld	(var_setup_alarm_minute), a
+
+	ld	de, (var_setup_alarm_minute)
+	call	nc100_rtc_alarm_set					; Set alarm time
+
 	ret
 
 ; # Console window
@@ -1291,24 +1704,6 @@ setup_cmd_border_print_loop:
 	call	print_str_repeat					; Print bottom
 	ret
 
-; # setup_cmd_draw_datetime_editor
-; #################################
-;  Draws the editor contents with highlighting
-setup_cmd_draw_datetime_editor:
-	ld	a, (var_setup_editor_separator)
-	ld	b, a
-	ld	a, (var_setup_editor_temp1)
-	call	print_hex8
-	ld	a, b
-	call	monlib_console_out
-	ld	a, (var_setup_editor_temp2)
-	call	print_hex8
-	ld	a, b
-	call	monlib_console_out
-	ld	a, (var_setup_editor_temp3)
-	call	print_hex8
-	ret
-
 ; # setup_cmd_set_attributes_normal
 ; #################################
 setup_cmd_set_attributes_normal:
@@ -1326,87 +1721,87 @@ setup_cmd_set_attributes_inverted:
 
 ; # Variables
 ; #################################
-setup_cmd_screens_max:		equ		0x04			; Number of different screens
-var_setup_selected_config:	db		0x80			; msb set to force redraw
-var_setup_selected_item:	db		0xff
-var_setup_selected_editor:	db		0xff
+setup_cmd_screens_max:			equ		0x04			; Number of different screens
+var_setup_selected_config:		db		0x80			; msb set to force redraw
+var_setup_selected_item:		db		0xff
+var_setup_selected_editor:		db		0xff
+var_setup_selected_editor_index:	db		0x00
 
-var_setup_time_second:		db		0x00
-var_setup_time_minute:		db		0x00
-var_setup_time_hour:		db		0x00
-var_setup_date_day:		db		0x00
-var_setup_date_month:		db		0x00
-var_setup_date_year:		db		0x00
-var_setup_alarm_minute:		db		0x00
-var_setup_alarm_hour:		db		0x00
+var_setup_time_second:			db		0x00
+var_setup_time_minute:			db		0x00
+var_setup_time_hour:			db		0x00
+var_setup_date_day:			db		0x00
+var_setup_date_month:			db		0x00
+var_setup_date_year:			db		0x00
+var_setup_alarm_minute:			db		0x00
+var_setup_alarm_hour:			db		0x00
 
-var_setup_editor_temp1:		db		0x00
-var_setup_editor_temp2:		db		0x00
-var_setup_editor_temp3:		db		0x00
-var_setup_editor_separator:	db		0x00
+var_setup_editor_temp1:			db		0x00
+var_setup_editor_temp2:			db		0x00
+var_setup_editor_temp3:			db		0x00
 
 ; # Strings
 ; #################################
-str_setup_border_top:		db		0x01,0xc9,0x0c,0xcd,0x01,0xcb,0x2d,0xcd,0x01,0xbb,0x00
-str_setup_border_middle:	db		0x01,0xba,0x0c,0x20,0x01,0xba,0x2d,0x20,0x01,0xba,0x00
-str_setup_border_bottom:	db		0x01,0xc8,0x0c,0xcd,0x01,0xca,0x2d,0xcd,0x01,0xbc,0x00
+str_setup_border_top:			db		0x01,0xc9,0x0c,0xcd,0x01,0xcb,0x2d,0xcd,0x01,0xbb,0x00
+str_setup_border_middle:		db		0x01,0xba,0x0c,0x20,0x01,0xba,0x2d,0x20,0x01,0xba,0x00
+str_setup_border_bottom:		db		0x01,0xc8,0x0c,0xcd,0x01,0xca,0x2d,0xcd,0x01,0xbc,0x00
 
-str_setup_status_mem_top:	db		0x01,0xda,0x09,0xc4,0x01,0xc2,0x09,0xc4,0x01,0xc2,0x09,0xc4,0x01,0xc2,0x09,0xc4,0x01,0xbf,0x00
-str_setup_status_mem_middle:	db		0x01,0xb3,0x09,0x20,0x01,0xb3,0x09,0x20,0x01,0xb3,0x09,0x20,0x01,0xb3,0x09,0x20,0x01,0xb3,0x00
-str_setup_status_mem_bottom:	db		0x01,0xc0,0x09,0xc4,0x01,0xc1,0x09,0xc4,0x01,0xc1,0x09,0xc4,0x01,0xc1,0x09,0xc4,0x01,0xd9,0x00
+str_setup_status_mem_top:		db		0x01,0xda,0x09,0xc4,0x01,0xc2,0x09,0xc4,0x01,0xc2,0x09,0xc4,0x01,0xc2,0x09,0xc4,0x01,0xbf,0x00
+str_setup_status_mem_middle:		db		0x01,0xb3,0x09,0x20,0x01,0xb3,0x09,0x20,0x01,0xb3,0x09,0x20,0x01,0xb3,0x09,0x20,0x01,0xb3,0x00
+str_setup_status_mem_bottom:		db		0x01,0xc0,0x09,0xc4,0x01,0xc1,0x09,0xc4,0x01,0xc1,0x09,0xc4,0x01,0xc1,0x09,0xc4,0x01,0xd9,0x00
 
-str_setup_datetime:		db		"Date/Time",0
-str_setup_console:		db		" Console ",0
-str_setup_serial:		db		"  Serial ",0
-str_setup_status:		db		"  Status ",0
+str_setup_datetime:			db		"Date/Time",0
+str_setup_console:			db		" Console ",0
+str_setup_serial:			db		"  Serial ",0
+str_setup_status:			db		"  Status ",0
 
-str_current:			db		"Current",0
-str_time:			db		"Time:   :  ",0
-str_date:			db		"Date:   /  /  ",0
-str_clk_format:			db		"Format:    hour",0
-str_format_12:			db		"12",0
-str_format_24:			db		"24",0
-str_alarm:			db		"Alarm",0
+str_current:				db		"Current",0
+str_time:				db		"Time:   :  ",0
+str_date:				db		"Date:   /  /  ",0
+str_clk_format:				db		"Format:    hour",0
+str_format_12:				db		"12",0
+str_format_24:				db		"24",0
+str_alarm:				db		"Alarm",0
 
-str_enabled:			db		"Enabled",0
-str_checkbox:			db		" [ ]",0
+str_enabled:				db		"Enabled",0
+str_checkbox:				db		" [ ]",0
 
-str_baud:			db		"Baud:",0
+str_baud:				db		"Baud:",0
 ; Baud string packed to the same length
-str_baud_150:			db		"150  ",0
-str_baud_300:			db		"300  ",0
-str_baud_600:			db		"600  ",0
-str_baud_1200:			db		"1200 ",0
-str_baud_2400:			db		"2400 ",0
-str_baud_4800:			db		"4800 ",0
-str_baud_9600:			db		"9600 ",0
-str_baud_19200:			db		"19200",0
-str_baud_38400:			db		"38400",0
+str_baud_150:				db		"150  ",0
+str_baud_300:				db		"300  ",0
+str_baud_600:				db		"600  ",0
+str_baud_1200:				db		"1200 ",0
+str_baud_2400:				db		"2400 ",0
+str_baud_4800:				db		"4800 ",0
+str_baud_9600:				db		"9600 ",0
+str_baud_19200:				db		"19200",0
+str_baud_38400:				db		"38400",0
 
-str_length:			db		"Length:",0
-str_parity:			db		"Parity:",0
-str_stopbit:			db		"Stop Bits:",0
+str_length:				db		"Length:",0
+str_parity:				db		"Parity:",0
+str_stopbit:				db		"Stop Bits:",0
 
-str_none:			db		"None",0
-str_odd:			db		"Odd ",0
-str_even:			db		"Even",0
-str_unknown:			db		"Unknown",0
+str_none:				db		"None",0
+str_odd:				db		"Odd ",0
+str_even:				db		"Even",0
+str_unknown:				db		"Unknown",0
 
-str_sb_1:			db		"1  ",0
-str_sb_15:			db		"1.5",0
-str_sb_2:			db		"2  ",0
+str_sb_1:				db		"1  ",0
+str_sb_15:				db		"1.5",0
+str_sb_2:				db		"2  ",0
 
-str_memtype_rom:		db		" ROM",0
-str_memtype_ram:		db		" RAM",0
-str_memtype_cram:		db		"CRAM",0
+str_memtype_rom:			db		" ROM",0
+str_memtype_ram:			db		" RAM",0
+str_memtype_cram:			db		"CRAM",0
 
-str_memory_card:		db		"Memory Card:",0
-str_backup:			db		"Backup:",0
-str_battery:			db		"Battery:",0
-str_power_in:			db		"Power In: ",0
-str_present:			db		"Present",0
-str_missing:			db		"Missing",0
-str_okay:			db		"Okay",0
-str_poor:			db		"Poor",0
-str_failed:			db		"Failed",0
-str_na:				db		"N/A",0
+str_memory_card:			db		"Memory Card:",0
+str_backup:				db		"Backup:",0
+str_battery:				db		"Battery:",0
+str_power_in:				db		"Power In: ",0
+str_present:				db		"Present",0
+str_missing:				db		"Missing",0
+str_okay:				db		"Okay",0
+str_poor:				db		"Poor",0
+str_failed:				db		"Failed",0
+str_na:					db		"N/A",0
