@@ -5,10 +5,6 @@
 ;	Each line is comprised of 64 bytes, end 4 bytes are unused.
 ;	64 * 64 = 4096 bytes for the raster buffer (Must be boundary aligned).
 ;
-;  LCD draw attributes
-;	Bit 0: 0 = Normal, 1 = Invert
-;	Bit 1: 0 = Overwrite, 1 = Merge (xor)
-;
 ;  Registers:
 ;   As a general rule:
 ;    Fixed Registers:
@@ -18,6 +14,22 @@
 ;    Scratch Registers:
 ;	A/A'
 ;	BC
+
+; # Defines
+; ##################################################
+; # LCD draw attributes
+; ###########################################################################
+nc100_draw_attrib_invert_bit:			equ	0		; 1 = Draw output inverted (complemented)
+									; 0 = Draw output normally
+nc100_draw_attrib_merge_bit:			equ	1		; 1 = Merge new data with existing data
+									; 0 = Write over existing data
+nc100_draw_attrib_scroll_bit:			equ	7		; 1 = Scroll screen on newline (at end of screen)
+									; 0 = Cursor reset to (0,0)
+
+nc100_draw_attrib_invert_mask:			equ	1 << 0
+nc100_draw_attrib_merge_mask:			equ	1 << 1
+nc100_draw_attrib_scroll_mask:			equ	1 << 7
+
 
 ; # nc100_lcd_set_raster_addr
 ; #################################
