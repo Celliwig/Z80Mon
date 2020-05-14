@@ -1,5 +1,21 @@
 ; # Configuration program (Panel: Status)
 ; ###########################################################################
+
+; # Defines
+; ##################################################
+str_memtype_rom:				db		" ROM",0
+str_memtype_ram:				db		" RAM",0
+str_memtype_cram:				db		"CARD",0
+
+str_memory_card:				db		"Memory Card:",0
+str_backup:					db		"Backup:",0
+str_battery:					db		"Battery:",0
+str_power_in:					db		"Power In: ",0
+
+; # Variables
+; ##################################################
+
+
 ; # setup_cmd_window_status_draw
 ; #################################
 setup_cmd_window_status_draw:
