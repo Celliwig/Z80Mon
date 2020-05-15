@@ -125,6 +125,16 @@ z80mon_temp8:
 ; ###########################################################################
 orgmem	mon_base
 
+; # get_version
+; #################################
+;  Returns the version number of the monitor
+;	Out:	D = Major version number
+;		E = Minor version number
+get_version:
+	ld	d, z80mon_version_major
+	ld	e, z80mon_version_minor
+	ret
+
 ; # Dummy I/O routines
 ; ###########################################################################
 ; # dummy_char_in
@@ -408,6 +418,22 @@ print_dec16u_d1:
 	ld	a, c					; Remainder
 	call	print_hex_digit
 
+	ret
+
+; # print_version
+; #################################
+;  Prints the version number
+;	In:	D = Major version number
+;		E = Minor version number
+print_version:
+	ld	a, 'v'
+	call	monlib_console_out
+	ld	a, d
+	call	print_dec8u
+	ld	a, ','
+	call	monlib_console_out
+	ld	a, e
+	call	print_dec8u
 	ret
 
 ; # print_str_simple
@@ -2357,7 +2383,7 @@ str_reg_sra:		db	" SRA =&",0
 ;str_logon1:		db	"Welcome",128," z80Mon v0.1",13,14			; Welcome string (OLD)
 ;str_logon2:	 	db	32,32,"See",148,"2.DOC,",148,"2.EQU",164
 ;			db	148,"2.HDR",180,213,141,".",14				; Documentation string
-str_logon1:		db	"Welcome",128," z80Mon v0.1",14				; Welcome string
+str_logon1:		db	"Welcome",128," z80Mon",14				; Welcome string
 
 ;str_prompt1:		db	148,"2 Loc:",0						; Paulmon2 Loc: (OLD)
 str_prompt1:		db	"z80Mon:",0						; z80Mon:

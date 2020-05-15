@@ -1,28 +1,33 @@
 ; # Definition file for z80Mon
 ; ###########################################################################
 
+; # Version info
+; ###########################################################################
+z80mon_version_major:			equ	0x01
+z80mon_version_minor:			equ	0x00
+
 ; # Memory layout
 ; ###########################################################################
-mem_base:		equ	0x0000			; Base memory address
-mem_srch_start:		equ	0x1000			; Address to start search for additional modules
-mem_srch_end:		equ	0xFFFF			; Address to stop search
-mon_base:		equ	0x0100			; Monitor base address
+mem_base:				equ	0x0000			; Base memory address
+mem_srch_start:				equ	0x1000			; Address to start search for additional modules
+mem_srch_end:				equ	0xFFFF			; Address to stop search
+mon_base:				equ	0x0100			; Monitor base address
 
 ; # Builtin command keys
 ; ###########################################################################
-command_key_help:	equ	'?'			; Help screen
-command_key_listm:	equ	'M'			; Directory list
-command_key_run:	equ	'P'			; Run program
-command_key_download:	equ	'D'			; Download
-command_key_upload:	equ	'U'			; Upload
-command_key_new_locat:	equ	'N'			; New memory location
-command_key_jump:	equ	'J'			; Jump to memory location
-command_key_hexdump:	equ	'H'			; Hex dump memory
-command_key_regdump:	equ	'R'			; Dump register data
-command_key_edit:	equ	'E'			; Edit memory
-command_key_clrmem:	equ	'C'			; Clear memory
-command_key_in:		equ	'I'			; Port in
-command_key_out:	equ	'O'			; Port out
+command_key_help:			equ	'?'			; Help screen
+command_key_listm:			equ	'M'			; Directory list
+command_key_run:			equ	'P'			; Run program
+command_key_download:			equ	'D'			; Download
+command_key_upload:			equ	'U'			; Upload
+command_key_new_locat:			equ	'N'			; New memory location
+command_key_jump:			equ	'J'			; Jump to memory location
+command_key_hexdump:			equ	'H'			; Hex dump memory
+command_key_regdump:			equ	'R'			; Dump register data
+command_key_edit:			equ	'E'			; Edit memory
+command_key_clrmem:			equ	'C'			; Clear memory
+command_key_in:				equ	'I'			; Port in
+command_key_out:			equ	'O'			; Port out
 
 ; # ASCII character codes
 ; ###########################################################################
