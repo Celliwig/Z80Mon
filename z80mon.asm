@@ -19,6 +19,7 @@ include "z80mon.def"
 ; ###########################################################################
 ; RST 0 / Processor cold start
 orgmem	mem_base
+	di						; Disable maskable interrupts
 	jp	startup_cold				; Cold startup
 
 ; RST 8
