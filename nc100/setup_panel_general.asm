@@ -61,7 +61,7 @@ setup_cmd_window_general_update_lcd_invert:
 	ld	l, 0
 	call	nc100_lcd_set_cursor_by_grid
 	ld	a, (var_setup_selected_item)				; Is this the selected item
-	cp	setup_cmd_window_serial_item_always
+	cp	setup_cmd_window_general_item_lcd_invert
 	call	z,setup_cmd_set_attributes_normal			; Set attributes appropriately
 	call	nz,setup_cmd_set_attributes_inverted
 	ld	a, (nc100_config_draw_attributes)			; Get LCD inverted state
