@@ -264,6 +264,7 @@ str_setup_memory:				db		"  Memory ",0
 str_setup_status:				db		"  Status ",0
 
 ; General
+str_battery:					db		"Battery:",0
 str_current:					db		"Current",0
 str_alarm:					db		"Alarm",0
 str_enabled:					db		"Enabled",0

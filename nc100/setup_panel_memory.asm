@@ -12,7 +12,6 @@ str_memtype_cram:				db		"CARD",0
 
 str_memory_card:				db		"Memory Card:",0
 str_mc:						db		"MC ",0
-str_battery:					db		"Battery:",0
 str_gt_200ns:					db		">=200ns",0
 
 ; # Variables
