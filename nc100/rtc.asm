@@ -513,78 +513,78 @@ nc100_rtc_ram_write_loop2:
 
 	ret
 
-; # nc100_rtc_ram_check
-; #################################
-;  Check that a 12 byte block of system RAM matches the values stored in the RTC
-;	In:	HL = Pointer to start of 12 byte block to save
-;	Out:	Carry flag set if it matches, clear if it doesn't
-nc100_rtc_ram_check:
-	ld	de, 0x0b
-	add	hl, de							; Start at the end of the block
-
-	ld	b, tm8521_register_page_data2
-	call	nc100_rtc_register_set_page				; Selects the 2nd RAM page
-
-	ld	b, 6							; Byte counter
-	ld	c, nc100_rtc_base_register+0x0b				; End RTC register port address
-nc100_rtc_ram_check_loop1:
-	ld	d, (hl)							; Get value from system RAM
-	dec	hl							; Decrement system RAM pointer
-	ld	a, d							; Upper nibble
-	and	0xf0							; Filter value
-	srl	a							; Move to lower nibble
-	srl	a
-	srl	a
-	srl	a
-	ld	e, a							; Save for comparison
-	in	a, (c)							; Get RTC RAM value
-	and	0x0f							; Filter RTC value
-	dec	c							; Next RTC register
-	cp	e							; Compare values
-	jr	nz, nc100_rtc_ram_check_failed				; RAM does not match
-	ld	a, d							; Lower nibble
-	and	0x0f							; Filter value
-	ld	e, a							; Save for comparison
-	in	a, (c)							; Get RTC RAM value
-	and	0x0f							; Filter RTC value
-	dec	c							; Next RTC register
-	cp	e							; Compare values
-	jr	nz, nc100_rtc_ram_check_failed				; RAM does not match
-	djnz	nc100_rtc_ram_check_loop1				; Loop while bytes remain
-
-	ld	b, tm8521_register_page_data1
-	call	nc100_rtc_register_set_page				; Selects the 1st RAM page
-
-	ld	b, 6							; Byte counter
-	ld	c, nc100_rtc_base_register+0x0b				; End RTC register port address
-nc100_rtc_ram_check_loop2:
-	ld	d, (hl)							; Get value from system RAM
-	dec	hl							; Decrement system RAM pointer
-	ld	a, d							; Upper nibble
-	and	0xf0							; Filter value
-	srl	a							; Move to lower nibble
-	srl	a
-	srl	a
-	srl	a
-	ld	e, a							; Save for comparison
-	in	a, (c)							; Get RTC RAM value
-	and	0x0f							; Filter RTC value
-	dec	c							; Next RTC register
-	cp	e							; Compare values
-	jr	nz, nc100_rtc_ram_check_failed				; RAM does not match
-	ld	a, d							; Lower nibble
-	and	0x0f							; Filter value
-	ld	e, a							; Save for comparison
-	in	a, (c)							; Get RTC RAM value
-	and	0x0f							; Filter RTC value
-	dec	c							; Next RTC register
-	cp	e							; Compare values
-	jr	nz, nc100_rtc_ram_check_failed				; RAM does not match
-	djnz	nc100_rtc_ram_check_loop2				; Loop while bytes remain
-
-	scf								; Set Carry flag
-	ret
-nc100_rtc_ram_check_failed:
-	scf								; Clear Carry flag
-	ccf
-	ret
+;; # nc100_rtc_ram_check
+;; #################################
+;;  Check that a 12 byte block of system RAM matches the values stored in the RTC
+;;	In:	HL = Pointer to start of 12 byte block to save
+;;	Out:	Carry flag set if it matches, clear if it doesn't
+;nc100_rtc_ram_check:
+;	ld	de, 0x0b
+;	add	hl, de							; Start at the end of the block
+;
+;	ld	b, tm8521_register_page_data2
+;	call	nc100_rtc_register_set_page				; Selects the 2nd RAM page
+;
+;	ld	b, 6							; Byte counter
+;	ld	c, nc100_rtc_base_register+0x0b				; End RTC register port address
+;nc100_rtc_ram_check_loop1:
+;	ld	d, (hl)							; Get value from system RAM
+;	dec	hl							; Decrement system RAM pointer
+;	ld	a, d							; Upper nibble
+;	and	0xf0							; Filter value
+;	srl	a							; Move to lower nibble
+;	srl	a
+;	srl	a
+;	srl	a
+;	ld	e, a							; Save for comparison
+;	in	a, (c)							; Get RTC RAM value
+;	and	0x0f							; Filter RTC value
+;	dec	c							; Next RTC register
+;	cp	e							; Compare values
+;	jr	nz, nc100_rtc_ram_check_failed				; RAM does not match
+;	ld	a, d							; Lower nibble
+;	and	0x0f							; Filter value
+;	ld	e, a							; Save for comparison
+;	in	a, (c)							; Get RTC RAM value
+;	and	0x0f							; Filter RTC value
+;	dec	c							; Next RTC register
+;	cp	e							; Compare values
+;	jr	nz, nc100_rtc_ram_check_failed				; RAM does not match
+;	djnz	nc100_rtc_ram_check_loop1				; Loop while bytes remain
+;
+;	ld	b, tm8521_register_page_data1
+;	call	nc100_rtc_register_set_page				; Selects the 1st RAM page
+;
+;	ld	b, 6							; Byte counter
+;	ld	c, nc100_rtc_base_register+0x0b				; End RTC register port address
+;nc100_rtc_ram_check_loop2:
+;	ld	d, (hl)							; Get value from system RAM
+;	dec	hl							; Decrement system RAM pointer
+;	ld	a, d							; Upper nibble
+;	and	0xf0							; Filter value
+;	srl	a							; Move to lower nibble
+;	srl	a
+;	srl	a
+;	srl	a
+;	ld	e, a							; Save for comparison
+;	in	a, (c)							; Get RTC RAM value
+;	and	0x0f							; Filter RTC value
+;	dec	c							; Next RTC register
+;	cp	e							; Compare values
+;	jr	nz, nc100_rtc_ram_check_failed				; RAM does not match
+;	ld	a, d							; Lower nibble
+;	and	0x0f							; Filter value
+;	ld	e, a							; Save for comparison
+;	in	a, (c)							; Get RTC RAM value
+;	and	0x0f							; Filter RTC value
+;	dec	c							; Next RTC register
+;	cp	e							; Compare values
+;	jr	nz, nc100_rtc_ram_check_failed				; RAM does not match
+;	djnz	nc100_rtc_ram_check_loop2				; Loop while bytes remain
+;
+;	scf								; Set Carry flag
+;	ret
+;nc100_rtc_ram_check_failed:
+;	scf								; Clear Carry flag
+;	ccf
+;	ret
