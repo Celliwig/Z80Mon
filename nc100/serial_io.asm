@@ -31,6 +31,8 @@ uPD71051_reg_mode_stopbit_mask:		equ		0xc0
 uPD71051_reg_mode_stopbit_1:		equ		0x40		; Stop Bit(s): 1
 uPD71051_reg_mode_stopbit_15:		equ		0x80		; Stop Bit(s): 1.5
 uPD71051_reg_mode_stopbit_2:		equ		0xc0		; Stop Bit(s): 2
+; Default configuration value
+uPD71051_reg_mode_default:		equ		uPD71051_reg_mode_bclk_x16 | uPD71051_reg_mode_chrlen_8 | uPD71051_reg_mode_parity_none | uPD71051_reg_mode_stopbit_1
 
 ; Command register bits
 uPD71051_reg_command_TxEn:		equ		0		; Transmit Enable: 1 = Enable, 0 = Disabled
@@ -88,12 +90,9 @@ nc100_serial_reset:
 	call	nc100_serial_setup_delay
 
 	; Reset UART/ turn off line driver
-	ld	a, 0xF8							; Memcard register: common
-									; Parallel strobe: off
-									; Not used
-									; Line driver: off
-									; UART clock/reset: reset
-	out	(nc100_io_misc_config_A), a
+	ld	a, nc100_serial_clk_rst | nc100_serial_line_driver	; Value to apply: UART/Line driver off
+	ld	b, 0xe0							; Retain: Memcard register and parallel strobe
+	call	nc100_io_misc_config_A_write				; Write value to I/O port
 	call	nc100_serial_setup_delay
 	ret
 
@@ -104,11 +103,10 @@ nc100_serial_reset:
 ;		C = Mode configuration
 nc100_serial_config:
 	; Config UART/ turn on line driver
-	ld	a, b							; Copy baud config
-	and	0x07							; Strip extraneous bits
-	or	a, 0xe0							; Memcard: common, Parallel strobe: off
-									; Line driver: on, UART: on
-	out	(nc100_io_misc_config_A), a
+	ld	a, b							; Copy baud rate
+	and	0x07							; Filters baud rate value
+	ld	b, 0xe0							; Retain: Memcard register and parallel strobe
+	call	nc100_io_misc_config_A_write				; Write value to I/O port
 	call	nc100_serial_setup_delay
 
 	ld	a, c							; Copy mode configuration
