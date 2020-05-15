@@ -21,9 +21,11 @@ nc100_config_uart_baud_always:		equ		7		; The serial port is always enabled, and
 ; # nc100_config_misc
 ; #################################
 ;  General system parameters
-nc100_config_misc_console:		equ		0		; Console interface: 1 = Serial, 0 = Local (LCD/Keyboard)
+nc100_config_misc_console:			equ		0		; Console interface: 1 = Serial, 0 = Local (LCD/Keyboard)
+nc100_config_misc_memcard_wstates:		equ		1		; Memory card wait states: 1 = Wait states enabled (Mem. Card >=200ns), 0 = No wait
 
-nc100_config_misc_console_mask:		equ		1 << nc100_config_misc_console
+nc100_config_misc_console_mask:			equ		1 << nc100_config_misc_console
+nc100_config_misc_memcard_wstates_mask:		equ		1 << nc100_config_misc_memcard_wstates
 
 ; ###########################################################################
 ; # nc100_config_draw_attributes
@@ -34,9 +36,18 @@ nc100_config_misc_console_mask:		equ		1 << nc100_config_misc_console
 ; #################################
 ;  Toggle the console source/destination.
 nc100_config_misc_console_toggle:
-	ld	a, (nc100_config_misc)					; Get console target
+	ld	a, (nc100_config_misc)					; Get console config
 	xor	nc100_config_misc_console_mask				; Toggle console target flag
-	ld	(nc100_config_misc), a					; Save console target
+	ld	(nc100_config_misc), a					; Save console config
+	ret
+
+; # nc100_config_misc_memcard_wstates_toggle
+; #################################
+;  Toggle the whether memcard wait states are enabled
+nc100_config_misc_memcard_wstates_toggle:
+	ld	a, (nc100_config_misc)					; Get current wait states config
+	xor	nc100_config_misc_memcard_wstates_mask			; Toggle whether memory card wait states are enabled
+	ld	(nc100_config_misc), a					; Save wait states config
 	ret
 
 ; # nc100_config_draw_attrib_invert_toggle

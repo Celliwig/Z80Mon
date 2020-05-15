@@ -23,13 +23,15 @@ setup_cmd_loop_draw:
 	ld	(var_setup_selected_config), a				; Save filtered index
 	ld	hl, setup_cmd_loop_update				; Push return address
 	push	hl							; For the following jumps
-	cp	0
+	cp	setup_cmd_config_datetime
 	jp	z, setup_cmd_window_datetime_draw
-	cp	1
+	cp	setup_cmd_config_general
 	jp	z, setup_cmd_window_general_draw
-	cp	2
+	cp	setup_cmd_config_serial
 	jp	z, setup_cmd_window_serial_draw
-	cp	3
+	cp	setup_cmd_config_memory
+	jp	z, setup_cmd_window_memory_draw
+	cp	setup_cmd_config_status
 	jp	z, setup_cmd_window_status_draw
 	pop	af							; Should never reach here
 									; So pop to re-align stack
@@ -37,13 +39,15 @@ setup_cmd_loop_update:
 	ld	a, (var_setup_selected_config)				; Get index
 	ld	hl, setup_cmd_loop_check_key				; Push return address
 	push	hl							; For the following jumps
-	cp	0
+	cp	setup_cmd_config_datetime
 	jp	z, setup_cmd_window_datetime_update
-	cp	1
+	cp	setup_cmd_config_general
 	jp	z, setup_cmd_window_general_update
-	cp	2
+	cp	setup_cmd_config_serial
 	jp	z, setup_cmd_window_serial_update
-	cp	3
+	cp	setup_cmd_config_memory
+	jp	z, setup_cmd_window_memory_update
+	cp	setup_cmd_config_status
 	jp	z, setup_cmd_window_status_update
 	pop	af							; Should never reach here
 									; So pop to re-align stack
@@ -64,7 +68,7 @@ setup_cmd_loop_check_key_down:
 	cp	character_code_down					; Check if down
 	jr	nz, setup_cmd_loop_check_key_enter
 	ld	a, (var_setup_selected_config)				; Get selected index
-	cp	setup_cmd_screens_max-1					; Check if last screen
+	cp	setup_cmd_config_max					; Check if last screen
 	jr	z, setup_cmd_loop					; If on last screen, just loop
 	inc	a							; Index++
 	set	7, a							; Set msb (used to force a redraw)
@@ -78,13 +82,15 @@ setup_cmd_loop_check_key_enter:
 	ld	a, (var_setup_selected_config)				; Get index
 	ld	hl, setup_cmd_loop_check_key_exit			; Push return address
 	push	hl							; For the following jumps
-	cp	0
+	cp	setup_cmd_config_datetime
 	jp	z, setup_cmd_window_datetime_edit
-	cp	1
+	cp	setup_cmd_config_general
 	jp	z, setup_cmd_window_general_edit
-	cp	2
+	cp	setup_cmd_config_serial
 	jp	z, setup_cmd_window_serial_edit
-	cp	3
+	cp	setup_cmd_config_memory
+	jp	z, setup_cmd_window_memory_edit
+	cp	setup_cmd_config_status
 	jp	z, setup_cmd_window_status_edit
 	pop	af							; Should never reach here
 									; So pop to re-align stack
@@ -127,7 +133,7 @@ setup_cmd_selector_print:
 setup_cmd_selector_print_datetime:
 	ld	a, (var_setup_selected_config)
 	and	0x7f
-	cp	0
+	cp	setup_cmd_config_datetime
 	call	z, setup_cmd_set_attributes_normal
 	call	nz, setup_cmd_set_attributes_inverted
 	ld	de, 0x0802
@@ -136,10 +142,10 @@ setup_cmd_selector_print_datetime:
 	ld	hl, str_setup_datetime
 	call	print_str_simple
 
-setup_cmd_selector_print_console:
+setup_cmd_selector_print_general:
 	ld	a, (var_setup_selected_config)
 	and	0x7f
-	cp	1
+	cp	setup_cmd_config_general
 	call	z, setup_cmd_set_attributes_normal
 	call	nz, setup_cmd_set_attributes_inverted
 	ld	de, 0x1002
@@ -151,7 +157,7 @@ setup_cmd_selector_print_console:
 setup_cmd_selector_print_serial:
 	ld	a, (var_setup_selected_config)
 	and	0x7f
-	cp	2
+	cp	setup_cmd_config_serial
 	call	z, setup_cmd_set_attributes_normal
 	call	nz, setup_cmd_set_attributes_inverted
 	ld	de, 0x1802
@@ -160,15 +166,27 @@ setup_cmd_selector_print_serial:
 	ld	hl, str_setup_serial
 	call	print_str_simple
 
-setup_cmd_selector_print_status:
+setup_cmd_selector_print_memory:
 	ld	a, (var_setup_selected_config)
 	and	0x7f
-	cp	3
+	cp	setup_cmd_config_memory
 	call	z, setup_cmd_set_attributes_normal
 	call	nz, setup_cmd_set_attributes_inverted
 	ld	de, 0x2002
 	ld	l, 0x00
 	call	nc100_lcd_set_cursor_by_grid				; Set cursor (2,32)
+	ld	hl, str_setup_memory
+	call	print_str_simple
+
+setup_cmd_selector_print_status:
+	ld	a, (var_setup_selected_config)
+	and	0x7f
+	cp	setup_cmd_config_status
+	call	z, setup_cmd_set_attributes_normal
+	call	nz, setup_cmd_set_attributes_inverted
+	ld	de, 0x2802
+	ld	l, 0x00
+	call	nc100_lcd_set_cursor_by_grid				; Set cursor (2,40)
 	ld	hl, str_setup_status
 	call	print_str_simple
 
@@ -212,6 +230,7 @@ setup_cmd_set_attributes_inverted:
 include	"nc100/setup_panel_datetime.asm"
 include	"nc100/setup_panel_general.asm"
 include	"nc100/setup_panel_serial.asm"
+include	"nc100/setup_panel_memory.asm"
 include	"nc100/setup_panel_status.asm"
 
 ; # Variables
@@ -223,7 +242,12 @@ var_setup_selected_editor_index:		db		0x00
 
 ; # Defines
 ; ##################################################
-setup_cmd_screens_max:				equ		0x04			; Number of different screens
+setup_cmd_config_datetime:			equ		0x00
+setup_cmd_config_general:			equ		0x01
+setup_cmd_config_serial:			equ		0x02
+setup_cmd_config_memory:			equ		0x03
+setup_cmd_config_status:			equ		0x04
+setup_cmd_config_max:				equ		0x04			; Number of different screens
 
 str_setup_border_top:				db		0x01,0xc9,0x0c,0xcd,0x01,0xcb,0x2d,0xcd,0x01,0xbb,0x00
 str_setup_border_middle:			db		0x01,0xba,0x0c,0x20,0x01,0xba,0x2d,0x20,0x01,0xba,0x00
@@ -236,6 +260,7 @@ str_setup_status_mem_bottom:			db		0x01,0xc0,0x09,0xc4,0x01,0xc1,0x09,0xc4,0x01,
 str_setup_datetime:				db		"Date/Time",0
 str_setup_general:				db		" General ",0
 str_setup_serial:				db		"  Serial ",0
+str_setup_memory:				db		"  Memory ",0
 str_setup_status:				db		"  Status ",0
 
 ; General
