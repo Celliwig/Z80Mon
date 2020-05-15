@@ -43,6 +43,7 @@ nc100_config11:				db	0x0
 nc100_config_chksum:			db	0x0
 
 orgmem	nc100_lib_base
+
 ; # Font data
 ; ###########################################################################
 nc100_font_8x8:
@@ -81,6 +82,17 @@ include	"nc100/config.asm"
 
 ; Interrupt routines
 include	"nc100/interrupts.asm"
+
+; ###########################################################################
+; # nc100_get_version
+; #################################
+;  Returns the version number of the nc100_libs
+;	Out:	D = Major version number
+;		E = Minor version number
+nc100_get_version:
+        ld      d, nc100_lib_version_major
+        ld      e, nc100_lib_version_minor
+        ret
 
 ; # Console routines
 ; ###########################################################################

@@ -8,6 +8,11 @@ include	"nc100/nc100_io.def"
 NC100_PROGRAMCARD_SIDELOAD:		equ	1			; If set, the monitor will be loaded
 									; from an external memory card (not ROM!)
 
+; # Version info
+; ###########################################################################
+nc100_lib_version_major:		equ	0x00
+nc100_lib_version_minor:		equ	0x05
+
 ; # Defines
 ; ###########################################################################
 nc100_lib_base:				equ	mem_base+0x1000		; nc100_lib offset
