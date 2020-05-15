@@ -311,6 +311,9 @@ print_hex_digit:
 ;  Print 8 bit number as unsigned decimal
 ;	In:	A = 8-bit Integer
 print_dec8u:
+	ld	ix, z80mon_temp1			; Used to store state
+	res	0, (ix+0)				; Flag used to suppress leading zeros
+
 	push	bc
 	jr	print_dec8
 ; # print_dec8s
@@ -318,6 +321,9 @@ print_dec8u:
 ;  Print 8 bit number as signed decimal
 ;	In:	A = 8-bit Integer
 print_dec8s:
+	ld	ix, z80mon_temp1			; Used to store state
+	res	0, (ix+0)				; Flag used to suppress leading zeros
+
 	push	bc
 	bit	7, a					; Test whether negative
 	jr	z, print_dec8				; If it's not just continue
@@ -332,6 +338,7 @@ print_dec8:
 	call	print_dec8_digit
 	ld	b, 10
 	call	print_dec8_digit
+	set	0, (ix+0)				; Force print of last digit
 	ld	b, 1
 	call	print_dec8_digit
 	pop	bc
@@ -340,6 +347,7 @@ print_dec8:
 ; #################################
 ;	In:	A = Value
 ;		B = Divider
+;		IX = Pointer to flag for zero print
 print_dec8_digit:
 	ld	c, '0' - 1				; Setup digit character
 print_dec8_digit_loop:
@@ -349,7 +357,15 @@ print_dec8_digit_loop:
 	add	b					; Undo last operation
 	push	af					; Save current result
 	ld	a, c
+	cp	'0'					; Check if printing zero
+	jr	nz, print_dec8_digit_print		; If not, just print
+	bit	0, (ix+0)				; Check if should print zero anyway
+	jr	nz, print_dec8_digit_print		; Print it
+	jr	print_dec8_digit_skipped		; Otherwise, skip print
+print_dec8_digit_print:
 	call	monlib_console_out
+	set	0, (ix+0)				; Set zero digit print
+print_dec8_digit_skipped:
 	pop	af					; Restore result
 	ret
 
@@ -430,7 +446,7 @@ print_version:
 	call	monlib_console_out
 	ld	a, d
 	call	print_dec8u
-	ld	a, ','
+	ld	a, '.'
 	call	monlib_console_out
 	ld	a, e
 	call	print_dec8u
@@ -638,6 +654,9 @@ print_abort:
 ; # print_registers
 ; #################################
 ;  Print out the contents of all registers (without altering them!)
+command_print_registers:
+	ld	hl, str_tag_regdump
+	call	print_cstr				; Print message
 print_registers:
 	ld	(z80mon_temp1), sp			; Save stack pointer address
 	ex	(sp), hl				; Swap HL <-> return address
@@ -1241,6 +1260,9 @@ module_search_failed:
 ; # module_list_commands
 ; #################################
 ;  Print a list of additional commands
+command_module_list_commands:
+	ld	hl, str_tag_listm
+	call	print_cstr				; Print message
 module_list_commands:
 	ld	hl, str_prompt9
 	call	print_cstr
@@ -1334,6 +1356,8 @@ command_help_line_print:
 ; #################################
 ;  Prints help text
 command_help:
+	ld	hl, str_tag_help2
+	call	print_cstr				; Print message
 command_help_internal_commands:
 	ld	hl, str_help1
 	call	print_cstr
@@ -1404,6 +1428,9 @@ command_help_end:
 ; #################################
 ;  Sets the monitor pointer to where default operations are performed
 command_location_new:
+	ld	hl, str_tag_nloc
+	call	print_cstr				; Print message
+
 	ld	hl, str_prompt6				; Print location prompt
 	call	print_cstr
 	call	input_hex16				; Get value
@@ -1415,6 +1442,9 @@ command_location_new:
 ; #################################
 ;  Request an address, and jump to the code at that location
 command_jump:
+	ld	hl, str_tag_jump
+	call	print_cstr				; Print message
+
 	ld	hl, str_prompt8
 	call	print_cstr
 	ld	hl, str_prompt4
@@ -1444,6 +1474,9 @@ command_jump_brkpnt:
 ; #################################
 ;  Dump memory at the default location
 command_hexdump:
+	ld	hl, str_tag_hexdump
+	call	print_cstr				; Print message
+
 	ld	hl, (z80mon_default_addr)
 	ld	de, 0x0600
 
@@ -1475,6 +1508,9 @@ command_hexdump_line_print_loop:
 ; #################################
 ;  Basic memory editor
 command_edit:
+	ld	hl, str_tag_edit
+	call	print_cstr				; Print message
+
 	ld	hl, str_edit1
 	call	print_cstr
 	ld	hl, (z80mon_default_addr)		; Get default address
@@ -1498,6 +1534,9 @@ command_edit_save:
 ; #################################
 ;  Clears a region of memory
 command_clear_mem:
+	ld	hl, str_tag_clrmem
+	call	print_cstr				; Print message
+
 	call	input_addrs_start_end
 	ld	(z80mon_temp1), bc			; Save start/end address
 	ld	(z80mon_temp2), de			; They're about to be trashed
@@ -1536,6 +1575,9 @@ command_clear_mem_inc:
 ; #################################
 ;  Lists module with id code (35), and provides the ability to run them.
 command_run:
+	ld	hl, str_tag_run
+	call	print_cstr				; Print message
+
 	call	print_newlinex2
 	ld	b, 0					; Module count
 	ld	hl, mem_srch_start			; Set search start
@@ -1623,6 +1665,9 @@ command_run_brkpnt:
 ; #################################
 ;  Displays the contents of a particular port
 command_port_in:
+	ld	hl, str_tag_in
+	call	print_cstr				; Print message
+
 	call	print_newlinex2
 	ld	hl, str_prompt11
 	call	print_cstr
@@ -1645,6 +1690,9 @@ command_port_in_cont:
 ; #################################
 ;  Writes data to a particular port
 command_port_out:
+	ld	hl, str_tag_out
+	call	print_cstr				; Print message
+
 	call	print_newlinex2
 	ld	hl, str_prompt11
 	call	print_cstr
@@ -1669,6 +1717,9 @@ command_port_out_cont2:
 ; #################################
 ;  Uploads a selected section of memory
 command_upload:
+	ld	hl, str_tag_upld
+	call	print_cstr				; Print message
+
 	call	input_addrs_start_end
 	push	de					; Save addresses
 	push	bc					; print_cstr trashes everything
@@ -1796,6 +1847,9 @@ command_download_alt:
 ; #################################
 ;  Downloads an Intel format hex file
 command_download:
+	ld	hl, str_tag_dnld
+	call	print_cstr				; Print message
+
 	ld	hl, str_dnld1
 	call	print_cstr
 	call	command_download_init
@@ -2114,84 +2168,33 @@ menu_main_external_commands_exec:
 
 menu_main_builtin_commands:
 	pop	af					; Restore command character
-menu_main_builtin_help:
 	cp	command_key_help			; Check if help key
-	jr	nz, menu_main_builtin_list_modules	; If not, next command
-	ld	hl, str_tag_help2
-	call	print_cstr				; Print message
-	jp	command_help				; Run command
-menu_main_builtin_list_modules:
+	jp	z, command_help				; Run command
 	cp	command_key_listm			; Check if list modules key
-	jr	nz, menu_main_builtin_dump_registers	; If not, next command
-	ld	hl, str_tag_listm
-	call	print_cstr				; Print message
-	jp	module_list_commands			; Run command
-menu_main_builtin_dump_registers:
+	jp	z, command_module_list_commands		; Run command
 	cp	command_key_regdump			; Check if dump registers key
-	jr	nz, menu_main_builtin_location_new	; If not, next command
-	ld	hl, str_tag_regdump
-	call	print_cstr				; Print message
-	jp	print_registers				; Run command
-menu_main_builtin_location_new:
+	jp	z, command_print_registers		; Run command
 	cp	command_key_new_locat			; Check if new location key
-	jr	nz, menu_main_builtin_jump		; If not, next command
-	ld	hl, str_tag_nloc
-	call	print_cstr				; Print message
-	jp	command_location_new			; Run command
-menu_main_builtin_jump:
+	jp	z, command_location_new			; Run command
 	cp	command_key_jump			; Check if jump key
-	jr	nz, menu_main_builtin_hexdump		; If not, next command
-	ld	hl, str_tag_jump
-	call	print_cstr				; Print message
-	jp	command_jump				; Run command
-menu_main_builtin_hexdump:
+	jp	z, command_jump				; Run command
 	cp	command_key_hexdump			; Check if hexdump key
-	jr	nz, menu_main_builtin_edit		; If not, next command
-	ld	hl, str_tag_hexdump
-	call	print_cstr				; Print message
-	jp	command_hexdump				; Run command
-menu_main_builtin_edit:
+	jp	z, command_hexdump			; Run command
 	cp	command_key_edit			; Check if edit key
-	jr	nz, menu_main_builtin_clear_mem		; If not, next command
-	ld	hl, str_tag_edit
-	call	print_cstr				; Print message
-	jp	command_edit				; Run command
-menu_main_builtin_clear_mem:
+	jp	z, command_edit				; Run command
 	cp	command_key_clrmem			; Check if clear memory key
-	jr	nz, menu_main_builtin_run		; If not, next command
-	ld	hl, str_tag_clrmem
-	call	print_cstr				; Print message
-	jp	command_clear_mem			; Run command
-menu_main_builtin_run:
+	jp	z, command_clear_mem			; Run command
 	cp	command_key_run				; Check if run key
-	jr	nz, menu_main_builtin_port_input	; If not, next command
-	ld	hl, str_tag_run
-	call	print_cstr				; Print message
-	jp	command_run				; Run command
-menu_main_builtin_port_input:
+	jp	z, command_run				; Run command
 	cp	command_key_in				; Check if in key
-	jr	nz, menu_main_builtin_port_output	; If not, next command
-	ld	hl, str_tag_in
-	call	print_cstr				; Print message
-	jp	command_port_in				; Run command
-menu_main_builtin_port_output:
+	jp	z, command_port_in			; Run command
 	cp	command_key_out				; Check if out key
-	jr	nz, menu_main_builtin_upload		; If not, next command
-	ld	hl, str_tag_out
-	call	print_cstr				; Print message
-	jp	command_port_out			; Run command
-menu_main_builtin_upload:
+	jp	z, command_port_out			; Run command
 	cp	command_key_upload			; Check if upload key
-	jr	nz, menu_main_builtin_download		; If not, next command
-	ld	hl, str_tag_upld
-	call	print_cstr				; Print message
-	jp	command_upload				; Run command
-menu_main_builtin_download:
+	jp	z, command_upload			; Run command
 	cp	command_key_download			; Check if download key
-	jr	nz, menu_main_end			; If not, next command
-	ld	hl, str_tag_dnld
-	call	print_cstr				; Print message
-	jp	command_download			; Run command
+	jp	z, command_download			; Run command
+
 menu_main_end:
 	jp	print_newline				; This will return to menu_main
 
@@ -2464,10 +2467,6 @@ str_dnld10:		db	" ",133,159,150,198,14					;  unexpected begin of line\n
 str_dnld11:		db	" ",133,132,157,14					;  unexpected hex digits\n
 str_dnld12:		db	" ",133," non",132,157,14				;  unexpected non hex digits\n
 str_dnld13:		db	31,151,155," detected",13,14				; No errors detected\n\n
-
-erfr_cmd: 		db	31,203,153,144,0
-erfr_ok:  		db	31,153,144,203,'d',13,14
-erfr_err: 		db	31,133,155,13,14
 
 ; ##########################################################################################################################################
 ; ##########################################################################################################################################
