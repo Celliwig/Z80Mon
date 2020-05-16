@@ -151,6 +151,11 @@ nc100_config_save_apply:
 ;  Uses the information stored in the configuration
 ;  block to initialise aspects of the system.
 nc100_config_apply:
+	ld	b, (nc100_config_misc)
+	bit	nc100_config_misc_memcard_wstates, b			; Check whether memory card wait states are required
+	call	z, nc100_memory_memcard_wstates_off
+	call	nz, nc100_memory_memcard_wstates_on
+
 	ld	a, (nc100_config_draw_attributes)
 	ld	(nc100_lcd_draw_attributes), a				; Copy config draw attributes to lcd draw attributes
 
