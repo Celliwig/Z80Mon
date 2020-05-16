@@ -80,10 +80,10 @@ nc100_serial_init:
 	call	nc100_serial_setup_delay
 	out	(nc100_uart_control_register), a			; For a new command bytes
 	call	nc100_serial_setup_delay
-; # nc100_serial_reset
+; # nc100_serial_reset_actual
 ; #################################
 ;  Reset UART, turn off line driver
-nc100_serial_reset:
+nc100_serial_reset_actual:
 	; Software reset UART
 	ld	a, uPD71051_reg_commask_SRes				; Software reset
 	out	(nc100_uart_control_register), a 			; Write command byte
@@ -94,14 +94,39 @@ nc100_serial_reset:
 	ld	b, 0xe0							; Retain: Memcard register and parallel strobe
 	call	nc100_io_misc_config_A_write				; Write value to I/O port
 	call	nc100_serial_setup_delay
+	ld	a, (nc100_config_uart_baud)
+	res	nc100_config_uart_baud_on, a				; Clear flag indicating UART/Line driver on
+	ld	(nc100_config_uart_baud), a
+	ret
+; # nc100_serial_reset
+; #################################
+;  Reset UART, turn off line driver
+;  if permitted.
+nc100_serial_reset:
+	ld	a, (nc100_config_uart_baud)
+	bit	nc100_config_uart_baud_always, a			; Test if UART should always be enabled
+	jr	z, nc100_serial_reset_actual
 	ret
 
 ; # nc100_serial_config
 ; #################################
-;  Config UART, turn on line driver
+;  Setup UART using config information.
+;  Turn on line driver
+nc100_serial_config:
+	ld	bc, (nc100_config_uart_mode)				; B = Baud rate (lower nibble), C = UART mode byte
+	bit	3, b							; Test if 38400 (not a directly supported mode)
+	jr	z, nc100_serial_config_actual				; It's not, so just config UART
+	ld	b, 0x04							; Using baud 2400
+	ld	a, c							; Update mode byte
+	and	0xfc							; Remove baud rate clock
+	or	uPD71051_reg_mode_bclk_x1				; Select x1 baud rate clock
+	ld	c, a							; Save new mode byte
+; # nc100_serial_config_actual
+; #################################
+;  Setup UART, turn on line driver
 ;	In:	B = Baud rate
 ;		C = Mode configuration
-nc100_serial_config:
+nc100_serial_config_actual:
 	; Config UART/ turn on line driver
 	ld	a, b							; Copy baud rate
 	and	0x07							; Filters baud rate value
@@ -117,6 +142,11 @@ nc100_serial_config:
 	ld	a, uPD71051_reg_commask_full
 	out	(nc100_uart_control_register), a 			; Write command byte
 	call	nc100_serial_setup_delay
+
+	ld	a, (nc100_config_uart_baud)
+	set	nc100_config_uart_baud_on, a				; Mark as UART on
+	ld	(nc100_config_uart_baud), a
+
 	ret
 
 ; # nc100_serial_always_enabled
