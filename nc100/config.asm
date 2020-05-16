@@ -75,11 +75,11 @@ nc100_config_draw_attrib_invert_toggle:
 nc100_config_checksum_create:
 	ld	hl, nc100_config					; Load start address of configuration area
 	xor	a							; Clear A
+	ld	b, 0x0b							; Byte count
 nc100_config_checksum_create_loop:
 	add	a, (hl)							; Add contents of memory to checksum
 	inc	hl							; Increment pointer
-	cp	nc100_config_chksum					; Check whether end address
-	jr	nz, nc100_config_checksum_create_loop
+	djnz	nc100_config_checksum_create_loop
 	cpl								; Complement A
 	ld	(hl), a							; Save checksum
 	ret
@@ -92,11 +92,11 @@ nc100_config_checksum_create_loop:
 nc100_config_checksum_validate:
 	ld	hl, nc100_config					; Load start address of configuration area
 	xor	a							; Clear A
+	ld	b, 0x0b							; Byte count
 nc100_config_checksum_validate_loop:
 	add	a, (hl)							; Add contents of memory to checksum
 	inc	hl							; Increment pointer
-	cp	nc100_config_chksum					; Check whether end address
-	jr	nz, nc100_config_checksum_create_loop
+	djnz	nc100_config_checksum_validate_loop
 	cpl								; Complement A
 	ld	b, a							; Save result
 	ld	a, (hl)							; Load existing
@@ -151,7 +151,8 @@ nc100_config_save_apply:
 ;  Uses the information stored in the configuration
 ;  block to initialise aspects of the system.
 nc100_config_apply:
-	ld	b, (nc100_config_misc)
+	ld	a, (nc100_config_misc)
+	ld	b, a
 	bit	nc100_config_misc_memcard_wstates, b			; Check whether memory card wait states are required
 	call	z, nc100_memory_memcard_wstates_off
 	call	nz, nc100_memory_memcard_wstates_on
