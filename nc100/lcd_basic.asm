@@ -37,10 +37,27 @@ nc100_draw_attrib_scroll_mask:			equ	1 << 7
 ;  Needs to lie on a 4k memory boundary.
 ;	In:	HL = Start address of memory raster
 nc100_lcd_set_raster_addr:
-	ld	(nc100_raster_start_addr), hl				; Save raster memory address for later
 	ld	a, h							; Grab MSB
 	and	a, 0xF0							; Filter for most significant nibble
+	ld	h, a
+	ld	(nc100_raster_start_addr), hl				; Save raster memory address for later
 	out	(nc100_io_lcd_raster_addr), a				; Write raster address to store
+	ret
+
+; # nc100_lcd_off
+; #################################
+;  Sets the raster address to 0x0000
+nc100_lcd_off:
+	xor	a
+	out	(nc100_io_lcd_raster_addr), a				; Clear raster address
+	ret
+
+; # nc100_lcd_on
+; #################################
+;  Sets raster address back to previous value
+nc100_lcd_on:
+	ld	a, (nc100_raster_start_addr+1)			; Get previous value
+	out	(nc100_io_lcd_raster_addr), a				; Set raster address
 	ret
 
 ; # nc100_lcd_clear_screen
