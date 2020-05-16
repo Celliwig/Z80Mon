@@ -110,11 +110,12 @@ nc100_get_version:
 ;  Use LCD/keyboard as the console I/O
 nc100_console_set_local:
 	; Replace dummy console routines
-	ld	bc, nc100_console_local_char_out
-	ld	(monlib_console_out+1), bc
-	ld	bc, nc100_console_local_char_in
-	ld	(monlib_console_in+1), bc
-	call	nc100_lcd_on
+	ld	de, nc100_console_local_char_out
+	ld	(monlib_console_out+1), de
+	ld	de, nc100_console_local_char_in
+	ld	(monlib_console_in+1), de
+	call	nc100_serial_reset
+	and	0x00							; Ensure Zero flag set (for config routine)
 	ret
 
 ; # nc100_console_set_serial
@@ -122,11 +123,13 @@ nc100_console_set_local:
 ;  Set the serial port as the console I/O
 nc100_console_set_serial:
 	; Replace dummy console routines
-	ld	bc, nc100_serial_char_out_poll
-	ld	(monlib_console_out+1), bc
-	ld	bc, nc100_serial_char_in_poll
-	ld	(monlib_console_in+1), bc
-	call	nc100_lcd_off
+	ld	de, nc100_serial_char_out_poll
+	ld	(monlib_console_out+1), de
+	ld	de, nc100_serial_char_in_poll
+	ld	(monlib_console_in+1), de
+	call	nc100_serial_config
+	call	nc100_lcd_clear_screen
+	or	0xff							; Ensure Zero flag unset (for config routine)
 	ret
 
 ; # nc100_console_local_char_out
@@ -357,8 +360,6 @@ startup_cmd_config_load:
 	call	nc100_config_restore					; Restore and apply system config
 
 startup_cmd_continue:
-	call	nc100_console_set_local
-
 	; Configure z80Mon variables
 	ld	bc, 0x4000
 	ld	(z80mon_default_addr), bc				; Set monitor's current address: 0x4000

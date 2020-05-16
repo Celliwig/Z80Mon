@@ -151,16 +151,28 @@ nc100_config_save_apply:
 ;  Uses the information stored in the configuration
 ;  block to initialise aspects of the system.
 nc100_config_apply:
+	call	nc100_serial_reset_actual				; Maybe OTT, reset UART before potentially changing configuration
+
+	; Apply attributes first as screen might be cleared next
+	ld	a, (nc100_config_draw_attributes)
+	ld	(nc100_lcd_draw_attributes), a				; Copy config draw attributes to lcd draw attributes
+
 	ld	a, (nc100_config_misc)
 	ld	b, a
 	bit	nc100_config_misc_memcard_wstates, b			; Check whether memory card wait states are required
 	call	z, nc100_memory_memcard_wstates_off
 	call	nz, nc100_memory_memcard_wstates_on
+	bit	nc100_config_misc_console, b				; Check console target
+	call	z, nc100_console_set_local
+	call	nz, nc100_console_set_serial
 
-	ld	a, (nc100_config_draw_attributes)
-	ld	(nc100_lcd_draw_attributes), a				; Copy config draw attributes to lcd draw attributes
-
-	call	nc100_serial_reset_actual				; Maybe OTT, reset UART before potentially changing configuration
+	; Check whether serial port should always be enabled
+	ld	a, (nc100_config_uart_baud)
+	bit	nc100_config_uart_baud_always, a
+	jr	z, nc100_config_apply_finish
+	bit	nc100_config_uart_baud_on, a				; Check if already on
+	jr	nz, nc100_config_apply_finish
 	call	nc100_serial_config					; Configure UART, and line driver
 
+nc100_config_apply_finish:
 	ret
