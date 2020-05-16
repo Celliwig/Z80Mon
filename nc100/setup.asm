@@ -8,6 +8,7 @@ setup_cmd:
 	ld	(var_setup_selected_item), a
 	ld	(var_setup_selected_editor), a
 
+	call	nc100_console_set_local
 	call	nc100_lcd_clear_screen
 	call	setup_cmd_set_attributes_inverted
 	call	setup_cmd_border_print					; Print border
