@@ -99,7 +99,7 @@ setup_cmd_loop_check_key_exit:
 	jp	nz, setup_cmd_loop
 
 	call	nc100_config_save_apply					; Save configuration, and apply
-	call	print_newline
+	call	nc100_lcd_clear_screen
 
 	ret
 
