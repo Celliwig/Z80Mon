@@ -44,21 +44,21 @@ nc100_lcd_set_raster_addr:
 	out	(nc100_io_lcd_raster_addr), a				; Write raster address to store
 	ret
 
-; # nc100_lcd_off
-; #################################
-;  Sets the raster address to 0x0000
-nc100_lcd_off:
-	xor	a
-	out	(nc100_io_lcd_raster_addr), a				; Clear raster address
-	ret
-
-; # nc100_lcd_on
-; #################################
-;  Sets raster address back to previous value
-nc100_lcd_on:
-	ld	a, (nc100_raster_start_addr+1)			; Get previous value
-	out	(nc100_io_lcd_raster_addr), a				; Set raster address
-	ret
+;; # nc100_lcd_off
+;; #################################
+;;  Sets the raster address to 0x0000
+;nc100_lcd_off:
+;	xor	a
+;	out	(nc100_io_lcd_raster_addr), a				; Clear raster address
+;	ret
+;
+;; # nc100_lcd_on
+;; #################################
+;;  Sets raster address back to previous value
+;nc100_lcd_on:
+;	ld	a, (nc100_raster_start_addr+1)			; Get previous value
+;	out	(nc100_io_lcd_raster_addr), a				; Set raster address
+;	ret
 
 ; # nc100_lcd_clear_screen
 ; #################################
