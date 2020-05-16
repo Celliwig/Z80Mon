@@ -4,6 +4,7 @@ include	"nc100/nc100_lib.def"
 ; ###########################################################################
 ; Interrupt space 0x0018-0x0037 free (32 bytes)
 orgmem  mem_base+0x18
+
 ; # LCD variables
 ; #################################
 nc100_raster_start_addr:		dw	0x0000			; Address of LCD raster memory
@@ -41,9 +42,13 @@ nc100_config9:				db	0x0
 nc100_config10:				db	0x0
 nc100_config11:				db	0x0
 nc100_config_chksum:			db	0x0
+; # I/O register mirrors
+; #################################
+;  Some I/O ports are write only so mirror
+;  writes to these locations
+nc100_io_mirror_misc_config_A:		db	0xff			; Initialises as all 1s
 
 orgmem	nc100_lib_base
-
 ; # Font data
 ; ###########################################################################
 nc100_font_8x8:
@@ -64,6 +69,9 @@ include "nc100/lcd_font_8x8.asm"
 
 ; Memory routines
 include	"nc100/memory.asm"
+
+; Special I/O routines
+include	"nc100/io_special.asm"
 
 ; Power routines
 include	"nc100/power.asm"
@@ -96,73 +104,75 @@ nc100_get_version:
 
 ; # Console routines
 ; ###########################################################################
-; # nc100_console_print_glyph
-; #################################
-nc100_console_print_glyph:
-	jp	nc100_lcd_print_glyph_8x8
 
-; # nc100_console_linefeed
+; # nc100_console_set_local
 ; #################################
-nc100_console_linefeed:
-	jp	nc100_lcd_print_lf_8x8
+;  Use LCD/keyboard as the console I/O
+nc100_console_set_local:
+	; Replace dummy console routines
+	ld	bc, nc100_console_local_char_out
+	ld	(monlib_console_out+1), bc
+	ld	bc, nc100_console_local_char_in
+	ld	(monlib_console_in+1), bc
+	call	nc100_lcd_on
+	ret
 
-; # nc100_console_carriage_return
+; # nc100_console_set_serial
 ; #################################
-nc100_console_carriage_return:
-	jp	nc100_lcd_print_cr_8x8
+;  Set the serial port as the console I/O
+nc100_console_set_serial:
+	; Replace dummy console routines
+	ld	bc, nc100_serial_char_out_poll
+	ld	(monlib_console_out+1), bc
+	ld	bc, nc100_serial_char_in_poll
+	ld	(monlib_console_in+1), bc
+	call	nc100_lcd_off
+	ret
 
-; # nc100_console_delete
-; #################################
-nc100_console_delete:
-; # nc100_console_backspace
-; #################################
-nc100_console_backspace:
-	jp	nc100_lcd_backspace_8x8
-
-; # nc100_console_char_out
+; # nc100_console_local_char_out
 ; #################################
 ;  Copy character to selected output device
 ;	In:	A = ASCII character
-nc100_console_char_out:
+nc100_console_local_char_out:
 	exx								; Swap out registers
 	ld	de, (nc100_lcd_pos_xy)					; Load cursor X/Y position
 	ld	hl, (nc100_raster_cursor_addr)				; Load cursor address
-nc100_console_char_out_check_bs:
+nc100_console_local_char_out_check_bs:
 	cp	character_code_backspace				; Check for BS (backspace)
-	jr	nz, nc100_console_char_out_check_del
-	call	nc100_console_backspace
-	jr	nc100_console_char_out_exit
-nc100_console_char_out_check_del:
+	jr	nz, nc100_console_local_char_out_check_del
+	call	nc100_lcd_backspace_8x8
+	jr	nc100_console_local_char_out_exit
+nc100_console_local_char_out_check_del:
 	cp	character_code_delete					; Check for Delete
-	jr	nz, nc100_console_char_out_check_lf
-	call	nc100_console_delete
-	jr	nc100_console_char_out_exit
-nc100_console_char_out_check_lf:
+	jr	nz, nc100_console_local_char_out_check_lf
+	call	nc100_lcd_backspace_8x8
+	jr	nc100_console_local_char_out_exit
+nc100_console_local_char_out_check_lf:
 	cp	character_code_linefeed					; Check for LF (line feed)
-	jr	nz, nc100_console_char_out_check_cr
-	call	nc100_console_linefeed
-	jr	nc100_console_char_out_exit
-nc100_console_char_out_check_cr:
+	jr	nz, nc100_console_local_char_out_check_cr
+	call	nc100_lcd_print_lf_8x8
+	jr	nc100_console_local_char_out_exit
+nc100_console_local_char_out_check_cr:
 	cp	character_code_carriage_return				; Check for CR (carriage return)
-	jr	nz, nc100_console_char_out_print_glyph
-	call	nc100_console_carriage_return
-	jr	nc100_console_char_out_exit
-nc100_console_char_out_print_glyph:
-	call	nc100_console_print_glyph
-nc100_console_char_out_exit:
+	jr	nz, nc100_console_local_char_out_print_glyph
+	call	nc100_lcd_print_cr_8x8
+	jr	nc100_console_local_char_out_exit
+nc100_console_local_char_out_print_glyph:
+	call	nc100_lcd_print_glyph_8x8
+nc100_console_local_char_out_exit:
 	exx								; Swap back registers
 	ret
 
-; # nc100_console_char_in
+; # nc100_console_local_char_in
 ; #################################
 ;  Returns a character from the keyboard if one is depressed
 ;	Out:    A = ASCII character code
 ;	Carry flag set if character valid
-nc100_console_char_in:
+nc100_console_local_char_in:
 	exx
-nc100_console_char_in_loop:
+nc100_console_local_char_in_loop:
 	call	nc100_keyboard_char_in
-	jr	nc, nc100_console_char_in_loop
+	jr	nc, nc100_console_local_char_in_loop
 	exx
 	ret
 
@@ -249,11 +259,6 @@ orgmem	nc100_cmd_base
 
 orgmem	nc100_cmd_base+0x40						; executable code begins here
 system_init:
-	; Reset interrupts
-	xor	a							; Clear A
-	out	(nc100_io_irq_mask), a					; Clear interrupt mask
-	out	(nc100_io_irq_status), a				; Clear interrupt status flags
-
 	; Configure RAM/ROM
 	ld	a, nc100_membank_RAM|nc100_membank_48k
 	out	(nc100_io_membank_D), a					; Select RAM for next page
@@ -288,22 +293,13 @@ else
 	out	(nc100_io_membank_A), a					; Select RAM for lowest page
 endif
 
-	; Setup screen
-	ld	hl, 0xf000						; Set screen at RAM top, above stack
-	call	nc100_lcd_set_raster_addr
+	call	nc100_serial_init					; Init UART (turn off)
+	call	nc100_rtc_init						; Init RTC
 
-	xor	a							; Clear attributes
-	;set	nc100_draw_attrib_invert_bit, a				; Set inverted attributes
-	;set	nc100_draw_attrib_merge_bit, a				; Overwrite
-	set	nc100_draw_attrib_scroll_bit, a				; Scroll screen
-	call	nc100_lcd_set_attributes
-	call	nc100_lcd_clear_screen					; Clear screen memory
-
-	; Replace dummy console routines
-	ld	bc, nc100_console_char_out
-	ld	(monlib_console_out+1), bc
-	ld	bc, nc100_console_char_in
-	ld	(monlib_console_in+1), bc
+	; Reset interrupts
+	xor	a							; Clear A
+	out	(nc100_io_irq_mask), a					; Clear interrupt mask
+	out	(nc100_io_irq_status), a				; Clear interrupt status flags
 
 	; Add interrupt handlers
 	ld	a, 0xc3							; JP instruction
@@ -318,15 +314,14 @@ endif
 	call	interrupt_set_mask_enabled
 	ei								; Enable interrupts
 
-	call	nc100_serial_init					; Init UART (turn off)
-	call	nc100_rtc_init						; Init RTC
-
-	; Configure z80Mon variables
-	ld	bc, 0x4000
-	ld	(z80mon_default_addr), bc				; Set monitor's current address: 0x4000
+	; Setup screen
+	ld	hl, 0xf000						; Set screen at RAM top, above stack
+	call	nc100_lcd_set_raster_addr
+	xor	a							; Clear attributes
+	call	nc100_lcd_set_attributes
+	call	nc100_lcd_clear_screen					; Clear screen memory
 
 	rst	8							; Continue boot
-
 
 ; ###########################################################################
 ; #                                                                         #
@@ -347,15 +342,11 @@ orgmem	nc100_cmd_base+0x0100
 
 orgmem	nc100_cmd_base+0x0140						; executable code begins here
 startup_cmd:
-;	ld	b, nc100_serial_baud_2400
-;	ld	c, uPD71051_reg_mode_bclk_x16 | uPD71051_reg_mode_chrlen_8 | uPD71051_reg_mode_parity_none | uPD71051_reg_mode_stopbit_1
-;	call	nc100_serial_config
-;
-;	; Replace dummy console routines
-;	ld	bc, nc100_serial_char_out_poll
-;	ld	(monlib_console_out+1), bc
-;	ld	bc, nc100_serial_char_in_poll
-;	ld	(monlib_console_in+1), bc
+	call	nc100_console_set_local
+
+	; Configure z80Mon variables
+	ld	bc, 0x4000
+	ld	(z80mon_default_addr), bc				; Set monitor's current address: 0x4000
 
 	rst	16							; Continue boot
 
