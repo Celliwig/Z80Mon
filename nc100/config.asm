@@ -141,7 +141,11 @@ nc100_config_load_defaults:
 	ld	(nc100_config_misc), a
 	ld	a, nc100_config_draw_attributes_defaults
 	ld	(nc100_config_draw_attributes), a			; Draw attribute defaults: Scroll
-
+; # nc100_config_save_apply
+; #################################
+;  Primarily used by the configuration program
+nc100_config_save_apply:
+	call	nc100_config_save					; Save configuration
 ; # nc100_config_apply
 ; #################################
 ;  Uses the information stored in the configuration

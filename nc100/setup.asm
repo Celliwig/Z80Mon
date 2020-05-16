@@ -98,6 +98,7 @@ setup_cmd_loop_check_key_exit:
 	cp	character_code_escape
 	jp	nz, setup_cmd_loop
 
+	call	nc100_config_save_apply					; Save configuration, and apply
 	call	print_newline
 
 	ret
