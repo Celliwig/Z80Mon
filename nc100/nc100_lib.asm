@@ -342,6 +342,21 @@ orgmem	nc100_cmd_base+0x0100
 
 orgmem	nc100_cmd_base+0x0140						; executable code begins here
 startup_cmd:
+	halt								; Wait for keyboard interrupt
+									; So that any key currently depressed can be read
+
+startup_cmd_config:
+	; Check for device config reset
+	call	nc100_keyboard_char_in					; Get key (if there is one)
+	cp	character_code_delete					; Check if delete
+	jr	nz, startup_cmd_config_load
+startup_cmd_config_load_defaults:
+	call	nc100_config_load_defaults				; Restore and apply default system config
+	jr	startup_cmd_continue
+startup_cmd_config_load:
+	call	nc100_config_restore					; Restore and apply system config
+
+startup_cmd_continue:
 	call	nc100_console_set_local
 
 	; Configure z80Mon variables
