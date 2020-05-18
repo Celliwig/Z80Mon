@@ -8,6 +8,11 @@
 
 ; # Page operations
 ; ###########################################################################
+; # nc100_memory_page_set
+; #################################
+;  Set the current memory config for a particular bank address.
+;	In:	B = Page config
+;		C = Bank address
 nc100_memory_page_set:
 	out	(c), b						; Assign memory page to address bank
 	ret
@@ -21,7 +26,7 @@ nc100_memory_page_get:
 	in	b, (c)						; Read address bank config
 	ret
 
-; # Memory card  operations
+; # Memory card operations
 ; ###########################################################################
 ; # nc100_memory_memcard_present
 ; #################################
