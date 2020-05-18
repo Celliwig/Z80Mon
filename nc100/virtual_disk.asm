@@ -48,8 +48,88 @@
 ;               | Bytes |        Description
 ;  -------------------------------------------------
 ;  Magic Number |  16   | 0x2323232343504D564449534B23232323 (####CPMVDISK####)
-;  Mem Size     |   1   | Total memory size in 32k blocks
-;  Disk Number  |   1   | Disk number within memory
-;  Disk Size    |   1   | Virtual disk size in 32k blocks
+;  Version      |   1   | Format version
+;  Card Size    |   1   | Total memory size in 64k blocks
+;  Disk Number  |   1   | Disk number within CP/M
+;  Disk Size    |   1   | Virtual disk size in 64k blocks
 ;  End Address  |   1   | Pointer to end of the disk (MSB: A23-A16)
 ;  Name		|  64   | ASCII description of the virtual disk, null terminated.
+;
+; ###########################################################################
+
+; # Defines
+; ##################################################
+nc100_vdisk_magic_header:		db		"####CPMVDISK####"
+str_unformat:				db		"Un"
+str_format:				db		"Format",0
+str_ted:				db		"ted",0
+
+; # nc100_vdisk_card_check
+; #################################
+;  Checks whether a memory card is present and formated
+;	In:	HL = Pointer to start of virtual disk
+;	Out:	Carry flag set if card present, unset if not
+;		A = Card size in 32k blocks if formated, -1 if not
+nc100_vdisk_card_check:
+	ld	de, nc100_vdisk_magic_header
+nc100_vdisk_card_check_magic_loop:
+	ld	a, (de)							; Get byte from disk header
+	cp	(hl)							; Compare byte from magic header
+	jr	nz, nc100_vdisk_card_check_failed
+	inc	hl							; Increment pointers
+	inc	de
+	ld	a, l							; Check address
+	cp	0x10
+	jr	nz, nc100_vdisk_card_check_magic_loop
+	scf								; Set Carry flag
+	ret
+nc100_vdisk_card_check_failed:
+	scf								; Clear Carry flag
+	ccf
+	ret
+
+; # nc100_vdisk_card_header_init
+; #################################
+;  Write the basic header info to pointer
+;	In:	C = Port address of bank
+;		HL = Pointer to start of virtual disk
+nc100_vdisk_card_header_init:
+	push	hl							; Save start address
+	ld	b, 16
+	ld	de, nc100_vdisk_magic_header
+	; Copy magic header
+nc100_vdisk_card_header_init_magic_loop:
+	ld	a, (de)							; Copy magic byte
+	ld	(hl), a							; To memory card
+	inc	hl
+	inc	de
+	djnz	nc100_vdisk_card_header_init_magic_loop
+	; Version
+	ld	a, 0x01
+	ld	(hl), a
+	inc	hl
+	; Card Size
+	ld	a, 0x00							; Card size: not detected
+	ld	(hl), a
+	; Detect size by looking for the header reoccuring
+	ld	b, 0x00							; 64k block count
+nc100_vdisk_card_header_init_card_size:
+	inc	b							; Increment block count
+	in	a, (c)							; Get memory config
+	and	0x3f							; Filter address bits
+	add	0x04							; Increment by 64k
+	cp	0x40							; Check for overrun
+	jr	z, nc100_vdisk_card_header_init_finish
+	or	nc100_membank_CRAM					; Select card RAM
+	out	(c), a							; Select next page
+	pop	hl							; Reload start address
+	push	hl
+	call	nc100_vdisk_card_check
+	jr	nc, nc100_vdisk_card_header_init_card_size
+nc100_vdisk_card_header_init_finish:
+	ld	a, nc100_membank_CRAM|nc100_membank_0k			; Select first page of the card RAM
+	out	(c), a							; Select next page
+	pop	hl							; Reload start address
+	ld	l, 0x11							; Set address of card size
+	ld	(hl), b							; Save card size
+	ret
