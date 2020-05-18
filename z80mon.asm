@@ -468,6 +468,10 @@ print_str_simple:
 print_str_simple_end:
 	ret
 
+print_str_simple_space:
+	call	print_str_simple
+	jp	print_space
+
 print_str_simple_newline:
 	call	print_str_simple
 	jp	print_newline
