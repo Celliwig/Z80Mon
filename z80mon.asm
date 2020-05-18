@@ -468,6 +468,10 @@ print_str_simple:
 print_str_simple_end:
 	ret
 
+print_str_simple_newline:
+	call	print_str_simple
+	jp	print_newline
+
 ; # print_str_repeat
 ; #################################
 ;  Prints a string of repeated character.
@@ -2468,6 +2472,8 @@ str_dnld10:		db	" ",133,159,150,198,14					;  unexpected begin of line\n
 str_dnld11:		db	" ",133,132,157,14					;  unexpected hex digits\n
 str_dnld12:		db	" ",133," non",132,157,14				;  unexpected non hex digits\n
 str_dnld13:		db	31,151,155," detected",13,14				; No errors detected\n\n
+
+str_ny:			db	" (N/y): ",0
 
 ; ##########################################################################################################################################
 ; ##########################################################################################################################################
