@@ -372,7 +372,7 @@ startup_cmd_continue:
 ; #                                                                         #
 ; ###########################################################################
 
-orgmem  nc100_cmd_base+0x0500
+orgmem  nc100_cmd_base+0x0200
 	db	0xA5,0xE5,0xE0,0xA5					; signiture bytes
 	db	254,'!',0,0						; id (254=cmd)
 	db	0,0,0,0							; prompt code vector
@@ -383,5 +383,5 @@ orgmem  nc100_cmd_base+0x0500
 	db	255,255,255,255						; length and checksum (255=unused)
 	db	"System config",0
 
-orgmem  nc100_cmd_base+0x0540
+orgmem  nc100_cmd_base+0x0240
 include	"nc100/setup.asm"
