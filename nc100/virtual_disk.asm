@@ -19,7 +19,7 @@
 ;  much easier. This can be double again for larger disk sizes where the wasted
 ;  storage will not be missed (much).
 ;
-;   Disk Size   |  Sector Size  | Track Sectors |  Num. Tracks
+;   Disk Size   |  Sector Size  | Sectors/Track |  Num. Tracks
 ;  -------------------------------------------------------------
 ;     128k      |   128 Bytes   |      32       |      32
 ;     256k      |   128 Bytes   |      32       |      64
@@ -31,7 +31,7 @@
 ;
 ;   A16 | A15 | A14 | A13 | A12 | A11 | A10 |  A9 |  A8 |  A7 |  A6 |  A5 |  A4 |  A3 |  A2 |  A1 |  A0
 ;  ------------------------------------------------------------------------------------------------------
-;           Tracks (32)         |    Sectors per Track (32)   |            Sector Bytes (128)
+;        Num. Tracks (32)       |    Sectors per Track (32)   |             Sector Size (128)
 ;
 ;  So to access (Track: 0x05 / Sector: 0x17):
 ;   A16 | A15 | A14 | A13 | A12 | A11 | A10 |  A9 |  A8 |  A7 |  A6 |  A5 |  A4 |  A3 |  A2 |  A1 |  A0
@@ -141,6 +141,7 @@ nc100_vdisk_header_description:		equ		0x16
 
 nc100_vdisk_version_number:		equ		0x01
 
+nc100_vdisk_init_header:		db		"####INITDISK####"
 nc100_vdisk_magic_header:		db		"####CPMVDISK####"
 str_unformat:				db		"Un"
 str_format:				db		"Format",0
@@ -181,40 +182,103 @@ nc100_vdisk_card_check_failed:
 nc100_vdisk_card_init:
 	push	hl							; Save start address
 	ld	b, 16
-	ld	de, nc100_vdisk_magic_header
-	; Copy magic header
+	ld	de, nc100_vdisk_init_header				; Need different header so as not to match existing imaages
+	; Copy init header
 nc100_vdisk_card_init_magic_loop:
 	ld	a, (de)							; Copy magic byte
 	ld	(hl), a							; To memory card
 	inc	hl
 	inc	de
 	djnz	nc100_vdisk_card_init_magic_loop
-	; Version
-	ld	a, nc100_vdisk_version_number
-	ld	(hl), a
 	; Card Size
 	ld	l, nc100_vcard_header_vdisk_header_offset+nc100_vcard_header_size
 	ld	a, 0x00							; Card size: not detected
 	ld	(hl), a
 	; Detect size by looking for the header reoccuring
 	ld	b, 0x00							; 64k block count
-nc100_vdisk_card_init_card_size:
+nc100_vdisk_card_init_size_loop:
 	inc	b							; Increment block count
 	in	a, (c)							; Get memory config
 	and	0x3f							; Filter address bits
 	add	0x04							; Increment by 64k
 	cp	0x40							; Check for overrun
-	jr	z, nc100_vdisk_card_init_finish
+	jr	z, nc100_vdisk_card_init_size_set
 	or	nc100_membank_CRAM					; Select card RAM
 	out	(c), a							; Select next page
 	pop	hl							; Reload start address
 	push	hl
-	call	nc100_vdisk_card_check
-	jr	nc, nc100_vdisk_card_init_card_size
-nc100_vdisk_card_init_finish:
+	ld	de, nc100_vdisk_init_header				; Check for the init header
+	call	nc100_vdisk_card_check_magic_loop
+	jr	nc, nc100_vdisk_card_init_size_loop
+nc100_vdisk_card_init_size_set:
 	ld	a, nc100_membank_CRAM|nc100_membank_0k			; Select first page of the card RAM
-	out	(c), a							; Select next page
+	out	(c), a
 	pop	hl							; Reload start address
 	ld	l, nc100_vcard_header_vdisk_header_offset+nc100_vcard_header_size
 	ld	(hl), b							; Save card size
+	; Clear disk selection table
+	ld	l, nc100_vcard_header_vdisk_header_offset+nc100_vcard_header_vdisk0_type
+	ld	b, 0x20							; 16 disks of 2 bytes
+	xor	a							; Clear A
+nc100_vdisk_card_init_disk_select_table:
+	ld	(hl), a
+	inc	hl
+	djnz	nc100_vdisk_card_init_disk_select_table
+
+	ld	l, 0							; Reset pointer
+	call	nc100_vdisk_init					; Write first disk header
+
+	ret
+
+; # nc100_vdisk_init
+; #################################
+;  Write the basic vdisk header to pointer
+;	In:	C = Port address of bank
+;		HL = Pointer to start of virtual disk
+nc100_vdisk_init:
+	push	hl							; Save start address
+	ld	b, 16
+	ld	de, nc100_vdisk_magic_header
+	; Copy magic header
+nc100_vdisk_init_magic_loop:
+	ld	a, (de)							; Copy magic byte
+	ld	(hl), a							; To memory card
+	inc	hl
+	inc	de
+	djnz	nc100_vdisk_init_magic_loop
+	; Version
+	ld	a, nc100_vdisk_version_number
+	ld	(hl), a
+	inc	hl
+	; Disk info
+	ld	b, 0x05
+	xor	a
+nc100_vdisk_init_disk_info:
+	ld	(hl), a							; Clear disk information
+	inc	hl
+	djnz	nc100_vdisk_init_disk_info
+	; Description
+	ld	b, 0x20
+	ld	a, ' '
+nc100_vdisk_init_description:
+	ld	(hl), a
+	inc	hl
+	djnz	nc100_vdisk_init_description
+	pop	hl							; Reload start address
+	ret
+
+; # nc100_vdisk_card_display_index
+; #################################
+;  Displays the contents of the card
+;	In:	C = Port address of bank
+;		HL = Pointer to start of virtual disk
+nc100_vdisk_card_display_index:
+	ld	a, nc100_membank_CRAM|nc100_membank_0k			; Select first page of the card RAM
+	out	(c), a							; Select next page
+	push	hl							; Save start address
+	ld	b, 0x00							; Disk count
+
+	
+
+	pop	hl
 	ret
