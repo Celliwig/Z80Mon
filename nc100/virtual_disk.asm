@@ -53,7 +53,7 @@
 ;  Sectors per Track	|   1	|
 ;  Last Track		|   1	| Number of tracks - 1
 ;  Disk Size		|   1	| Virtual disk size in 64k blocks
-;  Next Disk		|   1	| Pointer to the start of the next virtual disk (MSB: A23-A16)
+;  Next Disk		|   1	| Pointer to the start of the next virtual disk in 64k blocks (MSB: A23-A16)
 ;  Description		|  32	| ASCII description of the virtual disk, null terminated.
 ;
 ;  Card header:
@@ -230,6 +230,88 @@ nc100_vdisk_card_init_disk_select_table:
 
 	ret
 
+; # nc100_vdisk_card_page_map_update
+; #################################
+;  Updates the current mapped page
+;       In:     B = New mapping in 64k blocks
+;		C = Port address of bank
+nc100_vdisk_card_page_map_update:
+	ld	a, b
+	sla	a							; Shift A so as to map with page register format
+	sla	a
+	and	0x3f							; Filter bits 6 & 7
+	or	nc100_membank_CRAM					; Select memory card
+	out	(c), a							; Set new mapping
+	ret
+
+; # nc100_vdisk_card_free_space_total
+; #################################
+;  Returns the total amount of free space on the memory card
+;       In:     C = Port address of bank
+;               HL = Pointer to start of virtual disk
+;	Out:	A = Free space in 64k blocks
+nc100_vdisk_card_free_space_total:
+	; Get card size
+	ld	l, nc100_vcard_header_vdisk_header_offset+nc100_vcard_header_size
+	ld	a, (hl)							; Save card size
+	ex	af, af'							; Swap out A
+	xor	a							; Clear A
+nc100_vdisk_card_free_space_total_loop:
+	ld	l, nc100_vdisk_header_disk_size
+	ld	b, (hl)							; Get disk size
+	cp	b							; Check if zero
+	jr	z, nc100_vdisk_card_free_space_total_finish		; If disk size zero, finish
+	ex	af, af'							; Swap A (Size) back in
+	sub	b							; Subtract disk space from card space
+	ex	af, af'
+	ld	l, nc100_vdisk_header_next_disk
+	ld	b, (hl)							; Get MSB pointer to next disk
+	cp	b							; Check if zero
+	jr	z, nc100_vdisk_card_free_space_total_finish		; If pointer zero, finish
+	call	nc100_vdisk_card_page_map_update			; Update page mapping
+	xor	a							; Clear A again
+	jr	nc100_vdisk_card_free_space_total_loop			; Loop
+nc100_vdisk_card_free_space_total_finish:
+	ex	af, af'							; Swap A (Size) back in
+	ret
+
+; # nc100_vdisk_card_free_space_remaining
+; #################################
+;  Returns the amount of free space at the end of the memory card
+;       In:     C = Port address of bank
+;               HL = Pointer to start of virtual disk
+;	Out:	A = Free space in 64k blocks
+nc100_vdisk_card_free_space_remaining:
+	; Get card size
+	ld	l, nc100_vcard_header_vdisk_header_offset+nc100_vcard_header_size
+	ld	a, (hl)							; Save card size
+	ex	af, af'							; Swap out A
+	xor	a							; Clear A
+nc100_vdisk_card_free_space_remaining_loop:
+	ld	l, nc100_vdisk_header_disk_size
+	ld	b, (hl)							; Get disk size
+	cp	b							; Check if zero
+	jr	z, nc100_vdisk_card_free_space_remaining_finish		; If disk size zero, finish
+	ld	l, nc100_vdisk_header_next_disk
+	ld	b, (hl)							; Get MSB pointer to next disk
+	cp	b							; Check if zero
+	jr	z, nc100_vdisk_card_free_space_remaining_finish		; If pointer zero, finish
+	call	nc100_vdisk_card_page_map_update			; Update page mapping
+	xor	a							; Clear A again
+	jr	nc100_vdisk_card_free_space_remaining_loop		; Loop
+nc100_vdisk_card_free_space_remaining_finish:
+	ld	l, nc100_vdisk_header_disk_size
+	ld	b, (hl)							; Get disk size
+	in	a, (c)							; Get current page mapping
+	and	0x3f							; Filter bits 6 & 7
+	srl	a							; Shift A so as to map with 64k blocks
+	srl	a
+	add	b							; Add disk size
+	ld	b, a							; Save for next calculation
+	ex	af, af'							; Swap A (Size) back in
+	sub	b							; Subtract from card size
+	ret
+
 ; # nc100_vdisk_init
 ; #################################
 ;  Write the basic vdisk header to pointer
@@ -265,20 +347,4 @@ nc100_vdisk_init_description:
 	inc	hl
 	djnz	nc100_vdisk_init_description
 	pop	hl							; Reload start address
-	ret
-
-; # nc100_vdisk_card_display_index
-; #################################
-;  Displays the contents of the card
-;	In:	C = Port address of bank
-;		HL = Pointer to start of virtual disk
-nc100_vdisk_card_display_index:
-	ld	a, nc100_membank_CRAM|nc100_membank_0k			; Select first page of the card RAM
-	out	(c), a							; Select next page
-	push	hl							; Save start address
-	ld	b, 0x00							; Disk count
-
-	
-
-	pop	hl
 	ret
