@@ -53,6 +53,7 @@
 ;  Sectors per Track	|   1	|
 ;  Last Track		|   1	| Number of tracks - 1
 ;  Disk Size		|   1	| Virtual disk size in 64k blocks
+;  Prev Disk		|   1	| Pointer to the start of the previous virtual disk in 64k blocks (MSB: A23-A16)
 ;  Next Disk		|   1	| Pointer to the start of the next virtual disk in 64k blocks (MSB: A23-A16)
 ;  Description		|  32	| ASCII description of the virtual disk, null terminated.
 ;
@@ -136,8 +137,9 @@ nc100_vdisk_header_bytes_sector_ptr:	equ		0x11
 nc100_vdisk_header_sectors_track_ptr:	equ		0x12
 nc100_vdisk_header_last_tracks_ptr:	equ		0x13
 nc100_vdisk_header_disk_size:		equ		0x14
-nc100_vdisk_header_next_disk:		equ		0x15
-nc100_vdisk_header_description:		equ		0x16
+nc100_vdisk_header_prev_disk:		equ		0x15
+nc100_vdisk_header_next_disk:		equ		0x16
+nc100_vdisk_header_description:		equ		0x17
 
 nc100_vdisk_version_number:		equ		0x01
 
@@ -380,4 +382,21 @@ nc100_vdisk_init_description:
 	inc	hl
 	djnz	nc100_vdisk_init_description
 	pop	hl							; Reload start address
+	ret
+
+; # nc100_vdisk_size_convert
+; #################################
+;  Convert disk size from 64k to 1k
+;	In:	A = Size in 64k blocks
+;	Out:	HL = Size in 1k blocks
+nc100_vdisk_size_convert:
+	ld	hl, 0x0000
+	ld	bc, 0x0040						; Increment value
+nc100_vdisk_size_convert_loop:
+	and	a
+	jr	z, nc100_vdisk_size_convert_end				; If zero, just finish
+	add	hl, bc							; Increment size
+	dec	a
+	jr	nc100_vdisk_size_convert_loop
+nc100_vdisk_size_convert_end:
 	ret
