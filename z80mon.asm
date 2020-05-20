@@ -376,7 +376,8 @@ print_dec8_digit_skipped:
 ;	In: 	BC = Integer value
 print_dec16u:
 	ld	ix, z80mon_temp1			; Used to store state
-	res	0, (ix+0)				; Flag used to suppress leading zeros
+	xor	a
+	ld	(ix+0), a 				; Clear flag used to suppress leading zeros
 
 print_dec16u_d5:
 	ld	de, 0x2710
@@ -387,7 +388,7 @@ print_dec16u_d5:
 	and	a					; Check there's something to print
 	jr	z, print_dec16u_d4
 	call	print_hex_digit
-	set	0, (ix+0)				; Digit has been printed
+	set	4, (ix+0)				; Digit has been printed
 
 print_dec16u_d4:
 	ld	de, 0x03e8
@@ -395,13 +396,13 @@ print_dec16u_d4:
 	ld	a, c
 	ld	b, h					; Copy HL -> BC
 	ld	c, l
-	bit	0, (ix+0)				; Test whether a digit has been printed already
+	bit	4, (ix+0)				; Test whether a digit has been printed already
 	jr	nz, print_dec16u_d4_out
 	and	a					; Check there's something to print
 	jr	z, print_dec16u_d3
 print_dec16u_d4_out:
 	call	print_hex_digit
-	set	0, (ix+0)				; Digit has been printed
+	set	3, (ix+0)				; Digit has been printed
 
 print_dec16u_d3:
 	ld	de, 0x0064
@@ -409,13 +410,13 @@ print_dec16u_d3:
 	ld	a, c
 	ld	b, h					; Copy HL -> BC
 	ld	c, l
-	bit	0, (ix+0)				; Test whether a digit has been printed already
+	bit	3, (ix+0)				; Test whether a digit has been printed already
 	jr	nz, print_dec16u_d3_out
 	and	a					; Check there's something to print
 	jr	z, print_dec16u_d2
 print_dec16u_d3_out:
 	call	print_hex_digit
-	set	0, (ix+0)				; Digit has been printed
+	set	2, (ix+0)				; Digit has been printed
 
 print_dec16u_d2:
 	ld	de, 0x000a
@@ -423,13 +424,13 @@ print_dec16u_d2:
 	ld	a, c
 	ld	b, h					; Copy HL -> BC
 	ld	c, l
-	bit	0, (ix+0)				; Test whether a digit has been printed already
+	bit	2, (ix+0)				; Test whether a digit has been printed already
 	jr	nz, print_dec16u_d2_out
 	and	a					; Check there's something to print
 	jr	z, print_dec16u_d1
 print_dec16u_d2_out:
 	call	print_hex_digit
-	set	0, (ix+0)				; Digit has been printed
+	set	1, (ix+0)				; Digit has been printed
 
 print_dec16u_d1:
 	ld	a, c					; Remainder
