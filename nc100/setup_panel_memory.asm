@@ -27,22 +27,22 @@ setup_cmd_window_memory_draw:
 	ld	de, 0x0811						; Initial position (17,8)
 	ld	l, 0
 	call	nc100_lcd_set_cursor_by_grid
-	ld	bc, 0x0000
+	ld	hl, 0x0000
 	call	print_hex16
 	ld	de, 0x081b						; Initial position (27,8)
 	ld	l, 0
 	call	nc100_lcd_set_cursor_by_grid
-	ld	bc, 0x4000
+	ld	hl, 0x4000
 	call	print_hex16
 	ld	de, 0x0825						; Initial position (37,8)
 	ld	l, 0
 	call	nc100_lcd_set_cursor_by_grid
-	ld	bc, 0x8000
+	ld	hl, 0x8000
 	call	print_hex16
 	ld	de, 0x082f						; Initial position (47,8)
 	ld	l, 0
 	call	nc100_lcd_set_cursor_by_grid
-	ld	bc, 0xc000
+	ld	hl, 0xc000
 	call	print_hex16
 	ld	de, 0x1010						; Initial position (16,16)
 	ld	l, 0

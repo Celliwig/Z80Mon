@@ -279,11 +279,11 @@ print_newline:
 ; # print_hex16
 ; #################################
 ;  Print 16 bit number as hex
-; 	In:	BC = 16-bit Integer
+;	In:	HL = 16-bit Integer
 print_hex16:
-	ld	a, b
+	ld	a, h
 	call	print_hex8
-	ld	a, c
+	ld	a, l
 ; # print_hex8
 ; #################################
 ;  Print 8 bit number as hex
@@ -703,57 +703,57 @@ print_registers:
 	call	print_newline
 	ld	hl, str_reg_af1
 	call	print_str
-	pop	bc
+	pop	hl
 	call	print_hex16
 	ld	hl, str_reg_bc1
 	call	print_str
-	pop	bc
+	pop	hl
 	call	print_hex16
 	ld	hl, str_reg_de1
 	call	print_str
-	pop	bc
+	pop	hl
 	call	print_hex16
 	ld	hl, str_reg_hl1
 	call	print_str
-	pop	bc
+	pop	hl
 	call	print_hex16
 	ld	hl, str_reg_ix
 	call	print_str
-	pop	bc
+	pop	hl
 	call	print_hex16
 	call	print_newline
 
 	; Print shadow registers
 	ld	hl, str_reg_af2
 	call	print_str
-	pop	bc
+	pop	hl
 	call	print_hex16
 	ld	hl, str_reg_bc2
 	call	print_str
-	pop	bc
+	pop	hl
 	call	print_hex16
 	ld	hl, str_reg_de2
 	call	print_str
-	pop	bc
+	pop	hl
 	call	print_hex16
 	ld	hl, str_reg_hl2
 	call	print_str
-	pop	bc
+	pop	hl
 	call	print_hex16
 	ld	hl, str_reg_iy
 	call	print_str
-	pop	bc
+	pop	hl
 	call	print_hex16
 	call	print_newline
 
 	; Print additional registers
 	ld	hl, str_reg_sra
 	call	print_str
-	ld	bc, (z80mon_temp2)
+	ld	hl, (z80mon_temp2)
 	call	print_hex16
 	ld	hl, str_reg_sp
 	call	print_str
-	ld	bc, (z80mon_temp1)
+	ld	hl, (z80mon_temp1)
 	call	print_hex16
 	call	print_newline
 
@@ -1303,8 +1303,6 @@ module_list_commands_reenter:
 	sub	c
 	ld	b, a
 	call	print_spaces_n				; Print padding
-	ld	b, h
-	ld	c, l
 	call	print_hex16				; Print command address
 	ld	b, 0x06
 	call	print_spaces_n				; Print padding
@@ -1467,8 +1465,6 @@ command_jump_prep:
 	ld	hl, str_runs
 	call	print_cstr
 	pop	hl
-	ld	b, h					; Copy HL->BC
-	ld	c, l
 	call	print_hex16
 	call	print_newline
 
@@ -1493,8 +1489,6 @@ command_hexdump:
 command_hexdump_line_print:
 	ld	e, 0x08					; Number of bytes per line
 	call	print_spacex2
-	ld	b, h					; Copy HL->BC
-	ld	c, l
 	call	print_hex16
 	call	print_colon_space
 command_hexdump_line_print_loop:
@@ -1524,8 +1518,6 @@ command_edit:
 	call	print_cstr
 	ld	hl, (z80mon_default_addr)		; Get default address
 command_edit_loop:
-	ld	b, h					; Copy HL->BC
-	ld	c, l
 	call	print_hex16				; Print address
 	call	print_colon_space
 	ld	b, (hl)					; Load memory contents
@@ -1734,15 +1726,17 @@ command_upload:
 	push	bc					; print_cstr trashes everything
 	ld	hl, str_upld1
 	call	print_cstr
-	pop	bc					; Restore address
-	ld	d, b					; Copy BC->DE
-	ld	e, c
+	pop	de					; Restore address
+	ld	h, d					; Copy DE->HL
+	ld	l, e
 	call	print_hex16				; Print start address
 	ld	hl, str_upld2
 	call	print_str				; Use str not cstr as it only trashes HL
 	pop	bc					; Restore address
 	push	bc					; Save addresses again
 	push	de
+	ld	h, b					; Copy BC->HL
+	ld	l, c
 	call	print_hex16				; Print end address
 	call	print_newline
 	ld	hl, str_prompt7
@@ -2134,9 +2128,9 @@ menu_main:
 	; prompt, so we've got to find and execute all of 'em.
 	ld	hl, str_prompt1				; First part of the prompt
 	call	print_cstr
-	ld	bc, (z80mon_default_addr)		; Get current address
+	ld	hl, (z80mon_default_addr)		; Get current address
 	call	print_hex16
-	;ld	hl, str_prompt2				; Second part of the prompt
+	ld	hl, str_prompt2				; Second part of the prompt
 	call	print_str
 
 	call	input_character_filter			; Get character input
