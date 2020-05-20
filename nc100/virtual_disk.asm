@@ -227,21 +227,46 @@ nc100_vdisk_card_init_disk_select_table:
 
 	ld	l, 0							; Reset pointer
 	call	nc100_vdisk_init					; Write first disk header
-
 	ret
 
-; # nc100_vdisk_card_page_map_update
+; # nc100_vdisk_card_page_map_set
 ; #################################
 ;  Updates the current mapped page
 ;       In:     B = New mapping in 64k blocks
 ;		C = Port address of bank
-nc100_vdisk_card_page_map_update:
+nc100_vdisk_card_page_map_set:
 	ld	a, b
 	sla	a							; Shift A so as to map with page register format
 	sla	a
 	and	0x3f							; Filter bits 6 & 7
 	or	nc100_membank_CRAM					; Select memory card
 	out	(c), a							; Set new mapping
+	ret
+
+; # nc100_vdisk_card_select_next
+; #################################
+;  Sets the page map configuration to the start of the next vdisk
+;       In:     C = Port address of bank
+;               HL = Pointer to start of virtual disk
+;		A' = In use
+;	Out:	Carry flag set when next vdisk selected, unset if not (doesn't exist)
+nc100_vdisk_card_select_next:
+	xor	a							; Clear A
+	ld	l, nc100_vdisk_header_disk_size
+	ld	b, (hl)							; Get disk size
+	cp	b							; Check if zero
+	jr	z, nc100_vdisk_card_select_next_failed			; If disk size zero, finish
+	ld	l, nc100_vdisk_header_next_disk
+	ld	b, (hl)							; Get MSB pointer to next disk
+	cp	b							; Check if zero
+	jr	z, nc100_vdisk_card_select_next_failed			; If pointer zero, finish
+	call	nc100_vdisk_card_page_map_set			; Update page mapping
+	xor	a							; Clear A again
+	scf								; Set Carry flag
+	ret
+nc100_vdisk_card_select_next_failed:
+	scf								; Clear Carry flag
+	ccf
 	ret
 
 ; # nc100_vdisk_card_free_space_total
@@ -268,7 +293,7 @@ nc100_vdisk_card_free_space_total_loop:
 	ld	b, (hl)							; Get MSB pointer to next disk
 	cp	b							; Check if zero
 	jr	z, nc100_vdisk_card_free_space_total_finish		; If pointer zero, finish
-	call	nc100_vdisk_card_page_map_update			; Update page mapping
+	call	nc100_vdisk_card_page_map_set			; Update page mapping
 	xor	a							; Clear A again
 	jr	nc100_vdisk_card_free_space_total_loop			; Loop
 nc100_vdisk_card_free_space_total_finish:
@@ -296,7 +321,7 @@ nc100_vdisk_card_free_space_remaining_loop:
 	ld	b, (hl)							; Get MSB pointer to next disk
 	cp	b							; Check if zero
 	jr	z, nc100_vdisk_card_free_space_remaining_finish		; If pointer zero, finish
-	call	nc100_vdisk_card_page_map_update			; Update page mapping
+	call	nc100_vdisk_card_page_map_set			; Update page mapping
 	xor	a							; Clear A again
 	jr	nc100_vdisk_card_free_space_remaining_loop		; Loop
 nc100_vdisk_card_free_space_remaining_finish:
