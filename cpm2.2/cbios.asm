@@ -12,29 +12,30 @@ nsects:		equ	($-ccp_base)/128		; warm start sector count
 org	bios_base					; origin of this program
 seek	bios_offset
 
-; jump vector for individual subroutines
-	jp	boot					; cold start
+; Jump vector for individual subroutines
+;**************************************************************
+	jp	boot					; Cold start
 warmboot_entry:
-	jp	warmboot				; warm start
-	jp	console_status				; console status
-	jp	console_in				; console character in
-	jp	console_out				; console character out
-	jp	list_out				; list character out
-	jp	punch_out				; punch character out
-	jp	reader_in				; reader character out
-	jp	disk_home				; move head to home position
-	jp	disk_select				; select disk
-	jp	disk_track_set				; set track number
-	jp	disk_sector_set				; set sector number
-	jp	disk_dma_set				; set dma address
-	jp	disk_read				; read disk
-	jp	disk_write				; write disk
-	jp	list_status				; return list status
-	jp	disk_sector_translate			; sector translate
+	jp	warmboot				; Warm start
+	jp	console_status				; Console status
+	jp	console_in				; Read character from console in
+	jp	console_out				; Write character to console out
+	jp	list_out				; Write character to list device
+	jp	punch_out				; Write character to punch device
+	jp	reader_in				; Read character from reader device
+	jp	disk_home				; Move disk head to home position
+	jp	disk_select				; Select disk drive
+	jp	disk_track_set				; Set disk track number
+	jp	disk_sector_set				; Set disk sector number
+	jp	disk_dma_set				; Set dma address for disk operations
+	jp	disk_read				; Read from disk
+	jp	disk_write				; Write to disk
+	jp	list_status				; Return list device status
+	jp	disk_sector_translate			; Translate disk sector from virtual to physical
 
-; fixed data tables for four-drive standard
-; ibm-compatible 8" disks
-; no translations
+; Fixed data tables for four-drive standard ibm-compatible
+; 8" disks no translations
+;**************************************************************
 disk_param_header:
 ; disk Parameter header for disk 00
 	defw	0000h, 0000h
@@ -57,7 +58,8 @@ disk_param_header:
 	defw	dirbf, disk_param_block
 	defw	chk03, all03
 
-; sector translate vector
+; Sector translate vector
+;**************************************************************
 sector_translate:
 	defm	 1,  7, 13, 19				; sectors  1,  2,  3,  4
 	defm	25,  5, 11, 17				; sectors  5,  6,  7,  6
@@ -67,7 +69,8 @@ sector_translate:
 	defm	18, 24,  4, 10				; sectors 21, 22, 23, 24
 	defm	16, 22					; sectors 25, 26
 
-; disk parameter block for all disks.
+; Disk parameter block for all disks.
+;**************************************************************
 disk_param_block:
 	defw	26					; sectors per track
 	defm	3					; block shift factor
@@ -82,15 +85,18 @@ disk_param_block:
 
 ; end of fixed tables
 
-; individual subroutines to perform each function
-; simplest case is to just perform parameter initialization
+; boot
+;**************************************************************
+;  Cold boot routine
 boot:
 	XOR	a					; zero in the accum
 	LD	(iobyte),A				; clear the iobyte
 	LD	(current_disk),A			; select disk zero
 	JP	go_cpm					; initialize and go to cp/m
 
-; simplest case is to read the disk until all sectors loaded
+; warmboot
+;**************************************************************
+;  Simplest case is to read the disk until all sectors loaded
 warmboot:
 	LD	sp, 80h					; use space below buffer for stack
 	LD 	c, 0					; select disk 0
@@ -170,11 +176,14 @@ diskok:	LD 	c, a					; send to the ccp
 	JP	ccp_base				; go to cp/m for further processing
 
 
-; simple i/o handlers (must be filled in by user)
-; in each case, the entry point is provided, with space reserved
-; to insert your own code
+;**************************************************************
+; I/O device handlers (console/list/punch/reader)
+;**************************************************************
 
-; console status, return 0ffh if character ready, 00h if not
+; console_status
+;**************************************************************
+;  Returns the console input status
+;	Out:	A = 0xff if character ready, 0x00 if not
 console_status:
 	in 	a,(3)					; get status
 	and 	002h					; check RxRDY bit
@@ -184,7 +193,10 @@ console_status:
 no_char:ld	a,00h					; no char
 	ret
 
-; console character into register a
+; console_in
+;**************************************************************
+;  Read in a character from console input
+;	Out:	A = Character
 console_in:
 	in 	a,(3)					; get status
 	and 	002h					; check RxRDY bit
@@ -193,7 +205,10 @@ console_in:
 	AND	7fh					; strip parity bit
 	ret
 
-; console character output from register c
+; console_out
+;**************************************************************
+;  Write a character out to the console
+;	In:	C = Character
 console_out:
 	in	a,(3)
 	and	001h					; check TxRDY bit
@@ -202,39 +217,56 @@ console_out:
 	out	(2),a					; out to port
 	ret
 
-; list character from register c
+; list_out
+;**************************************************************
+;  Write out a character to the list device
+;	In:	C = Character
 list_out:
 	LD 	a, c	  				; character to register a
 	ret		  				; null subroutine
 
-; return list status (0 if not ready, 1 if ready)
+; list_status
+;**************************************************************
+;  Returns the status of the list device
+;	Out:	A = 1 if ready, 0 if not
 list_status:
 	XOR	a	 				; 0 is always ok to return
 	ret
 
-; punch	character from register C
+; punch_out
+;**************************************************************
+;  Write a character to the punch device
+;	In:	C = Character
 punch_out:
 	LD 	a, c					; character to register a
 	ret						; null subroutine
 
-; reader character into register a from reader device
+; reader_in
+;**************************************************************
+;  Read a character from the reader device
+;	Out:	A = Character
 reader_in:
 	LD     a, 1ah					; enter end of file for now (replace later)
 	AND    7fh					; remember to strip parity bit
 	ret
 
-; i/o drivers for the disk follow
-; for now, we will simply store the parameters away for use
-; in the read and write	subroutines
+;**************************************************************
+; Disk device handler
+;**************************************************************
 
-; move to the track 00	position of current drive
+; disk_home
+;**************************************************************
+;  Move the head to the first track (00)
 disk_home:
 	; translate this call into a disk_track_set call with Parameter 00
 	LD     c, 0					; select track 0
 	call   disk_track_set
 	ret						; we will move to 00 on first read/write
 
-; select disk given by register c
+; disk_select
+;**************************************************************
+;  Select disk drive
+;	In:	C = Drive to select
 disk_select:
 	LD	HL, 0000h				; error return code
 	LD 	a, c
@@ -255,18 +287,30 @@ disk_select:
 	ADD	HL,DE					; hl=,disk_param_header (diskno*16) Note typo here in original source.
 	ret
 
-; set track given by register c
+; disk_track_set
+;**************************************************************
+;  Set disk track for following operations
+;	In:	C = Disk track
 disk_track_set:
 	LD 	a, c
 	LD	(track),A
 	ret
 
-; set sector given by register c
+; disk_sector_set
+;**************************************************************
+;  Set disk sector for following operations
+;	In:	C = Disk sector
 disk_sector_set:
 	LD 	a, c
 	LD	(sector),A
 	ret
 
+; disk_sector_translate
+;**************************************************************
+;  Translate a disk sector from virtual to physical
+;	In:	BC = Virtual sector
+;		DE = Sector translation table
+;	Out:	HL = Physical sector
 disk_sector_translate:
 	;translate the sector given by bc using the
 	;translate table given by de
@@ -277,21 +321,26 @@ disk_sector_translate:
 	LD 	h, 0					; hl=sector_translate (sector)
 	ret						; with value in hl
 
-; set dma address given by registers b and c
+; disk_dma_set
+;**************************************************************
+;  Set DMA address for following operations
+;	In:	BC = DMA buffer address
 disk_dma_set:
 	LD 	l, c					; low order address
 	LD 	h, b					; high order address
 	LD	(dmaad),HL				; save the address
 	ret
 
+; disk_read
+;**************************************************************
+;  Read one CP/M sector from disk into DMA buffer.
+;	In:
+;		Disk number in 'diskno'
+;		Track number in 'track'
+;		Sector number in 'sector'
+;		Dma address in 'dmaad' (0-65535)
+;	Out:	A = 0x0 if operation completes, 0x1 if an error occurs
 disk_read:
-;Read one CP/M sector from disk.
-;Return a 00h in register a if the operation completes properly, and 0lh if an error occurs during the read.
-;Disk number in 'diskno'
-;Track number in 'track'
-;Sector number in 'sector'
-;Dma address in 'dmaad' (0-65535)
-;
 			ld	hl,hstbuf		;buffer to place disk sector (256 bytes)
 rd_status_loop_1:	in	a,(0fh)			;check status
 			and	80h			;check BSY bit
@@ -336,13 +385,16 @@ rd_sector_loop:		ld	a,(de)			;get byte from host buffer
 			and	01h			;error bit
 			ret
 
+; disk_write
+;**************************************************************
+;  Write one CP/M sector to disk from the DMA buffer.
+;	In:
+;		Disk number in 'diskno'
+;		Track number in 'track'
+;		Sector number in 'sector'
+;		Dma address in 'dmaad' (0-65535)
+;	Out:	A = 0x0 if operation completes, 0x1 if an error occurs
 disk_write:
-;Write one CP/M sector to disk.
-;Return a 00h in register a if the operation completes properly, and 0lh if an error occurs during the read or write
-;Disk number in 'diskno'
-;Track number in 'track'
-;Sector number in 'sector'
-;Dma address in 'dmaad' (0-65535)
 			ld	hl,(dmaad)		;memory location of data to write
 			ld	de,hstbuf		;host buffer
 			ld	b,128			;size of CP/M sector
@@ -386,28 +438,29 @@ wr_wait_for_BSY_clear:	in	a,(0fh)
 			and	01h			;check for error
 			ret
 
+;**************************************************************
 ;	the remainder of the cbios is reserved uninitialized
 ;	data area, and does not need to be a Part of the
 ;	system	memory image (the space must be available,
 ;	however, between"begdat" and"enddat").
 ;
-track:	defs	2		;two bytes for expansion
-sector:	defs	2		;two bytes for expansion
-dmaad:	defs	2		;direct memory address
-diskno:	defs	1		;disk number 0-15
-;
-;	scratch ram area for bdos use
-begdat:	equ	$	 	;beginning of data area
-dirbf:	defs	128	 	;scratch directory area
-all00:	defs	31	 	;allocation vector 0
-all01:	defs	31	 	;allocation vector 1
-all02:	defs	31	 	;allocation vector 2
-all03:	defs	31	 	;allocation vector 3
-chk00:	defs	16		;check vector 0
-chk01:	defs	16		;check vector 1
-chk02:	defs	16	 	;check vector 2
-chk03:	defs	16	 	;check vector 3
-;
-enddat:	equ	$	 	;end of data area
-datsiz:	equ	$-begdat;	;size of data area
-hstbuf: ds	256		;buffer for host disk sector
+track:		defs	2				; two bytes for expansion
+sector:		defs	2				; two bytes for expansion
+dmaad:		defs	2				; direct memory address
+diskno:		defs	1				; disk number 0-15
+
+; scratch ram area for bdos use
+begdat:		equ	$			 	; beginning of data area
+dirbf:		defs	128	 			; scratch directory area
+all00:		defs	31	 			; allocation vector 0
+all01:		defs	31	 			; allocation vector 1
+all02:		defs	31	 			; allocation vector 2
+all03:		defs	31	 			; allocation vector 3
+chk00:		defs	16				; check vector 0
+chk01:		defs	16				; check vector 1
+chk02:		defs	16	 			; check vector 2
+chk03:		defs	16	 			; check vector 3
+
+enddat:		equ	$	 			; end of data area
+datsiz:		equ	$-begdat;			; size of data area
+hstbuf: 	ds	256				; buffer for host disk sector
