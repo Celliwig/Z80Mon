@@ -13,23 +13,24 @@ org	bios_base					; origin of this program
 seek	bios_offset
 
 ; jump vector for individual subroutines
-	JP	boot					; cold start
-wboote:	JP	wboot					; warm start
-	JP	const					; console status
-	JP	conin					; console character in
-	JP	conout					; console character out
-	JP	list					; list character out
-	JP	punch					; punch character out
-	JP	reader					; reader character out
-	JP	home					; move head to home position
-	JP	seldsk					; select disk
-	JP	settrk					; set track number
-	JP	setsec					; set sector number
-	JP	setdma					; set dma address
-	JP	read					; read disk
-	JP	write					; write disk
-	JP	listst					; return list status
-	JP	sectran					; sector translate
+	jp	boot					; cold start
+warmboot_entry:
+	jp	warmboot				; warm start
+	jp	const					; console status
+	jp	conin					; console character in
+	jp	conout					; console character out
+	jp	list					; list character out
+	jp	punch					; punch character out
+	jp	reader					; reader character out
+	jp	home					; move head to home position
+	jp	seldsk					; select disk
+	jp	settrk					; set track number
+	jp	setsec					; set sector number
+	jp	setdma					; set dma address
+	jp	read					; read disk
+	jp	write					; write disk
+	jp	listst					; return list status
+	jp	sectran					; sector translate
 
 ; fixed data tables for four-drive standard
 ; ibm-compatible 8" disks
@@ -90,7 +91,7 @@ boot:
 	JP	gocpm					; initialize and go to cp/m
 
 ; simplest case is to read the disk until all sectors loaded
-wboot:
+warmboot:
 	LD	sp, 80h					; use space below buffer for stack
 	LD 	c, 0					; select disk 0
 	call	seldsk
@@ -115,7 +116,7 @@ load1:	;load	one more sector
 	; drive set to 0, track set, sector set, dma address set
 	call	read
 	CP	00h					; any errors?
-	JP	NZ,wboot				; retry the entire boot if an error occurs
+	JP	NZ,warmboot				; retry the entire boot if an error occurs
 
 	; no error, move to next sector
 	pop	HL					; recall dma address
@@ -149,8 +150,8 @@ load1:	;load	one more sector
 ; end of load operation, set parameters and go to cp/m
 gocpm:
 	LD 	a, 0c3h					; c3 is a jmp instruction
-	LD	(0),A					; for jmp to wboot
-	LD	HL, wboote				; wboot entry point
+	LD	(0),A					; for jmp to warmboot
+	LD	HL, warmboot_entry			; warmboot entry point
 	LD	(1),HL					; set address field for jmp at 0
 
 	LD	(5),A					; for jmp to bdos
