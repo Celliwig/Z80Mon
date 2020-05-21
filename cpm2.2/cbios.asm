@@ -4,10 +4,10 @@
 ;*
 ;**************************************************************
 
-iobyte:		equ	0003h				; intel i/o byte
-current_disk:	equ	0004h				; address of current disk number 0=a,... l5=p
-num_disks:	equ	04h				; number of disks in the system
-nsects:		equ	($-ccp_base)/128		; warm start sector count
+iobyte:			equ	0003h			; intel i/o byte
+current_disk:		equ	0004h			; address of current disk number 0=a,... l5=p
+num_disks:		equ	04h			; number of disks in the system
+nsects:			equ	($-ccp_base)/128	; warm start sector count
 
 org	bios_base					; origin of this program
 seek	bios_offset
@@ -38,50 +38,50 @@ warmboot_entry:
 ;**************************************************************
 disk_param_header:
 ; disk Parameter header for disk 00
-	defw	0000h, 0000h
-	defw	0000h, 0000h
-	defw	dirbf, disk_param_block
-	defw	chk00, all00
+	dw	0000h, 0000h
+	dw	0000h, 0000h
+	dw	directory_buffer, disk_param_block
+	dw	directory_check00, storage_alloc00
 ; disk parameter header for disk 01
-	defw	0000h, 0000h
-	defw	0000h, 0000h
-	defw	dirbf, disk_param_block
-	defw	chk01, all01
+	dw	0000h, 0000h
+	dw	0000h, 0000h
+	dw	directory_buffer, disk_param_block
+	dw	directory_check01, storage_alloc01
 ; disk parameter header for disk 02
-	defw	0000h, 0000h
-	defw	0000h, 0000h
-	defw	dirbf, disk_param_block
-	defw	chk02, all02
+	dw	0000h, 0000h
+	dw	0000h, 0000h
+	dw	directory_buffer, disk_param_block
+	dw	directory_check02, storage_alloc02
 ; disk parameter header for disk 03
-	defw	0000h, 0000h
-	defw	0000h, 0000h
-	defw	dirbf, disk_param_block
-	defw	chk03, all03
+	dw	0000h, 0000h
+	dw	0000h, 0000h
+	dw	directory_buffer, disk_param_block
+	dw	directory_check03, storage_alloc03
 
-; Sector translate vector
-;**************************************************************
-sector_translate:
-	defm	 1,  7, 13, 19				; sectors  1,  2,  3,  4
-	defm	25,  5, 11, 17				; sectors  5,  6,  7,  6
-	defm	23,  3,  9, 15				; sectors  9, 10, 11, 12
-	defm	21,  2,  8, 14				; sectors 13, 14, 15, 16
-	defm	20, 26,  6, 12				; sectors 17, 18, 19, 20
-	defm	18, 24,  4, 10				; sectors 21, 22, 23, 24
-	defm	16, 22					; sectors 25, 26
+;; Sector translate vector
+;;**************************************************************
+;sector_translate:
+;	db	 1,  7, 13, 19				; sectors  1,  2,  3,  4
+;	db	25,  5, 11, 17				; sectors  5,  6,  7,  6
+;	db	23,  3,  9, 15				; sectors  9, 10, 11, 12
+;	db	21,  2,  8, 14				; sectors 13, 14, 15, 16
+;	db	20, 26,  6, 12				; sectors 17, 18, 19, 20
+;	db	18, 24,  4, 10				; sectors 21, 22, 23, 24
+;	db	16, 22					; sectors 25, 26
 
 ; Disk parameter block for all disks.
 ;**************************************************************
 disk_param_block:
-	defw	26					; sectors per track
-	defm	3					; block shift factor
-	defm	7					; block mask
-	defm	0					; null mask
-	defw	242					; disk size-1
-	defw	63					; directory max
-	defm	192					; alloc 0
-	defm	0					; alloc 1
-	defw	0					; check size
-	defw	2					; track offset
+	dw	26					; sectors per track
+	db	3					; block shift factor
+	db	7					; block mask
+	db	0					; null mask
+	dw	242					; disk size-1
+	dw	63					; directory max
+	db	192					; alloc 0
+	db	0					; alloc 1
+	dw	0					; check size
+	dw	2					; track offset
 
 ; end of fixed tables
 
@@ -444,23 +444,23 @@ wr_wait_for_BSY_clear:	in	a,(0fh)
 ;	system	memory image (the space must be available,
 ;	however, between"begdat" and"enddat").
 ;
-track:		defs	2				; two bytes for expansion
-sector:		defs	2				; two bytes for expansion
-dmaad:		defs	2				; direct memory address
-diskno:		defs	1				; disk number 0-15
+track:			defs	2			; two bytes for expansion
+sector:			defs	2			; two bytes for expansion
+dmaad:			defs	2			; direct memory address
+diskno:			defs	1			; disk number 0-15
 
 ; scratch ram area for bdos use
-begdat:		equ	$			 	; beginning of data area
-dirbf:		defs	128	 			; scratch directory area
-all00:		defs	31	 			; allocation vector 0
-all01:		defs	31	 			; allocation vector 1
-all02:		defs	31	 			; allocation vector 2
-all03:		defs	31	 			; allocation vector 3
-chk00:		defs	16				; check vector 0
-chk01:		defs	16				; check vector 1
-chk02:		defs	16	 			; check vector 2
-chk03:		defs	16	 			; check vector 3
+begdat:			equ	$			; beginning of data area
+directory_buffer:	defs	128	 		; scratch directory area
+storage_alloc00:	defs	31	 		; allocation vector 0
+storage_alloc01:	defs	31	 		; allocation vector 1
+storage_alloc02:	defs	31	 		; allocation vector 2
+storage_alloc03:	defs	31	 		; allocation vector 3
+directory_check00:	defs	16			; check vector 0
+directory_check01:	defs	16			; check vector 1
+directory_check02:	defs	16	 		; check vector 2
+directory_check03:	defs	16	 		; check vector 3
 
-enddat:		equ	$	 			; end of data area
-datsiz:		equ	$-begdat;			; size of data area
-hstbuf: 	ds	256				; buffer for host disk sector
+enddat:			equ	$	 		; end of data area
+datsiz:			equ	$-begdat;		; size of data area
+hstbuf: 		ds	256			; buffer for host disk sector
