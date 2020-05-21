@@ -89,10 +89,10 @@ disk_param_block:
 ;**************************************************************
 ;  Cold boot routine
 boot:
-	XOR	a					; zero in the accum
-	LD	(iobyte),A				; clear the iobyte
-	LD	(current_disk),A			; select disk zero
-	JP	go_cpm					; initialize and go to cp/m
+	xor	a					; Clear A
+	ld	(iobyte), a				; Clear the iobyte
+	ld	(current_disk), a			; Select disk zero
+	jp	go_cpm					; Initialize and go to cp/m
 
 ; warmboot
 ;**************************************************************
