@@ -1,14 +1,12 @@
 ;	skeletal cbios for first level of CP/M 2.0 alteration
 ;
-ccp:	equ	0E400h		;base of ccp
-bdos:	equ	0EC06h		;bdos entry
-bios:	equ	0FA00h		;base of bios
 cdisk:	equ	0004h		;address of current disk number 0=a,... l5=p
 iobyte:	equ	0003h		;intel i/o byte
 disks:	equ	04h		;number of disks in the system
 ;
-	org	bios		;origin of this program
-nsects:	equ	($-ccp)/128	;warm start sector count
+	org	bios_base		;origin of this program
+	seek	bios_offset
+nsects:	equ	($-ccp_base)/128	;warm start sector count
 ;
 ;	jump vector for individual subroutines
 ;
@@ -96,7 +94,7 @@ wboot:	;simplest case is to read the disk until all sectors loaded
 	LD 	d, 2		;d has the next sector to read
 ;	note that we begin by reading track 0, sector 2 since sector 1
 ;	contains the cold start loader, which is skipped in a warm start
-	LD	HL, ccp		;base of cp/m (initial load point)
+	LD	HL, ccp_base		;base of cp/m (initial load point)
 load1:	;load	one more sector
 	PUSH	BC		;save sector count, current track
 	PUSH	DE		;save next sector to read
@@ -149,7 +147,7 @@ gocpm:
 	LD	(1),HL		;set address field for jmp at 0
 ;
 	LD	(5),A		;for jmp to bdos
-	LD	HL, bdos	;bdos entry point
+	LD	HL, bdos_base	;bdos entry point
 	LD	(6),HL		;address field of Jump at 5 to bdos
 ;
 	LD	BC, 80h		;default dma address is 80h
@@ -161,7 +159,7 @@ gocpm:
 	jp	c,diskok	;disk valid, go to ccp
 	ld	a,0		;invalid disk, change to disk 0
 diskok:	LD 	c, a		;send to the ccp
-	JP	ccp		;go to cp/m for further processing
+	JP	ccp_base		;go to cp/m for further processing
 ;
 ;
 ;	simple i/o handlers (must be filled in by user)

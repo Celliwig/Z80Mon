@@ -8,11 +8,6 @@
 ;*
 ;**************************************************************
 ;
-;   Set memory limit here. This is the amount of contigeous
-; ram starting from 0000. CP/M will reside at the end of this space.
-;
-MEM:	EQU	63		; 64k system, but need 1k for framebuffer
-;
 IOBYTE:	EQU	3		;i/o definition byte.
 TDRIVE:	EQU	4		;current drive name and user number.
 ENTRY:	EQU	5		;entry point for the cp/m bdos.
@@ -39,7 +34,8 @@ DEL:	EQU	7FH		;rubout
 ;
 ;   Set origin for CP/M
 ;
-	ORG	(MEM-7)*1024
+	org	ccp_base
+	seek	ccp_offset
 ;
 CBASE:	JP	COMMAND		;execute command processor (ccp).
 	JP	CLEARBUF	;entry to empty input buffer before starting ccp.

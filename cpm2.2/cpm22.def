@@ -1,0 +1,17 @@
+;**************************************************************
+;*
+;*             C P / M   version   2 . 2
+;*
+;**************************************************************
+
+;* Memory definitions
+;**************************************************************
+;   Set memory limit here. This is the amount of contigeous
+; ram starting from 0000. CP/M will reside at the end of this space.
+memory_size:		equ		63				; 64k system, but need 1k for framebuffer
+
+ccp_base:		equ		(memory_size-7)*1024		; CCP base address
+ccp_offset:		equ		0x0000				; Offset to CCP in the built hex file
+bdos_base:		equ		ccp_base+0x806			; BDOS base address
+bios_base:		equ		ccp_base+0x1600			; BIOS base address
+bios_offset:		equ		ccp_offset+0x1600		; Offset to BIOS in the built hex file
