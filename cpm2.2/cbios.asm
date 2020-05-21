@@ -22,15 +22,15 @@ warmboot_entry:
 	jp	list_out				; list character out
 	jp	punch_out				; punch character out
 	jp	reader_in				; reader character out
-	jp	home					; move head to home position
-	jp	seldsk					; select disk
-	jp	settrk					; set track number
-	jp	setsec					; set sector number
-	jp	setdma					; set dma address
-	jp	read					; read disk
-	jp	write					; write disk
+	jp	disk_home				; move head to home position
+	jp	disk_select				; select disk
+	jp	disk_track_set				; set track number
+	jp	disk_sector_set				; set sector number
+	jp	disk_dma_set				; set dma address
+	jp	disk_read				; read disk
+	jp	disk_write				; write disk
 	jp	list_status				; return list status
-	jp	sectran					; sector translate
+	jp	disk_sector_translate			; sector translate
 
 ; fixed data tables for four-drive standard
 ; ibm-compatible 8" disks
@@ -94,27 +94,27 @@ boot:
 warmboot:
 	LD	sp, 80h					; use space below buffer for stack
 	LD 	c, 0					; select disk 0
-	call	seldsk
-	call	home					; go to track 00
+	call	disk_select
+	call	disk_home				; go to track 00
 
 	LD 	b, nsects				; b counts * of sectors to load
 	LD 	c, 0					; c has the current track number
 	LD 	d, 2					; d has the next sector to read
-;	note that we begin by reading track 0, sector 2 since sector 1
-;	contains the cold start loader, which is skipped in a warm start
+	; note that we begin by reading track 0, sector 2 since sector 1
+	; contains the cold start loader, which is skipped in a warm start
 	LD	HL, ccp_base				; base of cp/m (initial load point)
-load1:	;load	one more sector
+load1:							; load one more sector
 	PUSH	BC					; save sector count, current track
 	PUSH	DE					; save next sector to read
 	PUSH	HL					; save dma address
 	LD 	c, d					; get sector address to register C
-	call	setsec					; set sector address from register C
+	call	disk_sector_set				; set sector address from register C
 	pop	BC					; recall dma address to b, C
 	PUSH	BC					; replace on stack for later recall
-	call	setdma					; set dma address from b, C
+	call	disk_dma_set				; set dma address from b, C
 
 	; drive set to 0, track set, sector set, dma address set
-	call	read
+	call	disk_read
 	CP	00h					; any errors?
 	JP	NZ,warmboot				; retry the entire boot if an error occurs
 
@@ -141,7 +141,7 @@ load1:	;load	one more sector
 	PUSH	BC
 	PUSH	DE
 	PUSH	HL
-	call	settrk					; track address set from register c
+	call	disk_track_set				; track address set from register c
 	pop	HL
 	pop	DE
 	pop	BC
@@ -159,7 +159,7 @@ go_cpm:
 	LD	(6),HL					; address field of Jump at 5 to bdos
 
 	LD	BC, 80h					; default dma address is 80h
-	call	setdma
+	call	disk_dma_set
 
 	ei						; enable the interrupt system
 	LD	A,(current_disk)			; get current disk number
@@ -228,14 +228,14 @@ reader_in:
 ; in the read and write	subroutines
 
 ; move to the track 00	position of current drive
-home:
-	; translate this call into a settrk call with Parameter 00
+disk_home:
+	; translate this call into a disk_track_set call with Parameter 00
 	LD     c, 0					; select track 0
-	call   settrk
+	call   disk_track_set
 	ret						; we will move to 00 on first read/write
 
 ; select disk given by register c
-seldsk:
+disk_select:
 	LD	HL, 0000h				; error return code
 	LD 	a, c
 	LD	(diskno),A
@@ -256,18 +256,18 @@ seldsk:
 	ret
 
 ; set track given by register c
-settrk:
+disk_track_set:
 	LD 	a, c
 	LD	(track),A
 	ret
 
 ; set sector given by register c
-setsec:
+disk_sector_set:
 	LD 	a, c
 	LD	(sector),A
 	ret
 
-sectran:
+disk_sector_translate:
 	;translate the sector given by bc using the
 	;translate table given by de
 	EX	DE,HL					; hl=.sector_translate
@@ -278,13 +278,13 @@ sectran:
 	ret						; with value in hl
 
 ; set dma address given by registers b and c
-setdma:
+disk_dma_set:
 	LD 	l, c					; low order address
 	LD 	h, b					; high order address
 	LD	(dmaad),HL				; save the address
 	ret
 
-read:
+disk_read:
 ;Read one CP/M sector from disk.
 ;Return a 00h in register a if the operation completes properly, and 0lh if an error occurs during the read.
 ;Disk number in 'diskno'
@@ -336,7 +336,7 @@ rd_sector_loop:		ld	a,(de)			;get byte from host buffer
 			and	01h			;error bit
 			ret
 
-write:
+disk_write:
 ;Write one CP/M sector to disk.
 ;Return a 00h in register a if the operation completes properly, and 0lh if an error occurs during the read or write
 ;Disk number in 'diskno'
