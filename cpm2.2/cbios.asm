@@ -98,82 +98,82 @@ boot:
 ;**************************************************************
 ;  Simplest case is to read the disk until all sectors loaded
 warmboot:
-	LD	sp, 80h					; use space below buffer for stack
-	LD 	c, 0					; select disk 0
+	ld	sp, 80h					; use space below buffer for stack
+	ld 	c, 0					; select disk 0
 	call	disk_select
 	call	disk_home				; go to track 00
 
-	LD 	b, nsects				; b counts * of sectors to load
-	LD 	c, 0					; c has the current track number
-	LD 	d, 2					; d has the next sector to read
+	ld 	b, nsects				; b counts * of sectors to load
+	ld 	c, 0					; c has the current track number
+	ld 	d, 2					; d has the next sector to read
 	; note that we begin by reading track 0, sector 2 since sector 1
 	; contains the cold start loader, which is skipped in a warm start
-	LD	HL, ccp_base				; base of cp/m (initial load point)
+	ld	hl, ccp_base				; base of cp/m (initial load point)
 load1:							; load one more sector
-	PUSH	BC					; save sector count, current track
-	PUSH	DE					; save next sector to read
-	PUSH	HL					; save dma address
-	LD 	c, d					; get sector address to register C
+	push	bc					; save sector count, current track
+	push	de					; save next sector to read
+	push	hl					; save dma address
+	ld	c, d					; get sector address to register C
 	call	disk_sector_set				; set sector address from register C
-	pop	BC					; recall dma address to b, C
-	PUSH	BC					; replace on stack for later recall
+	pop	bc					; recall dma address to b, C
+	push	bc					; replace on stack for later recall
 	call	disk_dma_set				; set dma address from b, C
 
 	; drive set to 0, track set, sector set, dma address set
 	call	disk_read
-	CP	00h					; any errors?
-	JP	NZ,warmboot				; retry the entire boot if an error occurs
+	cp	00h					; any errors?
+	jp	nz, warmboot				; retry the entire boot if an error occurs
 
 	; no error, move to next sector
-	pop	HL					; recall dma address
-	LD	DE, 128					; dma=dma+128
-	ADD	HL,DE					; new dma address is in h, l
-	pop	DE					; recall sector address
-	pop	BC					; recall number of sectors remaining, and current trk
-	DEC	b					; sectors=sectors-1
-	JP	Z,go_cpm				; transfer to cp/m if all have been loaded
+	pop	hl					; recall dma address
+	ld	de, 128					; dma=dma+128
+	add	hl, de					; new dma address is in h, l
+	pop	de					; recall sector address
+	pop	bc					; recall number of sectors remaining, and current trk
+	dec	b					; sectors=sectors-1
+	jp	Z,go_cpm				; transfer to cp/m if all have been loaded
 
 	; more sectors remain to load, check for track change
-	INC	d
-	LD 	a,d					; sector=27?, if so, change tracks
-	CP	27
-	JP	C,load1					; carry generated if sector<27
+	inc	d
+	ld	a, d					; sector=27?, if so, change tracks
+	cp	27
+	jp	c, load1				; carry generated if sector<27
 
 	; end of current track,	go to next track
-	LD 	d, 1					; begin with first sector of next track
-	INC	c					; track=track+1
+	ld 	d, 1					; begin with first sector of next track
+	inc	c					; track=track+1
 
 	; save register state, and change tracks
-	PUSH	BC
-	PUSH	DE
-	PUSH	HL
+	push	bc
+	push	de
+	push	hl
 	call	disk_track_set				; track address set from register c
-	pop	HL
-	pop	DE
-	pop	BC
-	JP	load1					; for another sector
+	pop	hl
+	pop	de
+	pop	bc
+	jp	load1					; for another sector
 
 ; end of load operation, set parameters and go to cp/m
 go_cpm:
-	LD 	a, 0c3h					; c3 is a jmp instruction
-	LD	(0),A					; for jmp to warmboot
-	LD	HL, warmboot_entry			; warmboot entry point
-	LD	(1),HL					; set address field for jmp at 0
+	ld 	a, 0c3h					; c3 is a jmp instruction
+	ld	(0), a					; for jmp to warmboot
+	ld	hl, warmboot_entry			; warmboot entry point
+	ld	(1), hl					; set address field for jmp at 0
 
-	LD	(5),A					; for jmp to bdos
-	LD	HL, bdos_base				; bdos entry point
-	LD	(6),HL					; address field of Jump at 5 to bdos
+	ld	(5), A					; for jmp to bdos
+	ld	hl, bdos_base				; bdos entry point
+	ld	(6), hl					; address field of Jump at 5 to bdos
 
-	LD	BC, 80h					; default dma address is 80h
+	ld	bc, 80h					; default dma address is 80h
 	call	disk_dma_set
 
 	ei						; enable the interrupt system
-	LD	A,(current_disk)			; get current disk number
+	ld	A, (current_disk)			; get current disk number
 	cp	num_disks				; see if valid disk number
-	jp	c,diskok				; disk valid, go to ccp
-	ld	a,0					; invalid disk, change to disk 0
-diskok:	LD 	c, a					; send to the ccp
-	JP	ccp_base				; go to cp/m for further processing
+	jp	c, diskok				; disk valid, go to ccp
+	ld	a, 0					; invalid disk, change to disk 0
+diskok:	ld 	c, a					; send to the ccp
+	jp	ccp_base				; go to cp/m for further processing
 
 
 ;**************************************************************
@@ -222,7 +222,7 @@ console_out:
 ;  Write out a character to the list device
 ;	In:	C = Character
 list_out:
-	LD 	a, c	  				; character to register a
+	ld 	a, c	  				; character to register a
 	ret		  				; null subroutine
 
 ; list_status
@@ -230,7 +230,7 @@ list_out:
 ;  Returns the status of the list device
 ;	Out:	A = 1 if ready, 0 if not
 list_status:
-	XOR	a	 				; 0 is always ok to return
+	xor	a	 				; 0 is always ok to return
 	ret
 
 ; punch_out
@@ -238,7 +238,7 @@ list_status:
 ;  Write a character to the punch device
 ;	In:	C = Character
 punch_out:
-	LD 	a, c					; character to register a
+	ld 	a, c					; character to register a
 	ret						; null subroutine
 
 ; reader_in
@@ -246,8 +246,8 @@ punch_out:
 ;  Read a character from the reader device
 ;	Out:	A = Character
 reader_in:
-	LD     a, 1ah					; enter end of file for now (replace later)
-	AND    7fh					; remember to strip parity bit
+	ld	a, 1ah					; enter end of file for now (replace later)
+	and	7fh					; remember to strip parity bit
 	ret
 
 ;**************************************************************
@@ -259,8 +259,8 @@ reader_in:
 ;  Move the head to the first track (00)
 disk_home:
 	; translate this call into a disk_track_set call with Parameter 00
-	LD     c, 0					; select track 0
-	call   disk_track_set
+	ld	c, 0					; select track 0
+	call	disk_track_set
 	ret						; we will move to 00 on first read/write
 
 ; disk_select
@@ -268,23 +268,23 @@ disk_home:
 ;  Select disk drive
 ;	In:	C = Drive to select
 disk_select:
-	LD	HL, 0000h				; error return code
-	LD 	a, c
-	LD	(diskno),A
-	CP	num_disks				; must be between 0 and 3
-	RET	NC					; no carry if 4, 5,...
+	ld	hl, 0000h				; error return code
+	ld 	a, c
+	ld	(diskno), a
+	cp	num_disks				; must be between 0 and 3
+	ret	nc					; no carry if 4, 5,...
 	; disk number is in the proper range
 	; defs	10					; space for disk select
 	; compute proper disk Parameter header address
-	LD	A,(diskno)
-	LD 	l, a					; l=disk number 0, 1, 2, 3
-	LD 	h, 0					; high order zero
-	ADD	HL,HL					; *2
-	ADD	HL,HL					; *4
-	ADD	HL,HL					; *8
-	ADD	HL,HL					; *16 (size of each header)
-	LD	DE, disk_param_header
-	ADD	HL,DE					; hl=,disk_param_header (diskno*16) Note typo here in original source.
+	ld	a, (diskno)
+	ld 	l, a					; l=disk number 0, 1, 2, 3
+	ld 	h, 0					; high order zero
+	add	hl, hl					; *2
+	add	hl, hl					; *4
+	add	hl, hl					; *8
+	add	hl, hl					; *16 (size of each header)
+	ld	de, disk_param_header
+	add	hl, de					; hl=,disk_param_header (diskno*16) Note typo here in original source.
 	ret
 
 ; disk_track_set
@@ -292,8 +292,8 @@ disk_select:
 ;  Set disk track for following operations
 ;	In:	C = Disk track
 disk_track_set:
-	LD 	a, c
-	LD	(track),A
+	ld 	a, c
+	ld	(track), a
 	ret
 
 ; disk_sector_set
@@ -301,8 +301,8 @@ disk_track_set:
 ;  Set disk sector for following operations
 ;	In:	C = Disk sector
 disk_sector_set:
-	LD 	a, c
-	LD	(sector),A
+	ld 	a, c
+	ld	(sector), a
 	ret
 
 ; disk_sector_translate
@@ -314,11 +314,11 @@ disk_sector_set:
 disk_sector_translate:
 	;translate the sector given by bc using the
 	;translate table given by de
-	EX	DE,HL					; hl=.sector_translate
-	ADD	HL,BC					; hl=.sector_translate (sector)
+	ex	de, hl					; hl=.sector_translate
+	add	hl, bc					; hl=.sector_translate (sector)
 	ret						; debug no translation
-	LD 	l, (hl)					; l=sector_translate (sector)
-	LD 	h, 0					; hl=sector_translate (sector)
+	ld	l, (hl)					; l=sector_translate (sector)
+	ld	h, 0					; hl=sector_translate (sector)
 	ret						; with value in hl
 
 ; disk_dma_set
@@ -326,9 +326,9 @@ disk_sector_translate:
 ;  Set DMA address for following operations
 ;	In:	BC = DMA buffer address
 disk_dma_set:
-	LD 	l, c					; low order address
-	LD 	h, b					; high order address
-	LD	(dmaad),HL				; save the address
+	ld	l, c					; low order address
+	ld	h, b					; high order address
+	ld	(dmaad), hl				; save the address
 	ret
 
 ; disk_read
