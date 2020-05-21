@@ -16,12 +16,12 @@ seek	bios_offset
 	jp	boot					; cold start
 warmboot_entry:
 	jp	warmboot				; warm start
-	jp	const					; console status
-	jp	conin					; console character in
-	jp	conout					; console character out
-	jp	list					; list character out
-	jp	punch					; punch character out
-	jp	reader					; reader character out
+	jp	console_status				; console status
+	jp	console_in				; console character in
+	jp	console_out				; console character out
+	jp	list_out				; list character out
+	jp	punch_out				; punch character out
+	jp	reader_in				; reader character out
 	jp	home					; move head to home position
 	jp	seldsk					; select disk
 	jp	settrk					; set track number
@@ -29,7 +29,7 @@ warmboot_entry:
 	jp	setdma					; set dma address
 	jp	read					; read disk
 	jp	write					; write disk
-	jp	listst					; return list status
+	jp	list_status				; return list status
 	jp	sectran					; sector translate
 
 ; fixed data tables for four-drive standard
@@ -88,7 +88,7 @@ boot:
 	XOR	a					; zero in the accum
 	LD	(iobyte),A				; clear the iobyte
 	LD	(current_disk),A			; select disk zero
-	JP	gocpm					; initialize and go to cp/m
+	JP	go_cpm					; initialize and go to cp/m
 
 ; simplest case is to read the disk until all sectors loaded
 warmboot:
@@ -125,7 +125,7 @@ load1:	;load	one more sector
 	pop	DE					; recall sector address
 	pop	BC					; recall number of sectors remaining, and current trk
 	DEC	b					; sectors=sectors-1
-	JP	Z,gocpm					; transfer to cp/m if all have been loaded
+	JP	Z,go_cpm				; transfer to cp/m if all have been loaded
 
 	; more sectors remain to load, check for track change
 	INC	d
@@ -148,7 +148,7 @@ load1:	;load	one more sector
 	JP	load1					; for another sector
 
 ; end of load operation, set parameters and go to cp/m
-gocpm:
+go_cpm:
 	LD 	a, 0c3h					; c3 is a jmp instruction
 	LD	(0),A					; for jmp to warmboot
 	LD	HL, warmboot_entry			; warmboot entry point
@@ -175,7 +175,7 @@ diskok:	LD 	c, a					; send to the ccp
 ; to insert your own code
 
 ; console status, return 0ffh if character ready, 00h if not
-const:
+console_status:
 	in 	a,(3)					; get status
 	and 	002h					; check RxRDY bit
 	jp 	z,no_char
@@ -185,40 +185,40 @@ no_char:ld	a,00h					; no char
 	ret
 
 ; console character into register a
-conin:
+console_in:
 	in 	a,(3)					; get status
 	and 	002h					; check RxRDY bit
-	jp 	z,conin					; loop until char ready
+	jp 	z,console_in				; loop until char ready
 	in 	a,(2)					; get char
 	AND	7fh					; strip parity bit
 	ret
 
 ; console character output from register c
-conout:
+console_out:
 	in	a,(3)
 	and	001h					; check TxRDY bit
-	jp	z,conout				; loop until port ready
+	jp	z,console_out				; loop until port ready
 	ld	a,c					; get the char
 	out	(2),a					; out to port
 	ret
 
 ; list character from register c
-list:
+list_out:
 	LD 	a, c	  				; character to register a
 	ret		  				; null subroutine
 
 ; return list status (0 if not ready, 1 if ready)
-listst:
+list_status:
 	XOR	a	 				; 0 is always ok to return
 	ret
 
-; punch	character from	register C
-punch:
+; punch	character from register C
+punch_out:
 	LD 	a, c					; character to register a
 	ret						; null subroutine
 
 ; reader character into register a from reader device
-reader:
+reader_in:
 	LD     a, 1ah					; enter end of file for now (replace later)
 	AND    7fh					; remember to strip parity bit
 	ret
