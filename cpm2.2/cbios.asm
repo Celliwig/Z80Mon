@@ -5,8 +5,8 @@
 ;**************************************************************
 
 iobyte:		equ	0003h				; intel i/o byte
-cdisk:		equ	0004h				; address of current disk number 0=a,... l5=p
-disks:		equ	04h				; number of disks in the system
+current_disk:	equ	0004h				; address of current disk number 0=a,... l5=p
+num_disks:	equ	04h				; number of disks in the system
 nsects:		equ	($-ccp_base)/128		; warm start sector count
 
 org	bios_base					; origin of this program
@@ -34,30 +34,31 @@ wboote:	JP	wboot					; warm start
 ; fixed data tables for four-drive standard
 ; ibm-compatible 8" disks
 ; no translations
-dpbase:
+disk_param_header:
 ; disk Parameter header for disk 00
 	defw	0000h, 0000h
 	defw	0000h, 0000h
-	defw	dirbf, dpblk
+	defw	dirbf, disk_param_block
 	defw	chk00, all00
 ; disk parameter header for disk 01
 	defw	0000h, 0000h
 	defw	0000h, 0000h
-	defw	dirbf, dpblk
+	defw	dirbf, disk_param_block
 	defw	chk01, all01
 ; disk parameter header for disk 02
 	defw	0000h, 0000h
 	defw	0000h, 0000h
-	defw	dirbf, dpblk
+	defw	dirbf, disk_param_block
 	defw	chk02, all02
 ; disk parameter header for disk 03
 	defw	0000h, 0000h
 	defw	0000h, 0000h
-	defw	dirbf, dpblk
+	defw	dirbf, disk_param_block
 	defw	chk03, all03
 
 ; sector translate vector
-trans:	defm	 1,  7, 13, 19				; sectors  1,  2,  3,  4
+sector_translate:
+	defm	 1,  7, 13, 19				; sectors  1,  2,  3,  4
 	defm	25,  5, 11, 17				; sectors  5,  6,  7,  6
 	defm	23,  3,  9, 15				; sectors  9, 10, 11, 12
 	defm	21,  2,  8, 14				; sectors 13, 14, 15, 16
@@ -66,7 +67,7 @@ trans:	defm	 1,  7, 13, 19				; sectors  1,  2,  3,  4
 	defm	16, 22					; sectors 25, 26
 
 ; disk parameter block for all disks.
-dpblk:
+disk_param_block:
 	defw	26					; sectors per track
 	defm	3					; block shift factor
 	defm	7					; block mask
@@ -85,7 +86,7 @@ dpblk:
 boot:
 	XOR	a					; zero in the accum
 	LD	(iobyte),A				; clear the iobyte
-	LD	(cdisk),A				; select disk zero
+	LD	(current_disk),A			; select disk zero
 	JP	gocpm					; initialize and go to cp/m
 
 ; simplest case is to read the disk until all sectors loaded
@@ -160,8 +161,8 @@ gocpm:
 	call	setdma
 
 	ei						; enable the interrupt system
-	LD	A,(cdisk)				; get current disk number
-	cp	disks					; see if valid disk number
+	LD	A,(current_disk)			; get current disk number
+	cp	num_disks				; see if valid disk number
 	jp	c,diskok				; disk valid, go to ccp
 	ld	a,0					; invalid disk, change to disk 0
 diskok:	LD 	c, a					; send to the ccp
@@ -237,7 +238,7 @@ seldsk:
 	LD	HL, 0000h				; error return code
 	LD 	a, c
 	LD	(diskno),A
-	CP	disks					; must be between 0 and 3
+	CP	num_disks				; must be between 0 and 3
 	RET	NC					; no carry if 4, 5,...
 	; disk number is in the proper range
 	; defs	10					; space for disk select
@@ -249,8 +250,8 @@ seldsk:
 	ADD	HL,HL					; *4
 	ADD	HL,HL					; *8
 	ADD	HL,HL					; *16 (size of each header)
-	LD	DE, dpbase
-	ADD	HL,DE					; hl=,dpbase (diskno*16) Note typo here in original source.
+	LD	DE, disk_param_header
+	ADD	HL,DE					; hl=,disk_param_header (diskno*16) Note typo here in original source.
 	ret
 
 ; set track given by register c
@@ -268,11 +269,11 @@ setsec:
 sectran:
 	;translate the sector given by bc using the
 	;translate table given by de
-	EX	DE,HL					; hl=.trans
-	ADD	HL,BC					; hl=.trans (sector)
+	EX	DE,HL					; hl=.sector_translate
+	ADD	HL,BC					; hl=.sector_translate (sector)
 	ret						; debug no translation
-	LD 	l, (hl)					; l=trans (sector)
-	LD 	h, 0					; hl=trans (sector)
+	LD 	l, (hl)					; l=sector_translate (sector)
+	LD 	h, 0					; hl=sector_translate (sector)
 	ret						; with value in hl
 
 ; set dma address given by registers b and c
