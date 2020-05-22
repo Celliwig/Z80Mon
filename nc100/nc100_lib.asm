@@ -124,9 +124,9 @@ nc100_console_set_local:
 ;  Set the serial port as the console I/O
 nc100_console_set_serial:
 	; Replace dummy console routines
-	ld	de, nc100_serial_char_out_poll
+	ld	de, nc100_serial_polling_char_out
 	ld	(monlib_console_out+1), de
-	ld	de, nc100_serial_char_in_poll
+	ld	de, nc100_serial_polling_char_in
 	ld	(monlib_console_in+1), de
 	call	nc100_serial_config
 	call	nc100_lcd_clear_screen
