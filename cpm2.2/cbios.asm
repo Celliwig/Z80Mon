@@ -92,66 +92,67 @@ boot:
 	xor	a					; Clear A
 	ld	(iobyte), a				; Clear the iobyte
 	ld	(current_disk), a			; Select disk zero
-	jp	go_cpm					; Initialize and go to cp/m
+	jr	go_cpm					; Initialize and go to cp/m
 
 ; warmboot
 ;**************************************************************
 ;  Simplest case is to read the disk until all sectors loaded
 warmboot:
-	ld	sp, 80h					; use space below buffer for stack
-	ld 	c, 0					; select disk 0
+	ld	sp, 0x80				; Use space below buffer for stack
+	ld 	c, 0					; Select disk 0
 	call	disk_select
-	call	disk_home				; go to track 00
+	call	disk_home				; Go to track 00
 
-	ld 	b, nsects				; b counts * of sectors to load
-	ld 	c, 0					; c has the current track number
-	ld 	d, 2					; d has the next sector to read
-	; note that we begin by reading track 0, sector 2 since sector 1
-	; contains the cold start loader, which is skipped in a warm start
-	ld	hl, ccp_base				; base of cp/m (initial load point)
-load1:							; load one more sector
-	push	bc					; save sector count, current track
-	push	de					; save next sector to read
-	push	hl					; save dma address
-	ld	c, d					; get sector address to register C
-	call	disk_sector_set				; set sector address from register C
-	pop	bc					; recall dma address to b, C
-	push	bc					; replace on stack for later recall
-	call	disk_dma_set				; set dma address from b, C
+	ld 	b, nsects				; B counts * of sectors to load
+	ld 	c, 0					; C has the current track number
+	ld 	d, nc100_vdisk_sector_1st+1		; D has the next sector to read (skip first sector)
+							; Note that we begin by reading track 0, sector 1 since sector 0
+							; contains the cold start loader, which is skipped in a warm start
+	ld	hl, ccp_base				; Base of cp/m (initial load point)
+warmboot_sector_load_next:				; Load one more sector
+	push	bc					; Save sector count, current track
+	push	de					; Save next sector to read
+	push	hl					; Save dma address
+	ld	c, d					; Get sector address to C
+	call	disk_sector_set				; Set sector address from C
+	pop	bc					; Recall dma address to BC
+	push	bc					; Replace on stack for later recall
+	call	disk_dma_set				; Set dma address from BC
 
 	; drive set to 0, track set, sector set, dma address set
 	call	disk_read
-	cp	00h					; any errors?
-	jp	nz, warmboot				; retry the entire boot if an error occurs
+	cp	0x00					; Any errors?
+	jr	nz, warmboot				; Retry the entire boot if an error occurs
 
 	; no error, move to next sector
-	pop	hl					; recall dma address
-	ld	de, 128					; dma=dma+128
-	add	hl, de					; new dma address is in h, l
-	pop	de					; recall sector address
-	pop	bc					; recall number of sectors remaining, and current trk
-	dec	b					; sectors=sectors-1
-	jp	Z,go_cpm				; transfer to cp/m if all have been loaded
+	pop	hl					; Recall dma address
+	ld	de, 128					; DMA = DMA + 128
+	add	hl, de					; New DMA address is in HL
+	pop	de					; Recall sector address
+	pop	bc					; Recall number of sectors remaining, and current track
+	dec	b					; Sectors = Sectors - 1
+	jr	z, go_cpm				; Transfer to CP/M if all have been loaded
 
 	; more sectors remain to load, check for track change
 	inc	d
-	ld	a, d					; sector=27?, if so, change tracks
-	cp	27
-	jp	c, load1				; carry generated if sector<27
-
-	; end of current track,	go to next track
-	ld 	d, 1					; begin with first sector of next track
-	inc	c					; track=track+1
-
-	; save register state, and change tracks
-	push	bc
-	push	de
-	push	hl
-	call	disk_track_set				; track address set from register c
-	pop	hl
-	pop	de
-	pop	bc
-	jp	load1					; for another sector
+; It's all on one track so disable track change
+;	ld	a, d					; Sector = 27?, if so, change tracks
+;	cp	27
+;	jp	c, warmboot_sector_load_next		; Carry generated if sector<27
+;
+;	; end of current track,	go to next track
+;	ld 	d, 1					; Begin with first sector of next track
+;	inc	c					; Track=track+1
+;
+;	; save register state, and change tracks
+;	push	bc
+;	push	de
+;	push	hl
+;	call	disk_track_set				; Track address set from register c
+;	pop	hl
+;	pop	de
+;	pop	bc
+	jr	warmboot_sector_load_next		; for another sector
 
 ; end of load operation, set parameters and go to cp/m
 go_cpm:
@@ -437,6 +438,9 @@ wr_wait_for_BSY_clear:	in	a,(0fh)
 			in	a,(0fh)			;clear INTRQ
 			and	01h			;check for error
 			ret
+
+include	"nc100/nc100_io.def"
+include	"nc100/virtual_disk.asm"
 
 ;**************************************************************
 ;	the remainder of the cbios is reserved uninitialized
