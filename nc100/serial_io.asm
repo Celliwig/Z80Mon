@@ -77,14 +77,14 @@ nc100_serial_setup_delay_loop:
 ;	In:	A = ASCII character
 nc100_serial_polling_char_out:
 	ld	c, a							; Save ASCII character
-; # nc100_serial_polling_char_out_check
+; # nc100_serial_polling_char_out_cpm
 ; #################################
 ;  Write a character to the serial port (CP/M interface)
 ;	In:	C = ASCII character
-nc100_serial_polling_char_out_check:
+nc100_serial_polling_char_out_cpm:
 	in	a, (nc100_uart_control_register)			; Read status register
 	bit	uPD71051_reg_status_TxRdy, a				; Test TxRDY
-	jr	z, nc100_serial_polling_char_out_check
+	jr	z, nc100_serial_polling_char_out_cpm
 
 	ld	a, c
 	out	(nc100_uart_data_register), a				; Write data to UART
