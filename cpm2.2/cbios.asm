@@ -468,3 +468,10 @@ directory_check03:	defs	16	 		; check vector 3
 enddat:			equ	$	 		; end of data area
 datsiz:			equ	$-begdat;		; size of data area
 hstbuf: 		ds	256			; buffer for host disk sector
+
+; Check that the everything thing fits within the 0x600 bytes
+; allocated for the BiOS, otherwise throw an error
+bios_end_addr:		equ	$
+if bios_end_addr>bios_base+0x600
+	ld	hl, bios_too_big
+endif
