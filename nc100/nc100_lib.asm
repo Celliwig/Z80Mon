@@ -81,6 +81,7 @@ include	"nc100/keyboard.asm"
 
 ; Serial routines
 include	"nc100/serial_io.asm"
+include	"nc100/serial_config.asm"
 
 ; RTC routines
 include "nc100/rtc.asm"
