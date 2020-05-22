@@ -19,7 +19,7 @@ warmboot_entry:
 	jp	warmboot				; Warm start
 	jp	console_status				; Console status
 	jp	console_in				; Read character from console in
-	jp	console_out				; Write character to console out
+	jp	nc100_serial_polling_char_out_cpm	; Write character to console out
 	jp	list_out				; Write character to list device
 	jp	punch_out				; Write character to punch device
 	jp	reader_in				; Read character from reader device
@@ -210,13 +210,7 @@ console_in:
 ;**************************************************************
 ;  Write a character out to the console
 ;	In:	C = Character
-console_out:
-	in	a,(3)
-	and	001h					; check TxRDY bit
-	jp	z,console_out				; loop until port ready
-	ld	a,c					; get the char
-	out	(2),a					; out to port
-	ret
+;  Supplied by serial_io.asm
 
 ; list_out
 ;**************************************************************
@@ -425,7 +419,7 @@ wr_status_loop_2:	in	a,(0fh)			;check	status
 			out	(0fh),a
 wr_wait_for_DRQ_set:	in	a,(0fh)			;read status
 			and	08h			;DRQ bit
-			jp	z,wr_wait_for_DRQ_set	;loop until bit set			
+			jp	z,wr_wait_for_DRQ_set	;loop until bit set
 write_loop:		ld	a,(hl)
 			out	(08h),a			;write data
 			inc	hl
@@ -440,6 +434,7 @@ wr_wait_for_BSY_clear:	in	a,(0fh)
 			ret
 
 include	"nc100/nc100_io.def"
+include	"nc100/serial_io.asm"
 include	"nc100/virtual_disk.asm"
 
 ;**************************************************************
