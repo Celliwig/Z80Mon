@@ -223,8 +223,8 @@ console_out:
 ;  Write out a character to the list device
 ;	In:	C = Character
 list_out:
-	ld 	a, c	  				; character to register a
-	ret		  				; null subroutine
+	ld 	a, c	  				; Character to A
+	ret		  				; Null subroutine
 
 ; list_status
 ;**************************************************************
@@ -239,16 +239,16 @@ list_status:
 ;  Write a character to the punch device
 ;	In:	C = Character
 punch_out:
-	ld 	a, c					; character to register a
-	ret						; null subroutine
+	ld 	a, c					; Character to A
+	ret						; Null subroutine
 
 ; reader_in
 ;**************************************************************
 ;  Read a character from the reader device
 ;	Out:	A = Character
 reader_in:
-	ld	a, 1ah					; enter end of file for now (replace later)
-	and	7fh					; remember to strip parity bit
+	ld	a, 0x1a					; Enter end of file for now (replace later)
+	and	0x7f					; Remember to strip parity bit
 	ret
 
 ;**************************************************************
