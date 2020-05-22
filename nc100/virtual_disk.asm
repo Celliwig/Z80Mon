@@ -142,6 +142,7 @@ nc100_vdisk_header_next_disk:		equ		0x16
 nc100_vdisk_header_description:		equ		0x17
 
 nc100_vdisk_version_number:		equ		0x01
+nc100_vdisk_sector_1st:			equ		0x00
 
 nc100_vdisk_magic_header:		db		"####CPMVDISK####"
 
