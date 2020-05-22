@@ -69,6 +69,14 @@ nc100_serial_setup_delay_loop:
 	djnz	nc100_serial_setup_delay_loop
 	ret
 
+; # nc100_serial_clear_errors
+; #################################
+;  Clear any error flags
+nc100_serial_clear_errors:
+	ld	a, uPD71051_reg_commask_full				; Clear any errors
+	out	(nc100_uart_control_register), a 			; Write command byte
+	ret
+
 ; # Polling routines
 ; ###########################################################################
 ; # nc100_serial_polling_char_out
@@ -90,19 +98,32 @@ nc100_serial_polling_char_out_cpm:
 	out	(nc100_uart_data_register), a				; Write data to UART
 	ret
 
-; # nc100_serial_polling_char_in
+; # nc100_serial_status_char_in
 ; #################################
-;  Returns a character from the serial port
-;       Out:    A = ASCII character code
-;       Carry flag set if character valid
-nc100_serial_polling_char_in:
-	ld	a, uPD71051_reg_commask_full				; Clear any errors
-	out	(nc100_uart_control_register), a 			; Write command byte
-	in	a, (nc100_uart_data_register)				; Dummy read (clear any pending characters)
-nc100_serial_polling_char_in_check_rxrdy:
+;  Returns the status of the receive buffer
+;	Out:	A = 0xff if there is a byte pending in the receive buffer, 0x00 if not
+nc100_serial_status_char_in:
 	in	a, (nc100_uart_control_register)			; Read status register
 	bit	uPD71051_reg_status_RxRdy, a				; Test RxRDY
-	jr	z, nc100_serial_polling_char_in_check_rxrdy
+	jr	nz, nc100_serial_status_char_in_ready
+	xor	a							; Clear A
+	ret
+nc100_serial_status_char_in_ready:
+	ld	a, 0xff
+	ret
 
+; # nc100_serial_polling_char_in
+; #################################
+;  Returns a character from the serial port (monitor interface)
+;       Out:    A = ASCII character code
+nc100_serial_polling_char_in:
+	in	a, (nc100_uart_control_register)			; Read status register
+	bit	uPD71051_reg_status_RxRdy, a				; Test RxRDY
+	jr	z, nc100_serial_polling_char_in
+; # nc100_serial_polling_char_in_cpm
+; #################################
+;  Returns a character from the serial port (CP/M interface)
+;       Out:    A = ASCII character code
+nc100_serial_polling_char_in_cpm:
 	in	a, (nc100_uart_data_register)				; Get data from UART
 	ret
