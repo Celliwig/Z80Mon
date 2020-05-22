@@ -8,7 +8,7 @@
 ;**************************************************************
 ;   Set memory limit here. This is the amount of contigeous
 ; ram starting from 0000. CP/M will reside at the end of this space.
-memory_size:		equ		63				; 64k system, but need 1k for framebuffer
+memory_size:		equ		60				; 64k system, but need 4k for framebuffer
 
 ccp_base:		equ		(memory_size-7)*1024		; CCP base address
 ccp_offset:		equ		0x0000				; Offset to CCP in the built hex file
