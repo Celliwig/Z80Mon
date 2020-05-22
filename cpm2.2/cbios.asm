@@ -17,8 +17,8 @@ seek	bios_offset
 	jp	boot					; Cold start
 warmboot_entry:
 	jp	warmboot				; Warm start
-	jp	console_status				; Console status
-	jp	console_in				; Read character from console in
+	jp	nc100_serial_status_char_in		; Get console status
+	jp	nc100_serial_polling_char_in_cpm	; Read character from console in
 	jp	nc100_serial_polling_char_out_cpm	; Write character to console out
 	jp	list_out				; Write character to list device
 	jp	punch_out				; Write character to punch device
@@ -185,26 +185,13 @@ go_cpm_disk_ok:
 ;**************************************************************
 ;  Returns the console input status
 ;	Out:	A = 0xff if character ready, 0x00 if not
-console_status:
-	in 	a,(3)					; get status
-	and 	002h					; check RxRDY bit
-	jp 	z,no_char
-	ld	a,0ffh					; char ready
-	ret
-no_char:ld	a,00h					; no char
-	ret
+;  Supplied by serial_io.asm
 
 ; console_in
 ;**************************************************************
 ;  Read in a character from console input
 ;	Out:	A = Character
-console_in:
-	in 	a,(3)					; get status
-	and 	002h					; check RxRDY bit
-	jp 	z,console_in				; loop until char ready
-	in 	a,(2)					; get char
-	AND	7fh					; strip parity bit
-	ret
+;  Supplied by serial_io.asm
 
 ; console_out
 ;**************************************************************
