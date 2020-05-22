@@ -154,28 +154,28 @@ warmboot_sector_load_next:				; Load one more sector
 ;	pop	bc
 	jr	warmboot_sector_load_next		; for another sector
 
-; end of load operation, set parameters and go to cp/m
+; end of load operation, set parameters and go to CP/M
 go_cpm:
-	ld 	a, 0c3h					; c3 is a jmp instruction
-	ld	(0), a					; for jmp to warmboot
-	ld	hl, warmboot_entry			; warmboot entry point
-	ld	(1), hl					; set address field for jmp at 0
+	ld 	a, 0xc3					; C3 is a jmp instruction
+	ld	(0), a					; For jmp to warmboot
+	ld	hl, warmboot_entry			; Warmboot entry point
+	ld	(1), hl					; Set address field for jmp at 0
 
-	ld	(5), A					; for jmp to bdos
-	ld	hl, bdos_base				; bdos entry point
-	ld	(6), hl					; address field of Jump at 5 to bdos
+	ld	(5), a					; For jmp to bdos
+	ld	hl, bdos_base				; BDOS entry point
+	ld	(6), hl					; Set address field for jmp at 5 to BDOS
 
-	ld	bc, 80h					; default dma address is 80h
+	ld	bc, 0x80				; Default DMA address is 0x80
 	call	disk_dma_set
 
-	ei						; enable the interrupt system
-	ld	A, (current_disk)			; get current disk number
-	cp	num_disks				; see if valid disk number
-	jp	c, diskok				; disk valid, go to ccp
-	ld	a, 0					; invalid disk, change to disk 0
-diskok:	ld 	c, a					; send to the ccp
-	jp	ccp_base				; go to cp/m for further processing
-
+	ei						; Enable the interrupt system
+	ld	a, (current_disk)			; Get current disk number
+	cp	num_disks				; See if valid disk number
+	jp	c, go_cpm_disk_ok			; Disk valid, go to CCP
+	ld	a, 0					; Invalid disk, change to disk 0
+go_cpm_disk_ok:
+	ld 	c, a					; Send to the CCP
+	jp	ccp_base				; Go to CP/M for further processing
 
 ;**************************************************************
 ; I/O device handlers (console/list/punch/reader)
