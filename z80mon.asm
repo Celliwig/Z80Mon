@@ -1170,9 +1170,9 @@ input_addrs_start_end_invalid:
 ; # memory_copy
 ; #################################
 ;  Copies a region of memory to another region
-;	In:	BC -> Source Address
-;		DE -> Destination Address
-;		HL -> Num. bytes
+;	In:	BC = Source Address
+;		DE = Destination Address
+;		HL = Num. bytes
 memory_copy:
 	ld	a, (bc)					; Get byte to copy
 	ld	(de), a					; Save byte
@@ -1182,6 +1182,30 @@ memory_copy:
 	ld	a, l
 	or	h					; See if we've reached zero
 	jr	nz, memory_copy				; If there are remaining bytes to copy
+	ret
+
+; # memory_copy_verify
+; #################################
+;  Verifies a region of memory against another region
+;	In:	BC = Byte count
+;		DE = Source address
+;		HL = Target address
+;	Out:	Carry flag set if okay, unset if not
+memory_copy_verify:
+	ld	a, (de)					; Get source byte
+	cp	(hl)					; Compare against target byte
+	jr	nz, memory_copy_verify_failed
+	inc	de					; Increment pointers
+	inc	hl
+	dec	bc					; Decrement byte count
+	ld	a, c
+	or	b					; See if we've reached zero
+	jr	nz, memory_copy_verify			; If there are remaining bytes to check
+	scf
+	ret
+memory_copy_verify_failed:
+	scf						; Clear Carry flag
+	ccf
 	ret
 
 ; # Module routines
