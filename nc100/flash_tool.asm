@@ -84,14 +84,14 @@ flash_device_get_id:
 ; # flash_device_erase_page
 ; #################################
 ;  Erase a page of flash memory
-;	In:	B = ROM page to erase (4-0 / A18-A14)
+;	In:	D = ROM page to erase (4-0 / A18-A14)
 ;	Out:	Carry flag set if operation sucessful, unset on error
 flash_device_erase_page:
 	call	flash_device_send_command
 	ld	a, flash_command_erase					; Setup erase
 	ld	(hl), a
 	call	flash_device_send_command_no_setup
-	ld	a, b							; Get ROM page to write
+	ld	a, d							; Get ROM page to write
 	and	31							; Make sure it's valid
 	;or	nc100_membank_ROM					; Don't actually need to do this as it's 0x0
 	ld	b, a
@@ -114,6 +114,90 @@ flash_device_erase_page_error:
 	scf								; Clear Carry flag
 	ccf
 	ret
+
+; # flash_device_program_byte
+; #################################
+;  Program a byte of flash memory
+;	In:	A = Byte to write
+;		B = ROM page to program (4-0 / A18-A14)
+;		DE = Address within 16k block
+;	Out:	Carry flag set if operation sucessful, unset on error
+; ##########################################################################
+flash_device_program_byte:
+	ex	af, af'							; Swap byte out
+	push	bc							; Save ROM page
+	call	flash_device_send_command
+	ld	a, flash_command_program				; Program byte
+	ld	(hl), a
+	pop	bc							; Restore ROM page
+	ld	a, b							; Get ROM page to write
+	and	31							; Make sure it's valid
+	;or	nc100_membank_ROM					; Don't actually need to do this as it's 0x0
+	ld	b, a
+	ld	c, flash_tool_ROM_bank
+	call	nc100_memory_page_set					; Select Flash ROM page to program
+	ld	hl, flash_tool_ROM_bank_offset
+	add	hl, de							; Add 16k offset to base address
+	ex	af, af'							; Swap byte back in
+	ld	c, a							; Save a copy of the byte
+	ld	(hl), a							; Write byte
+flash_device_program_byte_loop:
+	ld	a, (hl)							; Check the status of the byte
+	ld	b, a							; Copy status
+	xor	c							; Check if it matches byte that was written
+	jr	z, flash_device_program_byte_finish			; It matches, so finish
+	bit	flash_status_command_time_limit_exceeded, b		; Check for a timeout
+	jr	nz, flash_device_program_byte_error			; Timeout, so exit as error
+	jr	flash_device_program_byte_loop				; Keep checking
+flash_device_program_byte_finish:
+	scf								; Set Carry flag
+	ret
+flash_device_program_byte_error:
+	scf								; Clear Carry flag
+	ccf
+	ret
+
+;; # flash_tool_flash_page_from_ram
+;; #
+;; # Copies from system RAM page 0 to the specified ROM page
+;; # In:
+;; #   r1 - ROM page to select
+;; # Out:
+;; #   Carry - Set on error
+;; ##########################################################################
+;flash_tool_flash_page_from_ram:
+;	mov	r2, #0xFF					; Address pointer LSB store
+;	mov	r3, #0x7F					; Address pointer MSB store
+;
+;flash_tool_flash_page_from_ram_read_loop:
+;	setb	p1.2						; Select RAM
+;	setb	mem_mode_rdwr_ram
+;	clr	p1.3
+;	clr	mem_mode_rdwr_ram_card
+;
+;	mov	a, #0						; Select page 0
+;	mov	mem_page_rdwr, a
+;	mov	dph, #rdwr_page_latch
+;	setb	p1.4						; Enable address logic
+;	movx	@dptr, a
+;	clr	p1.4
+;
+;	mov	dpl, r2						; Load dptr with next byte to read
+;	mov	dph, r3
+;	movx	a, @dptr					; Get next byte
+;
+;	mov	r0, a						; Set data to program
+;	lcall	flash_program_byte+flash_tool_addr_fudge
+;	jc	flash_tool_flash_page_from_ram_finish		; On error, exit
+;
+;	dec	r2
+;	cjne	r2, #0xff, flash_tool_flash_page_from_ram_read_loop	; Loop on the LSB of address data
+;	dec	r3
+;	cjne	r3, #0xff, flash_tool_flash_page_from_ram_read_loop	; Loop on the MSB of address data
+;
+;	clr	c						; No errors
+;flash_tool_flash_page_from_ram_finish:
+;	ret
 
 
 ;; # Copied from OysterLib
@@ -240,102 +324,7 @@ flash_device_erase_page_error:
 ;
 ;flash_tool_finish:
 ;	ret
-;
-;; ##############################################################################
-;; # Flash tool helper functions
-;; ##############################################################################
-;
-;; ##############################################################################
-;; # ROM flash routines
-;; ##############################################################################
-;
-;; # flash_tool_flash_page_from_ram
-;; #
-;; # Copies from system RAM page 0 to the specified ROM page
-;; # In:
-;; #   r1 - ROM page to select
-;; # Out:
-;; #   Carry - Set on error
-;; ##########################################################################
-;flash_tool_flash_page_from_ram:
-;	mov	r2, #0xFF					; Address pointer LSB store
-;	mov	r3, #0x7F					; Address pointer MSB store
-;
-;flash_tool_flash_page_from_ram_read_loop:
-;	setb	p1.2						; Select RAM
-;	setb	mem_mode_rdwr_ram
-;	clr	p1.3
-;	clr	mem_mode_rdwr_ram_card
-;
-;	mov	a, #0						; Select page 0
-;	mov	mem_page_rdwr, a
-;	mov	dph, #rdwr_page_latch
-;	setb	p1.4						; Enable address logic
-;	movx	@dptr, a
-;	clr	p1.4
-;
-;	mov	dpl, r2						; Load dptr with next byte to read
-;	mov	dph, r3
-;	movx	a, @dptr					; Get next byte
-;
-;	mov	r0, a						; Set data to program
-;	lcall	flash_program_byte+flash_tool_addr_fudge
-;	jc	flash_tool_flash_page_from_ram_finish		; On error, exit
-;
-;	dec	r2
-;	cjne	r2, #0xff, flash_tool_flash_page_from_ram_read_loop	; Loop on the LSB of address data
-;	dec	r3
-;	cjne	r3, #0xff, flash_tool_flash_page_from_ram_read_loop	; Loop on the MSB of address data
-;
-;	clr	c						; No errors
-;flash_tool_flash_page_from_ram_finish:
-;	ret
-;
-;; # flash_program_byte
-;; #
-;; # Program a byte of flash memory
-;; # In:
-;; #   r0 - Data to write
-;; #   r1 - ROM page to select
-;; #   r2 - A7-A0 of address to write data to
-;; #   r3 - A14-A8 of address to write data to
-;; # Out:
-;; #   Carry - Set on error
-;; ##########################################################################
-;flash_program_byte:
-;	lcall	flash_send_command+flash_tool_addr_fudge
-;	mov	a, #flash_command_program			; Program byte
-;	movx	@dptr, a
-;
-;	mov	a, r1						; Get ROM page to write
-;	anl	a, #3						; Make sure it's valid
-;	mov	mem_page_rdwr, a
-;	mov	dph, #rdwr_page_latch
-;	setb	p1.4						; Enable address logic
-;	movx	@dptr, a
-;	clr	p1.4
-;
-;	mov	dph, r3						; Get address MSB
-;	orl	dph, #0x80					; Make sure we are wrting in the right place
-;	mov	dpl, r2						; Get address LSB
-;	mov	a, r0						; Get data
-;	movx	@dptr, a					; Save data
-;
-;flash_program_byte_check_loop:
-;	movx	a, @dptr					; Check if data saved
-;	mov	b, a						; Save a copy
-;	xrl	a, r0						; 0 if the data matches
-;	jz	flash_program_byte_check_loop_finish
-;	mov	a, b						; Otherwise check for a timeout
-;	jb	acc.5, flash_program_byte_error
-;	sjmp	flash_program_byte_check_loop
-;flash_program_byte_check_loop_finish:
-;
-;	clr	c
-;	ret
-;flash_program_byte_error:
-;	setb	c
-;	ret
+
 
 ; # Includes
 ; ##################################################
@@ -363,14 +352,14 @@ flash_status_command_finished:			equ		7
 flash_status_command_time_limit_exceeded:	equ		5
 
 flash_tool_ROM_bank:				equ		nc100_io_membank_C	; Memory bank to use for ROM operations
-flash_tool_ROM_bank_offset:				equ		0x8000
+flash_tool_ROM_bank_offset:			equ		0x8000
 
-str_ft_err_con:					db		"This tool can only be run using a serial connection.", 0
-str_ft_err_page:				db		"Incorrect page selected.", 0
-str_ft_confirm:					db		"Confirm flash write [Y/N]: ", 0
-str_ft_copy_rom:				db		"Copying system ROM to RAM.", 0
-str_ft_device:					db		"Device: ", 0
-str_ft_select_page:				db		"Select Page To Flash: ", 0
-str_ft_erasing_page:				db		"Erasing Page ", 0
-str_ft_flashing_page:				db		"Flashing Page ", 0
-str_ft_reseting_device:				db		"Reseting device.", 0
+;str_ft_err_con:					db		"This tool can only be run using a serial connection.", 0
+;str_ft_err_page:				db		"Incorrect page selected.", 0
+;str_ft_confirm:					db		"Confirm flash write [Y/N]: ", 0
+;str_ft_copy_rom:				db		"Copying system ROM to RAM.", 0
+;str_ft_device:					db		"Device: ", 0
+;str_ft_select_page:				db		"Select Page To Flash: ", 0
+;str_ft_erasing_page:				db		"Erasing Page ", 0
+;str_ft_flashing_page:				db		"Flashing Page ", 0
+;str_ft_reseting_device:				db		"Reseting device.", 0
