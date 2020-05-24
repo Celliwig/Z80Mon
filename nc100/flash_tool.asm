@@ -24,14 +24,93 @@ flash_tool:
 	call	nc100_memory_page_get
 	ld	(var_ft_rom_bank_config_old), bc			; Save current memory bank config
 
+	call	print_newline
+
+	ld	hl, str_ft_device					; Print device ID
+	call	print_str_simple
 	call	flash_device_get_id
 	ex	de, hl
 	call	print_hex16
+	call	print_newline
 
+	ld	hl, str_ft_select_page					; Get the desired page to flash
+	call	print_str_simple
+	call	input_hex8
+	jr	nc, flash_tool_finish					; Aborted entry
+
+	ld	b, e							; Save selected page
+	ld	a, b							; Check page selection
+	and	0x3f							; Make sure it's within the desired range
+	cp	b							; And make sure it's what we entered
+	jr	z, flash_tool_actual_confirm				; Values are the same so continue
+	ld	hl, str_ft_err_page
+	jr	flash_tool_finish_result_print
+flash_tool_actual_confirm:
+	push	bc							; Save ROM page
+
+	ld	hl, str_ft_confirm					; Confirm we want to flash page
+	call	print_str_simple
+	call	input_character_filter					; Get response
+	call	char_2_upper
+	ld	c, a
+	call	monlib_console_out
+	call	print_newline
+	ld	a, c
+	cp	'Y'
+	jr	nz, flash_tool_finish_pop				; Check choice
+
+	ld	hl, str_ft_erasing_page
+	call	print_str_simple
+	pop	bc							; Restore ROM page
+	push	bc							; Save ROM page
+	ld	a, b
+	call	print_hex8
+	call	print_colon_space
+	pop	bc							; Restore ROM page
+	push	bc							; Save ROM page
+	call	flash_device_erase_page					; Erase page
+	ld	hl, str_ft_failed
+	jr	nc, flash_tool_finish_fail_print_pop			; Erase failed to finish
+	ld	hl, str_okay
+	call	print_str_simple
+	call	print_newline
+
+	ld	hl, str_ft_flashing_page
+	call	print_str_simple
+	pop	bc							; Restore ROM page
+	push	bc							; Save ROM page
+	ld	a, b
+	call	print_hex8
+	call	print_colon_space
+	pop	bc							; Restore ROM page
+	ld	de, 0x0000						; Copy from offset 0x0000
+	ld	hl, 0x4000						; Copy 16k of data
+	call	flash_tool_flash_ram_2_rom				; Copy RAM 2 ROM
+	ld	hl, str_ft_failed
+	jr	nc, flash_tool_finish_result_print
+	ld	hl, str_okay
+flash_tool_finish_result_print:
+	call	print_str_simple
+flash_tool_finish:
 	ld	bc, (var_ft_rom_bank_config_old)			; Restore original memory config
 	call	nc100_memory_page_set
 
+	call	print_newline
 	ret
+flash_tool_finish_fail_print_pop:
+	call	print_str_simple
+flash_tool_finish_pop:
+	pop	bc							; This has been saved earlier
+	jr	flash_tool_finish
+
+
+;	mov	a, r1						; If page 0 was written, we need to reset
+;	jnz	flash_tool_finish
+;	mov	dptr, #str_ft_reseting_device+flash_tool_addr_fudge
+;	lcall	flash_tool_print_str+flash_tool_addr_fudge
+;	lcall	oysterlib_newline+flash_tool_addr_fudge
+;	ljmp	0x0000						; Perform a reset as the monitor was overwritten
+
 
 ; # flash_tool_flash_ram_2_rom
 ; #################################
@@ -198,122 +277,6 @@ flash_device_program_byte_error:
 	ccf
 	ret
 
-
-;; # flash_tool
-;; #
-;; # Copies the XRAM area 0x0000 to XRAM area 0x8000, with the selected
-;; # flash ROM page mapped to this area.
-;; ##########################################################################
-;flash_tool:
-;	lcall	oysterlib_newline
-;
-;	jnb	use_oysterlib, flash_tool_location_check	; Check whether we are using a serial link
-;	mov	dptr, #str_ft_err_con				; If not, print error
-;	lcall	pstr
-;	lcall	oysterlib_newline
-;	ret							; and exit
-;
-;flash_tool_location_check:
-;	mov	dptr, #*					; Check whether we are running from ROM or a RAM dev version
-;	mov	a, dph
-;	cjne	a, #0x80, flash_tool_location_check_cmp
-;flash_tool_location_check_cmp:
-;	jnc	flash_tool_actual
-;	mov	dptr, #str_ft_copy_rom
-;	lcall	pstr
-;	lcall	oysterlib_newline
-;	lcall	flash_tool_copy_rom_to_ram			; Make a working copy of the ROM in RAM
-;
-;	setb	p1.0						; Select RAM on PSEN in 0x8000 area
-;	setb	mem_mode_psen_ram
-;	clr	p1.1
-;	clr	mem_mode_psen_ram_card
-;
-;	mov	a, #0x03					; Select page 3 on access to 0x8000 area
-;	mov	mem_page_psen, a
-;	mov	dph, #psen_page_latch
-;	setb	p1.4						; Enable address logic
-;	movx	@dptr, a
-;	clr	p1.4
-;	ljmp	flash_tool_actual+flash_tool_addr_fudge		; Jump to copy in RAM
-;
-;flash_tool_actual:
-;	mov	dptr, #str_ft_device+flash_tool_addr_fudge	; Print device ID
-;	lcall	flash_tool_print_str+flash_tool_addr_fudge
-;	lcall	flash_get_deviceid+flash_tool_addr_fudge
-;	lcall	flash_tool_print_hex+flash_tool_addr_fudge
-;	mov	a, #'/'
-;	lcall	oysterlib_cout+flash_tool_addr_fudge
-;	mov	a, b
-;	lcall	flash_tool_print_hex+flash_tool_addr_fudge
-;	lcall	oysterlib_newline+flash_tool_addr_fudge
-;
-;	mov	dptr, #str_ft_select_page+flash_tool_addr_fudge	; Get the desired page to flash
-;	lcall	flash_tool_print_str+flash_tool_addr_fudge
-;	lcall	oysterlib_cin+flash_tool_addr_fudge
-;	lcall	oysterlib_cout+flash_tool_addr_fudge
-;	lcall	oysterlib_newline+flash_tool_addr_fudge
-;	clr	c						; Clear Carry for the following subtract
-;	subb	a, #0x30					; Convert from ASCII
-;	mov	r1, a						; Save selected page
-;	anl	a, #0x03					; Make sure it's within the desired range
-;	xrl	a, r1						; And make sure it's what we entered
-;	jz	flash_tool_actual_confirm
-;	mov	dptr, #str_ft_err_page+flash_tool_addr_fudge
-;	lcall	flash_tool_print_str+flash_tool_addr_fudge
-;	lcall	oysterlib_newline+flash_tool_addr_fudge
-;	ret
-;
-;flash_tool_actual_confirm:
-;	mov	dptr, #str_ft_confirm+flash_tool_addr_fudge	; Confirm we want to flash page
-;	lcall	flash_tool_print_str+flash_tool_addr_fudge
-;	lcall	oysterlib_cin+flash_tool_addr_fudge
-;	lcall	oysterlib_newline+flash_tool_addr_fudge
-;	cjne	a, #'Y', flash_tool_finish			; Check choice
-;
-;	mov	dptr, #str_ft_erasing_page+flash_tool_addr_fudge
-;	lcall	flash_tool_print_str+flash_tool_addr_fudge
-;	mov	a, r1
-;	lcall	flash_tool_print_hex+flash_tool_addr_fudge
-;	mov	a, #':'
-;	lcall	oysterlib_cout+flash_tool_addr_fudge
-;	mov	a, #' '
-;	lcall	oysterlib_cout+flash_tool_addr_fudge
-;	lcall	flash_erase_page+flash_tool_addr_fudge		; Erase page
-;	mov	dptr, #str_fail+flash_tool_addr_fudge
-;	jc	flash_tool_actual_erase_result
-;	mov	dptr, #str_okay+flash_tool_addr_fudge
-;flash_tool_actual_erase_result:
-;	lcall	flash_tool_print_str+flash_tool_addr_fudge
-;	lcall	oysterlib_newline+flash_tool_addr_fudge
-;
-;	mov	dptr, #str_ft_flashing_page+flash_tool_addr_fudge
-;	lcall	flash_tool_print_str+flash_tool_addr_fudge
-;	mov	a, r1
-;	lcall	flash_tool_print_hex+flash_tool_addr_fudge
-;	mov	a, #':'
-;	lcall	oysterlib_cout+flash_tool_addr_fudge
-;	mov	a, #' '
-;	lcall	oysterlib_cout+flash_tool_addr_fudge
-;	lcall	flash_tool_flash_page_from_ram+flash_tool_addr_fudge	; Flash page
-;	mov	dptr, #str_fail+flash_tool_addr_fudge
-;	jc	flash_tool_actual_flash_result
-;	mov	dptr, #str_okay+flash_tool_addr_fudge
-;flash_tool_actual_flash_result:
-;	lcall	flash_tool_print_str+flash_tool_addr_fudge
-;	lcall	oysterlib_newline+flash_tool_addr_fudge
-;
-;	mov	a, r1						; If page 0 was written, we need to reset
-;	jnz	flash_tool_finish
-;	mov	dptr, #str_ft_reseting_device+flash_tool_addr_fudge
-;	lcall	flash_tool_print_str+flash_tool_addr_fudge
-;	lcall	oysterlib_newline+flash_tool_addr_fudge
-;	ljmp	0x0000						; Perform a reset as the monitor was overwritten
-;
-;flash_tool_finish:
-;	ret
-
-
 ; # Includes
 ; ##################################################
 
@@ -344,11 +307,10 @@ flash_tool_ROM_bank_offset:			equ		0x8000
 flash_tool_RAM_bank_offset:			equ		0x4000
 
 ;str_ft_err_con:					db		"This tool can only be run using a serial connection.", 0
-;str_ft_err_page:				db		"Incorrect page selected.", 0
-;str_ft_confirm:					db		"Confirm flash write [Y/N]: ", 0
-;str_ft_copy_rom:				db		"Copying system ROM to RAM.", 0
-;str_ft_device:					db		"Device: ", 0
-;str_ft_select_page:				db		"Select Page To Flash: ", 0
-;str_ft_erasing_page:				db		"Erasing Page ", 0
-;str_ft_flashing_page:				db		"Flashing Page ", 0
-;str_ft_reseting_device:				db		"Reseting device.", 0
+str_ft_err_page:				db		"Incorrect page selected.", 0
+str_ft_confirm:					db		"Confirm flash write [Y/N]: ", 0
+str_ft_failed:					db		"Failed",0
+str_ft_device:					db		"Device: ", 0
+str_ft_select_page:				db		"Select Page To Flash: ", 0
+str_ft_erasing_page:				db		"Erasing Page ", 0
+str_ft_flashing_page:				db		"Flashing Page ", 0
