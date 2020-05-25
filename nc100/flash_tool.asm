@@ -36,7 +36,8 @@ flash_tool:
 	ld	hl, str_ft_select_page					; Get the desired page to flash
 	call	print_str_simple
 	call	input_hex8
-	jr	nc, flash_tool_finish					; Aborted entry
+	jp	nc, flash_tool_finish					; Aborted entry
+	call	print_newline
 
 	ld	b, e							; Save selected page
 	ld	a, b							; Check page selection
@@ -89,6 +90,17 @@ flash_tool_actual_confirm:
 	ld	hl, str_ft_failed
 	jr	nc, flash_tool_finish_result_print
 	ld	hl, str_okay
+	call	print_str_simple
+	call	print_newline
+	ld	hl, str_ft_verifying
+	call	print_str_simple
+	ld	bc, 0x4000
+	ld	de, flash_tool_RAM_bank_offset
+	ld	hl, flash_tool_ROM_bank_offset
+	call	memory_copy_verify
+	ld	hl, str_failed
+	jr	nc, flash_tool_finish_result_print
+	ld	hl, str_okay
 flash_tool_finish_result_print:
 	call	print_str_simple
 flash_tool_finish:
@@ -102,15 +114,6 @@ flash_tool_finish_fail_print_pop:
 flash_tool_finish_pop:
 	pop	bc							; This has been saved earlier
 	jr	flash_tool_finish
-
-
-;	mov	a, r1						; If page 0 was written, we need to reset
-;	jnz	flash_tool_finish
-;	mov	dptr, #str_ft_reseting_device+flash_tool_addr_fudge
-;	lcall	flash_tool_print_str+flash_tool_addr_fudge
-;	lcall	oysterlib_newline+flash_tool_addr_fudge
-;	ljmp	0x0000						; Perform a reset as the monitor was overwritten
-
 
 ; # flash_tool_flash_ram_2_rom
 ; #################################
@@ -314,3 +317,4 @@ str_ft_device:					db		"Device: ", 0
 str_ft_select_page:				db		"Select Page To Flash: ", 0
 str_ft_erasing_page:				db		"Erasing Page ", 0
 str_ft_flashing_page:				db		"Flashing Page ", 0
+str_ft_verifying:				db		"Verifying: ",0
