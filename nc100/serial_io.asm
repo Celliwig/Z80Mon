@@ -79,22 +79,23 @@ nc100_serial_clear_errors:
 
 ; # Polling routines
 ; ###########################################################################
+; # nc100_serial_polling_char_out_cpm
+; #################################
+;  Write a character to the serial port (CP/M interface)
+;	In:	C = ASCII character
+	ld	a, c
 ; # nc100_serial_polling_char_out
 ; #################################
 ;  Write a character to the serial port (monitor interface)
 ;	In:	A = ASCII character
 nc100_serial_polling_char_out:
-	ld	c, a							; Save ASCII character
-; # nc100_serial_polling_char_out_cpm
-; #################################
-;  Write a character to the serial port (CP/M interface)
-;	In:	C = ASCII character
+	ex	af, af'							; Save ASCII character
 nc100_serial_polling_char_out_cpm:
 	in	a, (nc100_uart_control_register)			; Read status register
 	bit	uPD71051_reg_status_TxRdy, a				; Test TxRDY
 	jr	z, nc100_serial_polling_char_out_cpm
 
-	ld	a, c
+	ex	af, af'							; Swap data back in
 	out	(nc100_uart_data_register), a				; Write data to UART
 	ret
 
