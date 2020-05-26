@@ -9,6 +9,10 @@ str_disk:				db		"Disk",0
 str_size:				db		"Size",0
 str_virtual:				db		"Virtual",0
 
+; ###########################################################################
+; # Card operations
+; ###########################################################################
+
 ; # nc100_vdisk_card_init
 ; #################################
 ;  Write the basic card info to pointer
@@ -16,16 +20,16 @@ str_virtual:				db		"Virtual",0
 ;		HL = Pointer to start of virtual disk
 nc100_vdisk_card_init:
 	push	hl							; Save start address
-	ld	b, 16
+	ld	b, 16							; Byte count to copy
 	ld	de, nc100_vdisk_init_header				; Need different header so as not to match existing imaages
 	call	nc100_vdisk_card_page_map_reset				; Select start of memory card
 	; Copy init header
 nc100_vdisk_card_init_magic_loop:
 	ld	a, (de)							; Copy magic byte
 	ld	(hl), a							; To memory card
-	inc	hl
+	inc	hl							; Increment pointers
 	inc	de
-	djnz	nc100_vdisk_card_init_magic_loop
+	djnz	nc100_vdisk_card_init_magic_loop			; Loop over header
 	; Card Size
 	ld	l, nc100_vcard_header_vdisk_header_offset+nc100_vcard_header_size
 	ld	a, 0x00							; Card size: not detected
@@ -157,6 +161,10 @@ nc100_vdisk_card_free_space_remaining:
 	sub	b							; Subtract from card size
 	ret
 
+; ###########################################################################
+; # Disk operations
+; ###########################################################################
+
 ; # nc100_vdisk_init
 ; #################################
 ;  Write the basic vdisk header to pointer
@@ -164,18 +172,18 @@ nc100_vdisk_card_free_space_remaining:
 ;		HL = Pointer to start of virtual disk
 nc100_vdisk_init:
 	push	hl							; Save start address
-	ld	b, 16
-	ld	de, nc100_vdisk_magic_header
+	ld	b, 16							; Byte count to copy
+	ld	de, nc100_vdisk_magic_header				; Disk magic header
 	; Copy magic header
 nc100_vdisk_init_magic_loop:
 	ld	a, (de)							; Copy magic byte
 	ld	(hl), a							; To memory card
-	inc	hl
+	inc	hl							; Increment pointers
 	inc	de
-	djnz	nc100_vdisk_init_magic_loop
+	djnz	nc100_vdisk_init_magic_loop				; Loop over header
 	; Version
 	ld	a, nc100_vdisk_version_number
-	ld	(hl), a
+	ld	(hl), a							; Set version number
 	inc	hl
 	; Disk info
 	ld	b, 0x05
@@ -186,7 +194,7 @@ nc100_vdisk_init_disk_info:
 	djnz	nc100_vdisk_init_disk_info
 	; Description
 	ld	b, 0x20
-	ld	a, ' '
+	ld	a, ' '							; Blank disk description
 nc100_vdisk_init_description:
 	ld	(hl), a
 	inc	hl
