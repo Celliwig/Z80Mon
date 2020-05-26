@@ -55,14 +55,8 @@ nc100_vdisk_card_init_size_set:
 	pop	hl							; Reload start address
 	ld	l, nc100_vcard_header_vdisk_header_offset+nc100_vcard_header_size
 	ld	(hl), b							; Save card size
-	; Clear disk selection table
-	ld	l, nc100_vcard_header_vdisk_header_offset+nc100_vcard_header_vdisk0_type
-	ld	b, 0x20							; 16 disks of 2 bytes
-	xor	a							; Clear A
-nc100_vdisk_card_init_disk_select_table:
-	ld	(hl), a
-	inc	hl
-	djnz	nc100_vdisk_card_init_disk_select_table
+	; Initialise vdisk drive table
+	call	nc100_vdisk_drive_init
 
 	ld	l, 0							; Reset pointer
 	call	nc100_vdisk_init					; Write first disk header
@@ -162,6 +156,102 @@ nc100_vdisk_card_free_space_remaining:
 	ret
 
 ; ###########################################################################
+; # Drive configuration operations
+; ###########################################################################
+
+; # nc100_vdisk_drive_init
+; #################################
+;  Initialise the vdisk drive header
+;	In:	C = Port address of bank
+;		HL = Pointer to start of virtual disk
+nc100_vdisk_drive_init:
+	call	nc100_vdisk_card_page_map_reset				; Select start of memory card
+	; Clear disk selection table
+	ld	l, nc100_vcard_header_vdisk_header_offset+nc100_vcard_header_vdrive0_type
+	ld	b, 0x20							; 16 disks of 2 bytes
+	xor	a							; Clear A
+nc100_vdisk_drive_init_loop:
+	ld	(hl), a							; Clear byte
+	inc	hl							; Increment pointer
+	djnz	nc100_vdisk_drive_init_loop
+	ret
+
+; # nc100_vdisk_drive_remove
+; #################################
+;  Remove a vdisk from a drive
+;	In:	B = Drive address in 64k blocks
+;		C = Port address of bank
+;		HL = Pointer to start of virtual disk
+nc100_vdisk_drive_remove:
+	call	nc100_vdisk_card_page_map_reset				; Select start of memory card
+	ld	l, nc100_vcard_header_vdisk_header_offset+nc100_vcard_header_vdrive0_pointer
+nc100_vdisk_drive_remove_loop:
+	ld	a, b
+	cp	(hl)							; Check if addresses match
+	jr	nz, nc100_vdisk_drive_remove_continue			; If they don't match, continue to next entry
+	xor	a							; Clear A
+	dec	hl
+	ld	(hl), a							; Clear drive's type
+	inc	hl
+	ld	(hl), a							; Clear drive's pointer
+nc100_vdisk_drive_remove_continue:
+	ld	a, l
+	cp	nc100_vcard_header_vdisk_header_offset+nc100_vcard_header_vdrive15_pointer
+	jr	z, nc100_vdisk_drive_remove_finish			; Finish if last pointer
+	inc	hl							; Increment pointer to next drive pointer
+	inc	hl
+	jr	nc100_vdisk_drive_remove_loop				; Loop
+nc100_vdisk_drive_remove_finish:
+	ret
+
+; # nc100_vdisk_drive_assign
+; #################################
+;  Remove a vdisk from a drive
+;	In:	A = Drive index
+;		B = Drive address in 64k blocks
+;		C = Port address of bank
+;		HL = Pointer to start of virtual disk
+nc100_vdisk_drive_assign:
+	ex	af, af'							; Swap out drive index
+	call	nc100_vdisk_drive_remove				; Remove all current references to the disk
+	ex	af, af'							; Swap drive index back
+	and	0x0f							; Filter value
+	rlca								; x2 (as top nibble stripped)
+	add	nc100_vcard_header_vdisk_header_offset+nc100_vcard_header_vdrive0_pointer
+	ld	(hl), b							; Save vdisk address pointer to drive
+	ld	a, nc100_vdisk_type_ram					; Get drive type
+	dec	hl							; Decrement to drive type
+	ld	(hl), a							; Save drive type
+	ret
+
+; # nc100_vdisk_drive_get
+; #################################
+;  Retreive the pointer assigned to a drive
+;	In:	A = Drive index
+;		C = Port address of bank
+;		HL = Pointer to start of virtual disk
+;	Out:	B = Drive address in 64k blocks
+;		Carry flag set if drive has assigned vdisk, unset if not
+nc100_vdisk_drive_get:
+	ex	af, af'							; Swap out drive index
+	call	nc100_vdisk_card_page_map_reset				; Select start of memory card
+	ex	af, af'							; Swap drive index back in
+	and	0x0f							; Filter value
+	rlca								; x2 (as top nibble stripped)
+	add	nc100_vcard_header_vdisk_header_offset+nc100_vcard_header_vdrive0_type
+	ld	a, (hl)							; Get vdisk type
+	cp	nc100_vdisk_type_none					; Check if the drive is assigned
+	jr	z, nc100_vdisk_drive_get_none
+	inc	hl							; Increment pointer
+	ld	b, (hl)							; Get drive pointer
+	scf								; Set Carry flag
+	ret
+nc100_vdisk_drive_get_none:
+	scf								; Clear Carry flag
+	ccf
+	ret
+
+; ###########################################################################
 ; # Disk operations
 ; ###########################################################################
 
@@ -201,6 +291,10 @@ nc100_vdisk_init_description:
 	djnz	nc100_vdisk_init_description
 	pop	hl							; Reload start address
 	ret
+
+; # nc100_vdisk_delete
+; #################################
+;  Delete a selected vdisk (remove references from other vdisks, destroy header)
 
 ; # nc100_vdisk_size_convert
 ; #################################
