@@ -218,6 +218,7 @@ nc100_vdisk_drive_assign:
 	and	0x0f							; Filter value
 	rlca								; x2 (as top nibble stripped)
 	add	nc100_vcard_header_vdisk_header_offset+nc100_vcard_header_vdrive0_pointer
+	ld	l, a
 	ld	(hl), b							; Save vdisk address pointer to drive
 	ld	a, nc100_vdisk_type_ram					; Get drive type
 	dec	hl							; Decrement to drive type
@@ -239,6 +240,7 @@ nc100_vdisk_drive_get:
 	and	0x0f							; Filter value
 	rlca								; x2 (as top nibble stripped)
 	add	nc100_vcard_header_vdisk_header_offset+nc100_vcard_header_vdrive0_type
+	ld	l, a
 	ld	a, (hl)							; Get vdisk type
 	cp	nc100_vdisk_type_none					; Check if the drive is assigned
 	jr	z, nc100_vdisk_drive_get_none
