@@ -297,6 +297,43 @@ nc100_vdisk_init_description:
 ; # nc100_vdisk_delete
 ; #################################
 ;  Delete a selected vdisk (remove references from other vdisks, destroy header)
+;	In:	B = Drive address in 64k blocks
+;		C = Port address of bank
+;		HL = Pointer to start of virtual disk
+;	Out:	Carry flag set if operation okay, unset if not
+nc100_vdisk_delete:
+	call	nc100_vdisk_drive_remove				; Remove disk from any drive
+	call	nc100_vdisk_card_page_map_set				; Select vdisk
+	ld	l, 0x00							; Reset pointer
+	call	nc100_vdisk_card_check					; Check if there is a valid vdisk header
+	jr	nc, nc100_vdisk_delete_error
+	ld	l, nc100_vdisk_header_disk_size				; Set offset to vdisk size
+	ld	a, (hl)							; Check size
+	and	a
+	jr	z, nc100_vdisk_delete_error				; Do nothing if size zero
+	xor	a							; Clear A
+	ld	(hl), a							; Clear size
+	cp	b							; Check if vdisk is the primary header (which can't be deleted)
+	jr	z, nc100_vdisk_delete_finish
+	ld	l, nc100_vdisk_header_prev_disk				; Set offset to vdisk previous
+	ld	d, (hl)							; Load address of previous vdisk
+	inc	hl
+	ld	e, (hl)							; Load address of next vdisk
+	ld	b, d
+	call	nc100_vdisk_card_page_map_set				; Select previous vdisk
+	ld	l, nc100_vdisk_header_next_disk
+	ld	(hl), e							; Update with next pointer from deleted vdisk
+	ld	b, e
+	call	nc100_vdisk_card_page_map_set				; Select next vdisk
+	ld	l, nc100_vdisk_header_prev_disk
+	ld	(hl), d							; Update with previous pointer from deleted vdisk
+nc100_vdisk_delete_finish:
+	scf								; Set Carry flag
+	ret
+nc100_vdisk_delete_error:
+	scf								; Clear Carry flag
+	ccf
+	ret
 
 ; # nc100_vdisk_size_convert
 ; #################################
