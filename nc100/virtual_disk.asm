@@ -19,12 +19,12 @@
 ;  much easier. This can be double again for larger disk sizes where the wasted
 ;  storage will not be missed (much).
 ;
-;   Disk Size   |  Sector Size  | Sectors/Track |  Num. Tracks
-;  -------------------------------------------------------------
-;     128k      |   128 Bytes   |      32       |      32
-;     256k      |   128 Bytes   |      32       |      64
-;     512k      |   128 Bytes   |      32       |      128
-;      1M       |   128 Bytes   |      64       |      128
+;   Disk Size   |  64k blocks   |  Sector Size  | Sectors/Track |  Num. Tracks
+;  -----------------------------------------------------------------------------
+;     128k      |     0x02      |   128 Bytes   |      32       |      32
+;     256k      |     0x04      |   128 Bytes   |      32       |      64
+;     512k      |     0x08      |   128 Bytes   |      32       |      128
+;      1M       |     0x10      |   128 Bytes   |      64       |      128
 ;
 ;  Memory addressing:
 ;  Theoretical situation of accessing a 128k disk image starting at 0x0.
@@ -150,6 +150,11 @@ nc100_vdisk_sector_1st:			equ		0x00
 nc100_vdisk_max_drives:			equ		0x10
 
 nc100_vdisk_magic_header:		db		"####CPMVDISK####"
+nc100_vdisk_parameters_table:		db		0x02, 0x20, 0x20, 0x80		; 128k
+					db		0x04, 0x40, 0x20, 0x80		; 256k
+					db		0x08, 0x80, 0x20, 0x80		; 512k
+					db		0x10, 0x80, 0x40, 0x80		; 1024k
+					db		0xff				; Table end byte
 
 ; # nc100_vdisk_card_check
 ; #################################

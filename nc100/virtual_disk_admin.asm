@@ -278,7 +278,7 @@ nc100_vdisk_init_magic_loop:
 	ld	(hl), a							; Set version number
 	inc	hl
 	; Disk info
-	ld	b, 0x05
+	ld	b, 0x06
 	xor	a
 nc100_vdisk_init_disk_info:
 	ld	(hl), a							; Clear disk information
@@ -292,6 +292,61 @@ nc100_vdisk_init_description:
 	inc	hl
 	djnz	nc100_vdisk_init_description
 	pop	hl							; Reload start address
+	ret
+
+; # nc100_vdisk_create
+; #################################
+;  Create a vdisk of specfied size
+;	In:	A = Drive size in 64k blocks
+;		B = Drive address in 64k blocks
+;		C = Port address of bank
+;		HL = Pointer to start of virtual disk
+;	Out:	Carry flag set if operation okay, unset if not
+nc100_vdisk_create:
+	ex	af, af'							; Swap out disk size
+	call	nc100_vdisk_card_page_map_set				; Select vdisk
+	ld	l, 0x00							; Reset pointer
+	call	nc100_vdisk_card_check					; Check if there is a valid vdisk header
+	jr	nc, nc100_vdisk_create_continue				; If there isn't, just proceed to create
+	ld	l, nc100_vdisk_header_disk_size				; Get existing disk size
+	ld	a, (hl)
+	and	a							; Check if vdisk deleted
+	jr	nz, nc100_vdisk_create_error				; It's not deleted, so error
+nc100_vdisk_create_continue:
+	ld	l, 0x00							; Reset pointer
+	call	nc100_vdisk_init					; Create template header
+	ld	l, nc100_vdisk_header_disk_size				; Set offset to disk size
+	ld	ix, nc100_vdisk_parameters_table			; Get pointer to vdisk parameters table
+	ex	af, af'							; Swap disk size back
+	ld	d, a							; Copy size
+nc100_vdisk_create_parameters_loop:
+	ld	a, (ix+0)						; Get vdisk size from table
+	cp	d							; Compare with selected vdisk size
+	jr	z, nc100_vdisk_create_parameters_set
+	cp	0xff							; Compare with stop byte
+	jr	z, nc100_vdisk_create_error				; End of table, so error
+	inc	ix							; Increment to next parameter set
+	inc	ix
+	inc	ix
+	inc	ix
+	jr	nc100_vdisk_create_parameters_loop			; Keep looping
+nc100_vdisk_create_parameters_set:
+	ld	(hl), a							; Set vdisk size
+	dec	hl							; Decrement pointer
+	ld	a, (ix+1)						; Get number of tracks
+	ld	(hl), a							; Set vdisk number of tracks
+	dec	hl							; Decrement pointer
+	ld	a, (ix+2)						; Get sectors per track
+	ld	(hl), a							; Set vdisk sectors per track
+	dec	hl							; Decrement pointer
+	ld	a, (ix+3)						; Get number of sectors
+	ld	(hl), a							; Save vdisk number of sectors
+nc100_vdisk_create_finish:
+	scf								; Set Carry flag
+	ret
+nc100_vdisk_create_error:
+	scf								; Clear Carry flag
+	ccf
 	ret
 
 ; # nc100_vdisk_delete
