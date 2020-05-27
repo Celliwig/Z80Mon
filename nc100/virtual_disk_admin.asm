@@ -353,6 +353,7 @@ nc100_vdisk_create_parameters_set:
 	ld	a, (ix+3)						; Get number of sectors
 	ld	(hl), a							; Save vdisk number of sectors
 nc100_vdisk_create_finish:
+	call	nc100_vdisk_format
 	scf								; Set Carry flag
 	ret
 nc100_vdisk_create_error:
