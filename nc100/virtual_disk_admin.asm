@@ -179,7 +179,7 @@ nc100_vdisk_drive_init_loop:
 ; # nc100_vdisk_drive_remove
 ; #################################
 ;  Remove a vdisk from a drive
-;	In:	B = Drive address in 64k blocks
+;	In:	B = Disk address in 64k blocks
 ;		C = Port address of bank
 ;		HL = Pointer to start of virtual disk
 nc100_vdisk_drive_remove:
@@ -208,7 +208,7 @@ nc100_vdisk_drive_remove_finish:
 ; #################################
 ;  Remove a vdisk from a drive
 ;	In:	A = Drive index
-;		B = Drive address in 64k blocks
+;		B = Disk address in 64k blocks
 ;		C = Port address of bank
 ;		HL = Pointer to start of virtual disk
 nc100_vdisk_drive_assign:
@@ -231,7 +231,7 @@ nc100_vdisk_drive_assign:
 ;	In:	A = Drive index
 ;		C = Port address of bank
 ;		HL = Pointer to start of virtual disk
-;	Out:	B = Drive address in 64k blocks
+;	Out:	B = Disk address in 64k blocks
 ;		Carry flag set if drive has assigned vdisk, unset if not
 nc100_vdisk_drive_get:
 	ex	af, af'							; Swap out drive index
@@ -297,8 +297,8 @@ nc100_vdisk_init_description:
 ;; # nc100_vdisk_create_next
 ;; #################################
 ;;  Create a vdisk of specfied size after the last vdisk
-;;	In:	A = Drive size in 64k blocks
-;;		B = Drive address in 64k blocks
+;;	In:	A = Disk size in 64k blocks
+;;		B = Disk address in 64k blocks
 ;;		C = Port address of bank
 ;;		HL = Pointer to start of virtual disk
 ;;	Out:	Carry flag set if operation okay, unset if not
@@ -308,8 +308,8 @@ nc100_vdisk_init_description:
 ; # nc100_vdisk_create
 ; #################################
 ;  Create a vdisk of specfied size
-;	In:	A = Drive size in 64k blocks
-;		B = Drive address in 64k blocks
+;	In:	A = Disk size in 64k blocks
+;		B = Disk address in 64k blocks
 ;		C = Port address of bank
 ;		HL = Pointer to start of virtual disk
 ;	Out:	Carry flag set if operation okay, unset if not
@@ -365,7 +365,7 @@ nc100_vdisk_create_error:
 ;  Format (for CP/M) a selected vdisk.
 ;  The easy way to acheive this is just to write 0xe5 to every sector.
 ;  See: http://cpuville.com/Code/CPM-on-a-new-computer.html (Preparing the Disk)
-;	In:	B = Drive address in 64k blocks
+;	In:	B = Disk address in 64k blocks
 ;		C = Port address of bank
 ;		HL = Pointer to start of virtual disk
 ;	Out:	Carry flag set if operation okay, unset if not
@@ -378,23 +378,28 @@ nc100_vdisk_format:
 	ld	a, (hl)
 	and	a							; Check if vdisk deleted
 	jr	z, nc100_vdisk_format_error				; It's deleted, so error
-	add	b							; Calculate vdisk end
-	ld	d, a							; Save vdisk end
-	ld	e, b							; Save a copy of the vdisk start address
+	add	b							; Calculate vdisk end address
+	ld	d, a							; Save vdisk end address
+	ld	a, h							; Calculate memory bank end MSB
+	add	0x40
+	ld	e, a							; Save memory bank end MSB
+	push	bc							; Copy vdisk end address
 	ld	l, 0x80							; Jump to the start of the 2nd sector
 nc100_vdisk_format_loop:
 	ld	(hl), nc100_vdisk_format_char				; Write format character
-	ld	a, l							; Check of looped to zero
-	or	h
-	jr	nz, nc100_vdisk_format_loop				; If not 0x0000, keep looping
-	inc	b							; Increment drive address
-	ld	a, b
+	inc	hl							; Increment pointer
+	ld	a, h							; Check if pointer is past the end of memory bank
+	cp	e
+	jr	nz, nc100_vdisk_format_loop				; If not 0xX000, keep looping
+	call	nc100_vdisk_card_page_map_next				; Increment to next page
 	cp	d							; Check if end address
 	jr	z, nc100_vdisk_format_finish				; If end address, finish
-	call	nc100_vdisk_card_page_map_set				; Select next page
+	ld	a, h							; Reset pointer MSB to the start of the memory bank
+	sub	0x40
+	ld	h, a
 	jr	nc100_vdisk_format_loop					; Loop over next page
 nc100_vdisk_format_finish:
-	ld	b, e							; Reload vdisk start address
+	pop	bc							; Restore vdisk start address
 	scf								; Set Carry flag
 	ret
 nc100_vdisk_format_error:
@@ -405,7 +410,7 @@ nc100_vdisk_format_error:
 ; # nc100_vdisk_description_set
 ; #################################
 ;  Set the description of a particular vdisk
-;	In:	B = Drive address in 64k blocks
+;	In:	B = Disk address in 64k blocks
 ;		C = Port address of bank
 ;		DE = Description string
 ;		HL = Pointer to start of virtual disk
@@ -446,7 +451,7 @@ nc100_vdisk_description_set_error:
 ; # nc100_vdisk_delete
 ; #################################
 ;  Delete a selected vdisk (remove references from other vdisks, destroy header)
-;	In:	B = Drive address in 64k blocks
+;	In:	B = Disk address in 64k blocks
 ;		C = Port address of bank
 ;		HL = Pointer to start of virtual disk
 ;	Out:	Carry flag set if operation okay, unset if not

@@ -191,6 +191,19 @@ nc100_vdisk_card_page_map_reset:
 	out	(c), a							; Set new mapping
 	ret
 
+; # nc100_vdisk_card_page_map_get
+; #################################
+;  Get the current mapped page
+;	In:	C = Port address of bank
+;	Out:	B = Mapping in 64k blocks
+nc100_vdisk_card_page_map_get:
+	in	a, (c)							; Get the current memory bank configuration
+	and	0x3f							; Filter bits 6 & 7
+	srl	a							; Shift A so as to map to 64k blocks
+	srl	a
+	ld	b, a
+	ret
+
 ; # nc100_vdisk_card_page_map_set
 ; #################################
 ;  Updates the current mapped page
@@ -203,4 +216,21 @@ nc100_vdisk_card_page_map_set:
 	and	0x3f							; Filter bits 6 & 7
 	or	nc100_membank_CRAM					; Select memory card
 	out	(c), a							; Set new mapping
+	ret
+
+; # nc100_vdisk_card_page_map_next
+; #################################
+;  Updates to the next mapped page
+;	In:	C = Port address of bank
+;	Out:	B = Mapping in 64k blocks
+nc100_vdisk_card_page_map_next:
+	in	a, (c)							; Get the current memory bank configuration
+	and	0x3f							; Filter bits 6 & 7
+	inc	a							; Increment page
+	or	nc100_membank_CRAM					; Select memory card
+	out	(c), a							; Set new mapping
+	and	0x3f							; Filter bits 6 & 7
+	srl	a							; Shift A so as to map to 64k blocks
+	srl	a
+	ld	b, a
 	ret
