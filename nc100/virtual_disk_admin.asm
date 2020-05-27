@@ -349,6 +349,45 @@ nc100_vdisk_create_error:
 	ccf
 	ret
 
+; # nc100_vdisk_description_set
+; #################################
+;  Set the description of a particular vdisk
+;	In:	B = Drive address in 64k blocks
+;		C = Port address of bank
+;		DE = Description string
+;		HL = Pointer to start of virtual disk
+;	Out:	Carry flag set if operation okay, unset if not
+nc100_vdisk_description_set:
+	call	nc100_vdisk_card_page_map_set				; Select vdisk
+	ld	l, 0x00							; Reset pointer
+	call	nc100_vdisk_card_check					; Check if there is a valid vdisk header
+	jr	nc, nc100_vdisk_description_set_error			; No header, so error
+	ld	l, nc100_vdisk_header_disk_size				; Get existing disk size
+	ld	a, (hl)
+	and	a							; Check if vdisk deleted
+	jr	z, nc100_vdisk_description_set_error			; It's deleted, so error
+	ld	l, nc100_vdisk_header_description			; Set offset to description
+nc100_vdisk_description_set_copy_loop:
+	ld	a, l
+	cp	nc100_vdisk_header_description_max			; Check if last character of description field
+	jr	z, nc100_vdisk_description_set_null			; Force string termination
+	ld	a, (de)							; Get character from description
+	cp	0							; Check for termination character
+	jr	z, nc100_vdisk_description_set_null			; Terminate string
+	ld	(hl), a							; Write character to description field
+	inc	de							; Increment pointers
+	inc	hl
+	jr	nc100_vdisk_description_set_copy_loop
+nc100_vdisk_description_set_null:
+	xor	a							; Clear A
+	ld	(hl), a							; Terminate string
+	scf								; Set Carry flag
+	ret
+nc100_vdisk_description_set_error:
+	scf								; Clear Carry flag
+	ccf
+	ret
+
 ; # nc100_vdisk_delete
 ; #################################
 ;  Delete a selected vdisk (remove references from other vdisks, destroy header)

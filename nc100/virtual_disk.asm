@@ -144,6 +144,8 @@ nc100_vdisk_header_disk_size:		equ		0x14
 nc100_vdisk_header_prev_disk:		equ		0x15
 nc100_vdisk_header_next_disk:		equ		0x16
 nc100_vdisk_header_description:		equ		0x17
+nc100_vdisk_header_description_length:	equ		0x20				; Vdisk description width
+nc100_vdisk_header_description_max:	equ		nc100_vdisk_header_description+nc100_vdisk_header_description_length-1
 
 nc100_vdisk_version_number:		equ		0x01
 nc100_vdisk_sector_1st:			equ		0x00
