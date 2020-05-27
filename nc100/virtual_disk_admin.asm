@@ -360,7 +360,9 @@ nc100_vdisk_create_error:
 nc100_vdisk_description_set:
 	call	nc100_vdisk_card_page_map_set				; Select vdisk
 	ld	l, 0x00							; Reset pointer
+	push	de							; Save description pointer
 	call	nc100_vdisk_card_check					; Check if there is a valid vdisk header
+	pop	de							; Restore description pointer
 	jr	nc, nc100_vdisk_description_set_error			; No header, so error
 	ld	l, nc100_vdisk_header_disk_size				; Get existing disk size
 	ld	a, (hl)
