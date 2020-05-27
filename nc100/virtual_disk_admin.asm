@@ -72,9 +72,9 @@ nc100_vdisk_card_init_size_set:
 nc100_vdisk_card_select_next:
 	xor	a							; Clear A
 	ld	l, nc100_vdisk_header_next_disk
-	ld	b, (hl)							; Get MSB pointer to next disk
-	cp	b							; Check if zero
+	cp	(hl)							; Check if next pointer is zero
 	jr	z, nc100_vdisk_card_select_next_failed			; If pointer zero, finish
+	ld	b, (hl)							; Get MSB pointer to next disk
 	call	nc100_vdisk_card_page_map_set				; Update page mapping
 	scf								; Set Carry flag
 	ret
@@ -92,12 +92,8 @@ nc100_vdisk_card_select_next_failed:
 nc100_vdisk_card_select_last:
 	call	nc100_vdisk_card_page_map_reset				; Select start of memory card
 nc100_vdisk_card_select_last_loop:
-	xor	a							; Clear A
-	ld	l, nc100_vdisk_header_next_disk
-	ld	b, (hl)							; Get MSB pointer to next disk
-	cp	b							; Check if zero
-	jr	z, nc100_vdisk_card_select_last_finish			; If pointer zero, finish
-	call	nc100_vdisk_card_page_map_set				; Update page mapping
+	call	nc100_vdisk_card_select_next				; Select next vdisk, if it exists
+	jr	nc, nc100_vdisk_card_select_last_finish			; It dosn't exist, so finish
 	jr	nc100_vdisk_card_select_last_loop
 nc100_vdisk_card_select_last_finish:
 	ret
@@ -143,16 +139,10 @@ nc100_vdisk_card_free_space_remaining:
 	ld	a, (hl)							; Save card size
 	ex	af, af'							; Swap out A
 	call	nc100_vdisk_card_select_last				; Seek to last vdisk
-	ld	l, nc100_vdisk_header_disk_size
-	ld	b, (hl)							; Get disk size
-	in	a, (c)							; Get current page mapping
-	and	0x3f							; Filter bits 6 & 7
-	srl	a							; Shift A so as to map with 64k blocks
-	srl	a
-	add	b							; Add disk size
-	ld	b, a							; Save for next calculation
 	ex	af, af'							; Swap A (Size) back in
-	sub	b							; Subtract from card size
+	sub	b							; Subtract vdisk start address from card size
+	ld	l, nc100_vdisk_header_disk_size
+	sub	(hl)							; Subtract vdisk size
 	ret
 
 ; ###########################################################################
@@ -294,16 +284,48 @@ nc100_vdisk_init_description:
 	pop	hl							; Reload start address
 	ret
 
-;; # nc100_vdisk_create_next
-;; #################################
-;;  Create a vdisk of specfied size after the last vdisk
-;;	In:	A = Disk size in 64k blocks
-;;		B = Disk address in 64k blocks
-;;		C = Port address of bank
-;;		HL = Pointer to start of virtual disk
-;;	Out:	Carry flag set if operation okay, unset if not
-;
-;nc100_vdisk_card_select_last
+; # nc100_vdisk_create_next
+; #################################
+;  Create a vdisk of specfied size after the last vdisk
+;	In:	C = Port address of bank
+;		D = Disk size in 64k blocks
+;		HL = Pointer to start of virtual disk
+;	Out:	Carry flag set if operation okay, unset if not
+nc100_vdisk_create_next:
+	call	nc100_vdisk_card_free_space_remaining			; Get free space at the end of the card (64k blocks)
+	sub	d							; Is there enough space for the new vdisk
+	jr	c, nc100_vdisk_create_next_error			; Not enough space, so error
+	push	bc							; Save last vdisk start address (64k blocks)
+	ld	a, b							; Copy vdisk address (64k block)
+	ld	l, nc100_vdisk_header_disk_size				; Set pointer to vdisk size
+	add	(hl)							; Add vdisk size to vdisk address
+	ld	b, a							; Set new vdisk addres (64k blocks)
+	ld	a, d							; Set vdisk size
+	push	bc							; Save vdisk start address (64k blocks)
+	call	nc100_vdisk_create					; Create vdisk
+	pop	bc							; Restore vdisk start address
+	jr	nc, nc100_vdisk_create_next_error_pop			; Check if there were any errors creating new vdisk
+	call	nc100_vdisk_card_page_map_set				; Select new vdisk
+	ld	d, b							; Save new vdisk start address (64k blocks)
+	pop	bc							; Restore previous vdisk start address
+	ld	a, d							; Check if both previous and new vdisk addresses are zero
+	or	b
+	jr	z, nc100_vdisk_create_next_finish			; It's the 1st vdisk, don't need to do anything else
+	ld	l, nc100_vdisk_header_prev_disk				; Set offset to previous vdisk start address
+	ld	(hl), b							; Set previous vdisk start address on new vdisk
+	call	nc100_vdisk_card_page_map_set				; Select previous vdisk
+	ld	l, nc100_vdisk_header_next_disk				; Set offset to next vdisk start address
+	ld	(hl), d							; Set next vdisk start address on the previous vdisk
+	ld	b, d							; Reset B to new vdisk start address (64k block)
+nc100_vdisk_create_next_finish:
+	scf								; Set Carry flag
+	ret
+nc100_vdisk_create_next_error_pop:
+	pop	bc
+nc100_vdisk_create_next_error:
+	scf								; Clear Carry flag
+	ccf
+	ret
 
 ; # nc100_vdisk_create
 ; #################################
@@ -325,7 +347,9 @@ nc100_vdisk_create:
 	jr	nz, nc100_vdisk_create_error				; It's not deleted, so error
 nc100_vdisk_create_continue:
 	ld	l, 0x00							; Reset pointer
+	push	bc							; Store vdisk start address
 	call	nc100_vdisk_init					; Create template header
+	pop	bc							; Restore vdisk start address
 	ld	l, nc100_vdisk_header_disk_size				; Set offset to disk size
 	ld	ix, nc100_vdisk_parameters_table			; Get pointer to vdisk parameters table
 	ex	af, af'							; Swap disk size back
@@ -400,6 +424,9 @@ nc100_vdisk_format_loop:
 	ld	h, a
 	jr	nc100_vdisk_format_loop					; Loop over next page
 nc100_vdisk_format_finish:
+	ld	a, h							; Reset pointer MSB to the start of the memory bank
+	sub	0x40
+	ld	h, a
 	pop	bc							; Restore vdisk start address
 	scf								; Set Carry flag
 	ret
