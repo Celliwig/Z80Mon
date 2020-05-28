@@ -75,7 +75,7 @@ nc100_vdisk_card_select_next:
 	cp	(hl)							; Check if next pointer is zero
 	jr	z, nc100_vdisk_card_select_next_failed			; If pointer zero, finish
 	ld	b, (hl)							; Get MSB pointer to next disk
-	call	nc100_vdisk_card_page_map_set				; Update page mapping
+	call	nc100_vdisk_card_page_map_set_64k			; Update page mapping
 	scf								; Set Carry flag
 	ret
 nc100_vdisk_card_select_next_failed:
@@ -305,7 +305,7 @@ nc100_vdisk_create_next:
 	call	nc100_vdisk_create					; Create vdisk
 	pop	bc							; Restore vdisk start address
 	jr	nc, nc100_vdisk_create_next_error_pop			; Check if there were any errors creating new vdisk
-	call	nc100_vdisk_card_page_map_set				; Select new vdisk
+	call	nc100_vdisk_card_page_map_set_64k			; Select new vdisk
 	ld	d, b							; Save new vdisk start address (64k blocks)
 	pop	bc							; Restore previous vdisk start address
 	ld	a, d							; Check if both previous and new vdisk addresses are zero
@@ -313,7 +313,7 @@ nc100_vdisk_create_next:
 	jr	z, nc100_vdisk_create_next_finish			; It's the 1st vdisk, don't need to do anything else
 	ld	l, nc100_vdisk_header_prev_disk				; Set offset to previous vdisk start address
 	ld	(hl), b							; Set previous vdisk start address on new vdisk
-	call	nc100_vdisk_card_page_map_set				; Select previous vdisk
+	call	nc100_vdisk_card_page_map_set_64k			; Select previous vdisk
 	ld	l, nc100_vdisk_header_next_disk				; Set offset to next vdisk start address
 	ld	(hl), d							; Set next vdisk start address on the previous vdisk
 	ld	b, d							; Reset B to new vdisk start address (64k block)
@@ -337,7 +337,7 @@ nc100_vdisk_create_next_error:
 ;	Out:	Carry flag set if operation okay, unset if not
 nc100_vdisk_create:
 	ex	af, af'							; Swap out disk size
-	call	nc100_vdisk_card_page_map_set				; Select vdisk
+	call	nc100_vdisk_card_page_map_set_64k			; Select vdisk
 	ld	l, 0x00							; Reset pointer
 	call	nc100_vdisk_card_check					; Check if there is a valid vdisk header
 	jr	nc, nc100_vdisk_create_continue				; If there isn't, just proceed to create
@@ -395,7 +395,7 @@ nc100_vdisk_create_error:
 ;		HL = Pointer to start of virtual disk
 ;	Out:	Carry flag set if operation okay, unset if not
 nc100_vdisk_format:
-	call	nc100_vdisk_card_page_map_set				; Select vdisk
+	call	nc100_vdisk_card_page_map_set_64k			; Select vdisk
 	ld	l, 0x00							; Reset pointer
 	call	nc100_vdisk_card_check					; Check if there is a valid vdisk header
 	jr	nc, nc100_vdisk_format_error				; No header, so error
@@ -444,7 +444,7 @@ nc100_vdisk_format_error:
 ;		HL = Pointer to start of virtual disk
 ;	Out:	Carry flag set if operation okay, unset if not
 nc100_vdisk_description_set:
-	call	nc100_vdisk_card_page_map_set				; Select vdisk
+	call	nc100_vdisk_card_page_map_set_64k			; Select vdisk
 	ld	l, 0x00							; Reset pointer
 	push	de							; Save description pointer
 	call	nc100_vdisk_card_check					; Check if there is a valid vdisk header
@@ -485,7 +485,7 @@ nc100_vdisk_description_set_error:
 ;	Out:	Carry flag set if operation okay, unset if not
 nc100_vdisk_delete:
 	call	nc100_vdisk_drive_remove				; Remove disk from any drive
-	call	nc100_vdisk_card_page_map_set				; Select vdisk
+	call	nc100_vdisk_card_page_map_set_64k			; Select vdisk
 	ld	l, 0x00							; Reset pointer
 	call	nc100_vdisk_card_check					; Check if there is a valid vdisk header
 	jr	nc, nc100_vdisk_delete_error
@@ -502,11 +502,11 @@ nc100_vdisk_delete:
 	inc	hl
 	ld	e, (hl)							; Load address of next vdisk
 	ld	b, d
-	call	nc100_vdisk_card_page_map_set				; Select previous vdisk
+	call	nc100_vdisk_card_page_map_set_64k			; Select previous vdisk
 	ld	l, nc100_vdisk_header_next_disk
 	ld	(hl), e							; Update with next pointer from deleted vdisk
 	ld	b, e
-	call	nc100_vdisk_card_page_map_set				; Select next vdisk
+	call	nc100_vdisk_card_page_map_set_64k			; Select next vdisk
 	ld	l, nc100_vdisk_header_prev_disk
 	ld	(hl), d							; Update with previous pointer from deleted vdisk
 nc100_vdisk_delete_finish:
