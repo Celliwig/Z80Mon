@@ -19,7 +19,7 @@ mon_base:				equ	0x0100			; Monitor base address
 ; ###########################################################################
 command_key_help:			equ	'?'			; Help screen
 command_key_listm:			equ	'M'			; Directory list
-command_key_run:			equ	'P'			; Run program
+;command_key_run:			equ	'P'			; Run program
 command_key_download:			equ	'D'			; Download
 command_key_upload:			equ	'U'			; Upload
 command_key_new_locat:			equ	'N'			; New memory location
@@ -30,6 +30,7 @@ command_key_edit:			equ	'E'			; Edit memory
 command_key_clrmem:			equ	'C'			; Clear memory
 command_key_in:				equ	'I'			; Port in
 command_key_out:			equ	'O'			; Port out
+command_key_stack:			equ	'S'			; Set stack
 
 ; # ASCII character codes
 ; ###########################################################################

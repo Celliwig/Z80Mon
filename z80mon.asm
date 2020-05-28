@@ -67,9 +67,9 @@ z80_nm_interrupt_handler:
 orgmem	mem_base+0x80
 
 monlib_console_out:
-	jp	dummy_char_out
+	jp	0x0010
 monlib_console_in:
-	jp	dummy_char_in
+	jp	0x0010
 monlib_print_newline:
 	jp	print_newline
 monlib_print_hex_digit:
@@ -136,24 +136,6 @@ get_version:
 	ld	e, z80mon_version_minor
 	ret
 
-; # Dummy I/O routines
-; ###########################################################################
-; # dummy_char_in
-; #################################
-; Dummy character in routine
-;	Out: A = Character
-dummy_char_in:
-	xor	a
-	ret
-
-; # dummy_char_out
-; #################################
-; Dummy character out routine
-;	In: A = Character
-dummy_char_out:
-	nop
-	ret
-
 ; # Math routines
 ; ###########################################################################
 ; # math_divide_16b
@@ -189,14 +171,12 @@ math_divide_16b_check:
 ;	Out:	A = Hex value
 math_bcd_2_hex:
 	ld	b, a					; Save value
+	srl	b					; Shift upper nibble to lower
+	srl	b
+	srl	b
+	srl	b
 	and	0x0f					; Extract lower nibble
 	ld	c, a					; Save for later
-	ld	a, b
-	srl	a					; Shift upper nibble to lower
-	srl	a
-	srl	a
-	srl	a
-	ld	b, a					; Setup 10s loop
 	xor	a					; Clear A
 	cp	b					; Test 10s digit
 	jr	z, math_bcd_2_hex_combine		; No 10s, so finish
@@ -1400,9 +1380,9 @@ command_help_internal_commands:
 	ld	b, command_key_listm
 	;ld	hl, str_tag_listm
 	call	command_help_line_print
-	ld	b, command_key_run
-	;ld	hl, str_tag_run
-	call	command_help_line_print
+	;ld	b, command_key_run
+	;;ld	hl, str_tag_run
+	;call	command_help_line_print
 	ld	b, command_key_download
 	;ld	hl, str_tag_dnld
 	call	command_help_line_print
@@ -1432,6 +1412,9 @@ command_help_internal_commands:
 	call	command_help_line_print
 	ld	b, command_key_clrmem
 	;ld	hl, str_tag_clrm
+	call	command_help_line_print
+	ld	b, command_key_stack
+	;ld	hl, str_tag_stack
 	call	command_help_line_print
 
 command_help_external_commands:
@@ -1469,6 +1452,21 @@ command_location_new:
 	jp	nc, print_abort				; If escaped, print abort message
 	ld	(z80mon_default_addr), de		; Save value
 	jp	print_newline
+
+; # command_stack_change
+; #################################
+;  Sets the monitor pointer to where default operations are performed
+command_stack_change:
+	ld	hl, str_tag_stack
+	call	print_cstr				; Print message
+
+	ld	hl, str_prompt14			; Print location prompt
+	call	print_cstr
+	call	input_hex16				; Get value
+	jp	nc, print_abort				; If escaped, print abort message
+	ex	de, hl					; Move to the needed register
+	ld	sp, hl					; Set stack pointer
+	rst	16					; Restart monitor
 
 ; # command_jump
 ; #################################
@@ -1597,95 +1595,95 @@ command_clear_mem_inc:
 	inc	bc
 	jr	command_clear_mem_loop
 
-; # command_run
-; #################################
-;  Lists module with id code (35), and provides the ability to run them.
-command_run:
-	ld	hl, str_tag_run
-	call	print_cstr				; Print message
-
-	call	print_newlinex2
-	ld	b, 0					; Module count
-	ld	hl, mem_srch_start			; Set search start
-command_run_module_list_loop:
-	ld	a, 0x23					; Search for program modules
-	push	bc					; Save BC
-	call	module_search
-	pop	bc					; Restore BC
-	jr	nc, command_run_any_programs		; No command found so finish
-	inc	b					; Found a program
-	call	print_spacex2
-	ld	a, 'A'-1				; -1 because it's added to B which is effectively +1
-	add	a, b					; Create character to press to run program
-	call	monlib_console_out			; Print character
-	call	print_dash_spaces
-	ld	l, 0x20					; Offset to module name
-	call	print_str				; Print module name
-	call	print_newline
-	inc	h					; Increment module search start address
-	jr	command_run_module_list_loop		; Loop around again
-command_run_any_programs:
-	ld	a, b					; Check if there are any programs
-	and	a
-	jr	nz, command_run_select_module
-command_run_no_programs:
-	ld	hl, str_prompt5
-	jp	print_cstr
-command_run_select_module:
-	push	bc					; Save B again
-	ld	hl, str_prompt3				; Print select
-	call	print_cstr
-	ld	a, 'A'					; First character
-	call	monlib_console_out
-	call	print_dash
-	ld	a, 'A'-1				; Last character to select program
-	pop	bc					; Restore B
-	add	a, b
-	call	monlib_console_out
-	push	bc
-	ld	hl, str_prompt4
-	ld	a, ')'
-	call	monlib_console_out
-	call	print_cstr
-	call	input_character_filter			; Get character to select program
-	cp	character_code_escape
-	jr	nz, command_run_validate_selection	; Check that it wasn't escape
-	pop	bc					; If it was pop stored BC
-	jp	print_abort
-command_run_validate_selection:
-	pop	bc
-	call	char_2_upper
-	cp	'A'					; Check that it's A or higher
-	jr	c, command_run_invalid
-	ld	c, a					; Save character
-	ld	a, 'A'-1
-	add	b					; Calculate last letter
-	cp	c					; Check that it's less than or equal to second letter
-	jr	nc, command_run_get_program
-	jr	z, command_run_get_program
-command_run_invalid:
-	ld	hl, str_invalid
-	jp	print_cstr
-command_run_get_program:
-	ld	a, c
-	call	monlib_console_out			; Print selected character
-	ld	a, c					; Get character code
-	sub	'A'-1					; Calculate the index
-	ld	b, a					; Save index
-	call	print_newline
-	ld	hl, mem_srch_start			; Set search start
-command_run_get_program_loop:
-	push	bc					; Save BC
-	ld	a, 0x23					; Search for program modules
-	call	module_search
-	jr	nc, command_run_invalid			; This should never run
-	pop	bc
-	inc	h					; Increment module search pointer
-	djnz	command_run_get_program_loop
-	dec	h
-	ld	l, 0x40					; Set offset to program code
-command_run_brkpnt:
-	jp	(hl)					; Execute program code
+;; # command_run
+;; #################################
+;;  Lists module with id code (35), and provides the ability to run them.
+;command_run:
+;	ld	hl, str_tag_run
+;	call	print_cstr				; Print message
+;
+;	call	print_newlinex2
+;	ld	b, 0					; Module count
+;	ld	hl, mem_srch_start			; Set search start
+;command_run_module_list_loop:
+;	ld	a, 0x23					; Search for program modules
+;	push	bc					; Save BC
+;	call	module_search
+;	pop	bc					; Restore BC
+;	jr	nc, command_run_any_programs		; No command found so finish
+;	inc	b					; Found a program
+;	call	print_spacex2
+;	ld	a, 'A'-1				; -1 because it's added to B which is effectively +1
+;	add	a, b					; Create character to press to run program
+;	call	monlib_console_out			; Print character
+;	call	print_dash_spaces
+;	ld	l, 0x20					; Offset to module name
+;	call	print_str				; Print module name
+;	call	print_newline
+;	inc	h					; Increment module search start address
+;	jr	command_run_module_list_loop		; Loop around again
+;command_run_any_programs:
+;	ld	a, b					; Check if there are any programs
+;	and	a
+;	jr	nz, command_run_select_module
+;command_run_no_programs:
+;	ld	hl, str_prompt5
+;	jp	print_cstr
+;command_run_select_module:
+;	push	bc					; Save B again
+;	ld	hl, str_prompt3				; Print select
+;	call	print_cstr
+;	ld	a, 'A'					; First character
+;	call	monlib_console_out
+;	call	print_dash
+;	ld	a, 'A'-1				; Last character to select program
+;	pop	bc					; Restore B
+;	add	a, b
+;	call	monlib_console_out
+;	push	bc
+;	ld	hl, str_prompt4
+;	ld	a, ')'
+;	call	monlib_console_out
+;	call	print_cstr
+;	call	input_character_filter			; Get character to select program
+;	cp	character_code_escape
+;	jr	nz, command_run_validate_selection	; Check that it wasn't escape
+;	pop	bc					; If it was pop stored BC
+;	jp	print_abort
+;command_run_validate_selection:
+;	pop	bc
+;	call	char_2_upper
+;	cp	'A'					; Check that it's A or higher
+;	jr	c, command_run_invalid
+;	ld	c, a					; Save character
+;	ld	a, 'A'-1
+;	add	b					; Calculate last letter
+;	cp	c					; Check that it's less than or equal to second letter
+;	jr	nc, command_run_get_program
+;	jr	z, command_run_get_program
+;command_run_invalid:
+;	ld	hl, str_invalid
+;	jp	print_cstr
+;command_run_get_program:
+;	ld	a, c
+;	call	monlib_console_out			; Print selected character
+;	ld	a, c					; Get character code
+;	sub	'A'-1					; Calculate the index
+;	ld	b, a					; Save index
+;	call	print_newline
+;	ld	hl, mem_srch_start			; Set search start
+;command_run_get_program_loop:
+;	push	bc					; Save BC
+;	ld	a, 0x23					; Search for program modules
+;	call	module_search
+;	jr	nc, command_run_invalid			; This should never run
+;	pop	bc
+;	inc	h					; Increment module search pointer
+;	djnz	command_run_get_program_loop
+;	dec	h
+;	ld	l, 0x40					; Set offset to program code
+;command_run_brkpnt:
+;	jp	(hl)					; Execute program code
 
 ; # command_port_in
 ; #################################
@@ -2204,6 +2202,8 @@ menu_main_builtin_commands:
 	jp	z, command_print_registers		; Run command
 	cp	command_key_new_locat			; Check if new location key
 	jp	z, command_location_new			; Run command
+	cp	command_key_stack			; Check if changestack location key
+	jp	z, command_stack_change			; Run command
 	cp	command_key_jump			; Check if jump key
 	jp	z, command_jump				; Run command
 	cp	command_key_hexdump			; Check if hexdump key
@@ -2212,8 +2212,8 @@ menu_main_builtin_commands:
 	jp	z, command_edit				; Run command
 	cp	command_key_clrmem			; Check if clear memory key
 	jp	z, command_clear_mem			; Run command
-	cp	command_key_run				; Check if run key
-	jp	z, command_run				; Run command
+	;cp	command_key_run				; Check if run key
+	;jp	z, command_run				; Run command
 	cp	command_key_in				; Check if in key
 	jp	z, command_port_in			; Run command
 	cp	command_key_out				; Check if out key
@@ -2412,10 +2412,10 @@ str_logon1:		db	"Welcome",128," z80Mon",14				; Welcome string
 ;str_prompt1:		db	148,"2 Loc:",0						; Paulmon2 Loc: (OLD)
 str_prompt1:		db	"z80Mon:",0						; z80Mon:
 str_prompt2:		db	" >", 160						;  > abort run which program(	(must follow after prompt1)
-str_prompt3:		db	134,202,130,'(',0					; run which program(
-;str_prompt4:		db	"),",149,140,128,200,": ",0				; ), or esc to quit: (OLD)
+;str_prompt3:		db	134,202,130,'(',0					; run which program(
+;;str_prompt4:		db	"),",149,140,128,200,": ",0				; ), or esc to quit: (OLD)
 str_prompt4:		db	",",149,31,140,": ",0					; , or Escape:
-str_prompt5:		db	31,151,130,195,"s",199,166,131,","
+;str_prompt5:		db	31,151,130,195,"s",199,166,131,","
 			db	186," JUMP",128,134,161,"r",130,13,14			; No program headers found in memory, use JUMP to run your program
 str_prompt6:		db	13,13,31,135,131,129,": ",0				; \n\nNew memory location:
 str_prompt7:		db	31,228,251," key: ",0					; Press any key:
@@ -2427,6 +2427,7 @@ str_prompt9b:		db	31,129,32,32,32,32,32,31,201,14				; Location      Type	 (must
 str_prompt10:		db	") ",31,135,31,178,": ",0				; ) New Value:
 str_prompt11:		db	31,189,": ",0						; Port:
 str_prompt12:		db	31,178,": ",0						; Value:
+str_prompt14:		db	13,13,31,135,227,129,": ",0				; \n\nNew stack location:
 
 str_type1:		db	31,154,158,0						; External command
 str_type2:		db	31,130,0						; Program
@@ -2450,6 +2451,7 @@ str_tag_regdump: 	db	31,219,31,196,"s",0					; Dump Registers
 ;str_tag_edit: 		db	31,156,154,146,0					; Editing external ram (OLD)
 str_tag_edit: 		db	31,216,31,146,0						; Edit Ram
 str_tag_clrmem: 	db	31,237,131,0						; Clear memory
+str_tag_stack:		db	31,240,227,129,0					; Change stack location
 
 str_help1:		db	13,13,"Standard",31,158,"s",14				; \n\nStandard Commands
 str_help2:		db	31,218,31,244,"ed",31,158,"s",14			; User Installed Commands
