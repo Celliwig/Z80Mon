@@ -84,15 +84,16 @@ vdisk_utils_command_prompt_loop:
 	jp	z, vdisk_utils_vdisk_description_set
 	cp	vdisk_utils_key_vdisk_delete
 	jp	z, vdisk_utils_vdisk_delete
+	cp	vdisk_utils_key_vdisk_eject
+	jp	z, vdisk_utils_vdisk_eject
+	cp	vdisk_utils_key_vdisk_insert
+	jp	z, vdisk_utils_vdisk_insert
 
 	cp	vdisk_utils_key_quit					; Quit?
 	jr	nz, vdisk_utils_command_prompt_loop
 	call	monlib_console_out
 	call	print_newline
 	pop	af							; Clear extraneous return address
-
-;	call	vdisk_card_display_index
-;	call	vdisk_card_display_drive_index
 vdisk_utils_cleanup:
 	pop	bc							; Get Bank B configuration
 	call	nc100_memory_page_set					; Restore Bank B configuration
@@ -119,6 +120,12 @@ vdisk_utils_cmd_help:
 	call	command_help_line_print
 	ld	b, vdisk_utils_key_vdisk_delete
 	;ld	hl, vdisk_utils_tag_vdisk_delete
+	call	command_help_line_print
+	ld	b, vdisk_utils_key_vdisk_eject
+	;ld	hl, vdisk_utils_tag_vdisk_eject
+	call	command_help_line_print
+	ld	b, vdisk_utils_key_vdisk_insert
+	;ld	hl, vdisk_utils_tag_vdisk_insert
 	call	command_help_line_print
 	ld	b, vdisk_utils_key_list_disks
 	;ld	hl, vdisk_utils_tag_help
@@ -272,17 +279,14 @@ vdisk_utils_vdisk_create_size_loop_1024k:
 vdisk_utils_vdisk_create_continue:
 	call	monlib_console_out
 	call	print_newline
-	ld	hl, str_vdisk_create
-	call	print_str_simple
 	pop	hl
 	pop	bc
 	call	nc100_vdisk_create_next
+	jr	c, vdisk_utils_vdisk_create_finish
 	ld	hl, str_failed
-	jr	nc, vdisk_utils_vdisk_create_test
-	ld	hl, str_okay
-vdisk_utils_vdisk_create_test:
 	call	print_str_simple
 	call	print_newline
+vdisk_utils_vdisk_create_finish:
 	ret
 
 ; # vdisk_utils_vdisk_description_set
@@ -315,12 +319,11 @@ vdisk_utils_vdisk_description_set:
 	pop	hl
 	ld	de, var_vdisk_description
 	call	nc100_vdisk_description_set
+	jr	c, vdisk_utils_vdisk_description_set_finish
 	ld	hl, str_failed
-	jr	nc, vdisk_utils_vdisk_description_set_test
-	ld	hl, str_okay
-vdisk_utils_vdisk_description_set_test:
 	call	print_str_simple
 	call	print_newline
+vdisk_utils_vdisk_description_set_finish:
 	ret
 vdisk_utils_vdisk_description_set_abort:
 	pop	af
@@ -345,17 +348,77 @@ vdisk_utils_vdisk_delete:
 	ld	b, e							; Copy vdisk address
 	push	bc
 	call	print_newline
-	ld	hl, str_vdisk_delete
-	call	print_str_simple
 	pop	bc
 	pop	hl
 	call	nc100_vdisk_delete
+	jr	c, vdisk_utils_vdisk_delete_finish
 	ld	hl, str_failed
-	jr	nc, vdisk_utils_vdisk_delete_test
-	ld	hl, str_okay
-vdisk_utils_vdisk_delete_test:
 	call	print_str_simple
 	call	print_newline
+vdisk_utils_vdisk_delete_finish:
+	ret
+
+; # vdisk_utils_vdisk_eject
+; #################################
+;  Remove a vdisk from a drive
+;       In:     C = Port address of bank
+;               HL = Pointer to vdisk header
+vdisk_utils_vdisk_eject:
+	push	hl
+	push	bc
+	ld	hl, vdisk_utils_tag_vdisk_eject
+	call	print_str_simple
+	call	print_newline
+	ld	hl, str_vdisk_address
+	call	print_str_simple
+	call	input_hex8
+	pop	bc							; Pop port address
+	ld	b, e							; Copy vdisk address
+	push	bc
+	call	print_newline
+	pop	bc
+	pop	hl
+	call	nc100_vdisk_drive_remove
+;	jr	c, vdisk_utils_vdisk_eject_finish
+;	ld	hl, str_failed
+;	call	print_str_simple
+;	call	print_newline
+;vdisk_utils_vdisk_eject_finish:
+	ret
+
+; # vdisk_utils_vdisk_insert
+; #################################
+;  Assign a vdisk to a drive
+;       In:     C = Port address of bank
+;               HL = Pointer to vdisk header
+vdisk_utils_vdisk_insert:
+	push	hl
+	push	bc
+	ld	hl, vdisk_utils_tag_vdisk_insert
+	call	print_str_simple
+	call	print_newline
+	ld	hl, str_vdisk_address
+	call	print_str_simple
+	call	input_hex8
+	pop	bc							; Pop port address
+	ld	b, e							; Copy vdisk address
+	push	bc
+	call	print_newline
+	ld	hl, str_vdisk_drive
+	call	print_str_simple
+	call	input_hex8
+	ld	d, e							; Copy to D, as this will be restored as A
+	push	de
+	call	print_newline
+	pop	af
+	pop	bc
+	pop	hl
+	call	nc100_vdisk_drive_assign
+;	jr	c, vdisk_utils_vdisk_insert_finish
+;	ld	hl, str_failed
+;	call	print_str_simple
+;	call	print_newline
+;vdisk_utils_vdisk_insert_finish:
 	ret
 
 ;; # vdisk_card_putsys
@@ -381,14 +444,6 @@ vdisk_utils_vdisk_delete_test:
 ;	call	print_str_simple
 ;	call	print_newline
 
-;; # vdisk_card_assign_vdisk
-;; #################################
-;	ld	hl, nc100_vdisk_port_address				; Start address to check
-;	ld	c, nc100_vdisk_port_bank				; Port address of Bank register
-;	ld	a, 0x0d
-;	ld	b, 0x00
-;	call	nc100_vdisk_drive_assign
-
 include	"nc100/virtual_disk.asm"
 include	"nc100/virtual_disk_admin.asm"
 
@@ -407,8 +462,10 @@ nc100_vdisk_dma_address:			equ		0x8000
 
 ; Command keys
 vdisk_utils_key_help:				equ		'?'
-vdisk_utils_key_description_edit:		equ		'e'
-vdisk_utils_key_vdisk_delete:			equ		'd'
+vdisk_utils_key_description_edit:		equ		'd'
+vdisk_utils_key_vdisk_delete:			equ		'D'
+vdisk_utils_key_vdisk_eject:			equ		'e'
+vdisk_utils_key_vdisk_insert:			equ		'i'
 vdisk_utils_key_list_disks:			equ		'l'
 vdisk_utils_key_list_drives:			equ		'L'
 vdisk_utils_key_vdisk_new:			equ		'n'
@@ -418,17 +475,17 @@ vdisk_utils_key_quit:				equ		'q'
 vdisk_utils_tag_help:				db		"Help list.",0
 vdisk_utils_tag_description_edit:		db		"Edit vdisk description.",0
 vdisk_utils_tag_vdisk_delete:			db		"Delete vdisk.",0
+vdisk_utils_tag_vdisk_eject:			db		"Eject vdisk from drive.", 0
+vdisk_utils_tag_vdisk_insert:			db		"Insert vdisk into drive.", 0
 vdisk_utils_tag_list_disks:			db		"List vdisks.",0
 vdisk_utils_tag_list_drives:			db		"List drive assignments.",0
 vdisk_utils_tag_vdisk_new:			db		"New virtual disk.",0
 vdisk_utils_tag_quit:				db		"Quit",0
 
 str_vdisk_prompt:				db		"vdisk> ",0
-str_vdisk_delete:				db		"Delete: ",0
-str_vdisk_create:				db		"Create: ",0
+str_vdisk_drive:				db		"Drive: ",0
 str_vdisk_select_size:				db		"Select disk size (1=128k,2=256k,3=512k,4=1024k): ",0
 str_vdisk_label:				db		"Label: ",0
-str_vdisk_format:				db		"Format: ",0
-str_vdisk_read:					db		"Read: ",0
+;str_vdisk_read:					db		"Read: ",0
 str_vdisk_address:				db		"Vdisk addr: ",0
-str_vdisk_write:				db		"Write: ",0
+;str_vdisk_write:				db		"Write: ",0
