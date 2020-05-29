@@ -236,6 +236,38 @@ nc100_vdisk_card_page_map_next:
 	ret
 
 ; ###########################################################################
+; # Drive operations
+; ###########################################################################
+
+; # nc100_vdisk_drive_get
+; #################################
+;  Retreive the pointer assigned to a drive
+;	In:	A = Drive index
+;		C = Port address of bank
+;		HL = Pointer to start of virtual disk
+;	Out:	B = Disk address in 64k blocks
+;		Carry flag set if drive has assigned vdisk, unset if not
+nc100_vdisk_drive_get:
+	ex	af, af'							; Swap out drive index
+	call	nc100_vdisk_card_page_map_reset				; Select start of memory card
+	ex	af, af'							; Swap drive index back in
+	and	0x0f							; Filter value
+	rlca								; x2 (as top nibble stripped)
+	add	nc100_vcard_header_vdisk_header_offset+nc100_vcard_header_vdrive0_type
+	ld	l, a
+	ld	a, (hl)							; Get vdisk type
+	cp	nc100_vdisk_type_none					; Check if the drive is assigned
+	jr	z, nc100_vdisk_drive_get_none
+	inc	hl							; Increment pointer
+	ld	b, (hl)							; Get drive pointer
+	scf								; Set Carry flag
+	ret
+nc100_vdisk_drive_get_none:
+	scf								; Clear Carry flag
+	ccf
+	ret
+
+; ###########################################################################
 ; # VDisk operations
 ; ###########################################################################
 ;  Requires a number of memory based variables to be set beforehand.
