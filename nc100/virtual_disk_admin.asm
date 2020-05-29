@@ -276,7 +276,7 @@ nc100_vdisk_init_disk_info:
 	djnz	nc100_vdisk_init_disk_info
 	; Description
 	ld	b, 0x20
-	ld	a, ' '							; Blank disk description
+	ld	a, 0x00							; Blank disk description
 nc100_vdisk_init_description:
 	ld	(hl), a
 	inc	hl
