@@ -225,16 +225,24 @@ nc100_vdisk_card_page_map_set_64k:
 ;  Updates to the next mapped page
 ;	In:	C = Port address of bank
 ;	Out:	B = Mapping in 64k blocks
+;		Carry flag set if operation completed, unset if not (this will happen if the page mapping is out of bounds)
 nc100_vdisk_card_page_map_next:
 	in	a, (c)							; Get the current memory bank configuration
 	and	0x3f							; Filter bits 6 & 7
 	inc	a							; Increment page
+	bit	6, a
+	jr	nz, nc100_vdisk_card_page_map_next_rollover
 	or	nc100_membank_CRAM					; Select memory card
 	out	(c), a							; Set new mapping
 	and	0x3f							; Filter bits 6 & 7
 	srl	a							; Shift A so as to map to 64k blocks
 	srl	a
 	ld	b, a
+	scf								; Set Carry flag
+	ret
+nc100_vdisk_card_page_map_next_rollover:
+	scf								; Clear Carry flag
+	ccf
 	ret
 
 ; ###########################################################################
@@ -279,7 +287,7 @@ nc100_vdisk_drive_get_none:
 
 ; # nc100_vdisk_sector_seek_32spt
 ; #################################
-;  Create the address to a memory position from track/sector info.
+;  Create the address to a memory position from track/sector info (32 sectors per track).
 ;	In:	B = Start address of vdisk in 64k blocks
 ;		C = Port address of bank
 ;		HL = Pointer to start of vdisk
@@ -321,6 +329,67 @@ nc100_vdisk_sector_seek_32spt_cont:
 	rr	e
 	; A13-A12
 	srl	e							; Shift Memory bits
+	srl	e							; To correct position
+	; Calculate memory page
+	ld	a, b
+	sla	a							; Shift A so as to map with page register format
+	sla	a
+	and	0x3f							; Filter bits 6 & 7
+	or	d							; Combine with track bits
+	or	nc100_membank_CRAM					; Select memory card
+	out	(c), a							; Set memory card page
+	; Combine track/sector addresses
+	ld	a, h							; Sector offset
+	or	e							; Track offset
+	ld	h, a							; Save combined offset
+	ex	de,hl							; Exchange calculated offset
+	pop	hl							; Restore vdisk pointer
+	add	hl, de							; Combine vdisk pointer and offset
+
+	jp	(ix)							; Jump to operation
+
+; # nc100_vdisk_sector_seek_64spt
+; #################################
+;  Create the address to a memory position from track/sector info (64 sectors per track).
+;	In:	B = Start address of vdisk in 64k blocks
+;		C = Port address of bank
+;		HL = Pointer to start of vdisk
+;		IX = Operation to execute
+;	Out:	Carry flag set if card present, unset if not
+nc100_vdisk_sector_seek_64spt:
+	; Track 0/Sector 0 is protected
+	ld	a, (var_vdisk_track)
+	and	a
+	jr	nz, nc100_vdisk_sector_seek_64spt_cont
+	ld	a, (var_vdisk_sector)
+	and	a
+	jr	nz, nc100_vdisk_sector_seek_64spt_cont
+	scf								; Clear Carry flag
+	ccf
+	ret
+nc100_vdisk_sector_seek_64spt_cont:
+	ld	l, 0x00							; Make sure to reset LSB
+	push	hl							; Save vdisk pointer
+	; Process sector
+	; With 64 sectors per track, value maps to A12-A7
+	ld	a, (var_vdisk_sector)
+	and	0x3f							; Filter sector value
+	ld	h, a
+	srl	h							; Right shift H into Carry
+	rr	l							; And into L
+	; Process track
+	; Value maps to A19-A13
+	; Split between:
+	;	Page selection bits A19-A14
+	;	Memory selection bits A13
+	ld	e, 0x00
+	ld	a, (var_vdisk_track)
+	and	0x7f							; Filter track value
+	ld	d, a
+	srl	d							; Split value in to page selection
+	rr	e							; And memory bits
+	; A13
+	srl	e							; Shift Memory bit
 	srl	e							; To correct position
 	; Calculate memory page
 	ld	a, b

@@ -20,9 +20,9 @@ str_virtual:				db		"Virtual",0
 ;		HL = Pointer to start of virtual disk
 nc100_vdisk_card_init:
 	push	hl							; Save start address
+	call	nc100_vdisk_card_page_map_reset				; Select start of memory card
 	ld	b, 16							; Byte count to copy
 	ld	de, nc100_vdisk_init_header				; Need different header so as not to match existing imaages
-	call	nc100_vdisk_card_page_map_reset				; Select start of memory card
 	; Copy init header
 nc100_vdisk_card_init_magic_loop:
 	ld	a, (de)							; Copy magic byte
@@ -38,6 +38,7 @@ nc100_vdisk_card_init_magic_loop:
 	ld	b, 0x00							; 64k block count
 nc100_vdisk_card_init_size_loop:
 	inc	b							; Increment block count
+	ld	d, b
 	in	a, (c)							; Get memory config
 	and	0x3f							; Filter address bits
 	add	0x04							; Increment by 64k
@@ -54,7 +55,7 @@ nc100_vdisk_card_init_size_set:
 	call	nc100_vdisk_card_page_map_reset				; Select start of memory card
 	pop	hl							; Reload start address
 	ld	l, nc100_vcard_header_vdisk_header_offset+nc100_vcard_header_size
-	ld	(hl), b							; Save card size
+	ld	(hl), d							; Save card size
 	; Initialise vdisk drive table
 	call	nc100_vdisk_drive_init
 
@@ -173,7 +174,9 @@ nc100_vdisk_drive_init_loop:
 ;		C = Port address of bank
 ;		HL = Pointer to start of virtual disk
 nc100_vdisk_drive_remove:
+	push	bc							; Save disk address
 	call	nc100_vdisk_card_page_map_reset				; Select start of memory card
+	pop	bc							; Restore disk address
 	ld	l, nc100_vcard_header_vdisk_header_offset+nc100_vcard_header_vdrive0_pointer
 nc100_vdisk_drive_remove_loop:
 	ld	a, b
@@ -389,6 +392,7 @@ nc100_vdisk_format_loop:
 	cp	e
 	jr	nz, nc100_vdisk_format_loop				; If not 0xX000, keep looping
 	call	nc100_vdisk_card_page_map_next				; Increment to next page
+	jr	nc, nc100_vdisk_format_finish				; End of addressable space, so finish
 	cp	d							; Check if end address
 	jr	z, nc100_vdisk_format_finish				; If end address, finish
 	ld	a, h							; Reset pointer MSB to the start of the memory bank
