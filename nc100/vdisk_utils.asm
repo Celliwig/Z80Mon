@@ -470,47 +470,58 @@ vdisk_utils_vdisk_getsys:
 vdisk_utils_vdisk_getsys_continue:
 	; Boot sector read
 	ld	(var_vdisk_dma_addr), de				; Set DMA address
-;	ld	e, 0x01							; Load 1 track
-;	ld	l, nc100_vdisk_header_sectors_track_ptr			; Check whether to load 1 track or 2
-;	ld	a, (hl)							; Get sectors per track
-;	cp	0x20							; Check if 32 sectors per track
-;	jr	nz, vdisk_utils_vdisk_getsys_track_count
-;	ld	e, 0x02							; Load 2 tracks
-;vdisk_utils_vdisk_getsys_track_count:
-
-vdisk_utils_vdisk_getsys_setup_32spt:
-;	ld	e, 0x02							; Load 2 tracks
-;	ld	(var_vdisk_sys_track_count), e
 	ld	de, 0x0000						; Select track 0
 	ld	(var_vdisk_track), de
 	ld	de, 0x0001						; Select sector 1 (track 0/sector 0 is reserved)
 	ld	(var_vdisk_sector), de
 	ld	ix, nc100_vdisk_sector_read				; Read operation
-vdisk_utils_vdisk_getsys_loop_32spt:
+	ld	l, nc100_vdisk_header_sectors_track_ptr
+	ld	a, (hl)							; Get sectors per track
+	ld	(var_vdisk_sectors_per_track), a			; Set sectors per track variable
+	cp	0x20							; Check if 32 sectors per track
+	jr	z, vdisk_utils_vdisk_getsys_setup_32spt
+vdisk_utils_vdisk_getsys_setup_64spt:
+	ld	a, 0x01							; Load 1 track
+	ld	(var_vdisk_sys_track_count), a
+	ld	iy, nc100_vdisk_sector_seek_64spt			; Seek operation
+	jr	vdisk_utils_vdisk_getsys_loop
+vdisk_utils_vdisk_getsys_setup_32spt:
+	ld	a, 0x02							; Load 2 tracks
+	ld	(var_vdisk_sys_track_count), a
+	ld	iy, nc100_vdisk_sector_seek_32spt			; Seek operation
+vdisk_utils_vdisk_getsys_loop:
 	push	hl							; Save vdisk pointer
-	call	nc100_vdisk_sector_seek_32spt
+	ld	de, vdisk_utils_vdisk_getsys_loop_cont
+	push	de							; Push return address
+	jp	(iy)							; Sector seek
+vdisk_utils_vdisk_getsys_loop_cont:
 	pop	hl							; Restore vdisk pointer
 
 	ld	(var_vdisk_dma_addr), de				; Save DMA address
 	ld	de, (var_vdisk_sector)					; Get current sector
 	inc	de							; Next sector
-	ld	a, e
-	cp	0x20							; Check sector number
-	jr	z, vdisk_utils_vdisk_getsys_loop_32spt_next_track
+	ld	a, (var_vdisk_sectors_per_track)
+	cp	e							; Check sector number
+	jr	z, vdisk_utils_vdisk_getsys_loop_next_track
 	ld	(var_vdisk_sector), de					; Update sector
-	jr	vdisk_utils_vdisk_getsys_loop_32spt			; Read next sector
-vdisk_utils_vdisk_getsys_loop_32spt_next_track:
+	jr	vdisk_utils_vdisk_getsys_loop				; Read next sector
+vdisk_utils_vdisk_getsys_loop_next_track:
+	ld	a, (var_vdisk_sys_track_count)				; Get remaining track count
+	dec	a
+	jr	z, vdisk_utils_vdisk_getsys_finish
+	ld	(var_vdisk_sys_track_count), a				; Save remaining track count
 	ld	de, (var_vdisk_track)					; Get current track
 	inc	de							; Next track
-	ld	a, e
-	cp	0x02							; Check track number
-	jr	z, vdisk_utils_vdisk_getsys_loop_32spt_finish
 	ld	(var_vdisk_track), de					; Update track
 	ld	de, 0x0000
 	ld	(var_vdisk_sector), de					; Reset sector
-	jr	vdisk_utils_vdisk_getsys_loop_32spt
-vdisk_utils_vdisk_getsys_loop_32spt_finish:
+	jr	vdisk_utils_vdisk_getsys_loop
+vdisk_utils_vdisk_getsys_finish:
 	ret
+vdisk_utils_vdisk_getsys_failed:
+	ld	hl, str_failed
+	call	print_str_simple
+	jp	print_newline
 vdisk_utils_vdisk_getsys_abort:
 	pop	af							; Pop extraneous values
 	pop	af
@@ -556,6 +567,7 @@ var_vdisk_sector:				dw		0x0000
 var_vdisk_track:				dw		0x0000
 var_vdisk_dma_addr:				dw		0x0000
 var_vdisk_description:				ds		0x20, 0x00
+var_vdisk_sectors_per_track:			db		0x00
 var_vdisk_sys_track_count:			db		0x00
 
 ; # Defines
@@ -594,8 +606,6 @@ str_vdisk_prompt:				db		"vdisk> ",0
 str_vdisk_drive:				db		"Drive: ",0
 str_vdisk_select_size:				db		"Select disk size (1=128k,2=256k,3=512k,4=1024k): ",0
 str_vdisk_label:				db		"Label: ",0
-;str_vdisk_read:					db		"Read: ",0
 str_vdisk_address:				db		"Vdisk addr: ",0
-;str_vdisk_write:				db		"Write: ",0
 str_vdisk_load_location:			db		"Load location: ",0
 str_vdisk_no_disk:				db		"No disk!",0
