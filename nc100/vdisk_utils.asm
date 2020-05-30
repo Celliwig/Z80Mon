@@ -533,30 +533,86 @@ vdisk_utils_vdisk_getsys_abort:
 ;	In:	C = Port address of bank
 ;		HL = Pointer to vdisk header
 vdisk_utils_vdisk_putsys:
+	push	hl
+	push	bc
+	ld	hl, vdisk_utils_tag_vdisk_putsys
+	call	print_str_simple
+	call	print_newline
+	ld	hl, str_vdisk_load_location
+	call	print_str_simple
+	call	input_hex16						; Get address to load boot area into
+	jp	nc, vdisk_utils_vdisk_putsys_abort
+	push	de
+	call	print_newline
+	pop	de
+	pop	bc
+	pop	hl
+	xor	a							; Clear A
+	call	nc100_vdisk_drive_get					; Get vdisk in 1st drive
+	jr	c, vdisk_utils_vdisk_putsys_continue
+	ld	hl, str_vdisk_no_disk
+	call	print_str_simple
+	call	print_newline
 	ret
+vdisk_utils_vdisk_putsys_continue:
+	; Boot sector read
+	ld	(var_vdisk_dma_addr), de				; Set DMA address
+	ld	de, 0x0000						; Select track 0
+	ld	(var_vdisk_track), de
+	ld	de, 0x0001						; Select sector 1 (track 0/sector 0 is reserved)
+	ld	(var_vdisk_sector), de
+	ld	ix, nc100_vdisk_sector_write				; Write operation
+	ld	l, nc100_vdisk_header_sectors_track_ptr
+	ld	a, (hl)							; Get sectors per track
+	ld	(var_vdisk_sectors_per_track), a			; Set sectors per track variable
+	cp	0x20							; Check if 32 sectors per track
+	jr	z, vdisk_utils_vdisk_putsys_setup_32spt
+vdisk_utils_vdisk_putsys_setup_64spt:
+	ld	a, 0x01							; Load 1 track
+	ld	(var_vdisk_sys_track_count), a
+	ld	iy, nc100_vdisk_sector_seek_64spt			; Seek operation
+	jr	vdisk_utils_vdisk_putsys_loop
+vdisk_utils_vdisk_putsys_setup_32spt:
+	ld	a, 0x02							; Load 2 tracks
+	ld	(var_vdisk_sys_track_count), a
+	ld	iy, nc100_vdisk_sector_seek_32spt			; Seek operation
+vdisk_utils_vdisk_putsys_loop:
+	push	hl							; Save vdisk pointer
+	ld	de, vdisk_utils_vdisk_putsys_loop_cont
+	push	de							; Push return address
+	jp	(iy)							; Sector seek
+vdisk_utils_vdisk_putsys_loop_cont:
+	pop	hl							; Restore vdisk pointer
 
-;; # vdisk_card_putsys
-;; #################################
-;	ld	hl, str_vdisk_write
-;	call	print_str_simple
-;	ld	de, 0x001f						; Select sector 31
-;	ld	(var_vdisk_sector), de
-;	ld	de, 0x001f						; Select track 31
-;	ld	(var_vdisk_track), de
-;	ld	de, nc100_vdisk_dma_address
-;	ld	(var_vdisk_dma_addr), de				; Set DMA address
-;	; Vdisk 0
-;	ld	hl, nc100_vdisk_port_address				; Start address to check
-;	ld	c, nc100_vdisk_port_bank				; Port address of Bank register
-;	ld	b, 0x00
-;	ld	ix, nc100_vdisk_sector_write				; Write operation
-;	call	nc100_vdisk_sector_seek_32spt
-;	ld	hl, str_failed
-;	jr	nc, vdisk_utils_write_test
-;	ld	hl, str_okay
-;vdisk_utils_write_test:
-;	call	print_str_simple
-;	call	print_newline
+	ld	(var_vdisk_dma_addr), de				; Save DMA address
+	ld	de, (var_vdisk_sector)					; Get current sector
+	inc	de							; Next sector
+	ld	a, (var_vdisk_sectors_per_track)
+	cp	e							; Check sector number
+	jr	z, vdisk_utils_vdisk_putsys_loop_next_track
+	ld	(var_vdisk_sector), de					; Update sector
+	jr	vdisk_utils_vdisk_putsys_loop				; Read next sector
+vdisk_utils_vdisk_putsys_loop_next_track:
+	ld	a, (var_vdisk_sys_track_count)				; Get remaining track count
+	dec	a
+	jr	z, vdisk_utils_vdisk_putsys_finish
+	ld	(var_vdisk_sys_track_count), a				; Save remaining track count
+	ld	de, (var_vdisk_track)					; Get current track
+	inc	de							; Next track
+	ld	(var_vdisk_track), de					; Update track
+	ld	de, 0x0000
+	ld	(var_vdisk_sector), de					; Reset sector
+	jr	vdisk_utils_vdisk_putsys_loop
+vdisk_utils_vdisk_putsys_finish:
+	ret
+vdisk_utils_vdisk_putsys_failed:
+	ld	hl, str_failed
+	call	print_str_simple
+	jp	print_newline
+vdisk_utils_vdisk_putsys_abort:
+	pop	af							; Pop extraneous values
+	pop	af
+	jp	print_newline
 
 include	"nc100/virtual_disk.asm"
 include	"nc100/virtual_disk_admin.asm"
