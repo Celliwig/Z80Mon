@@ -186,9 +186,11 @@ nc100_vdisk_card_check_failed:
 ; #################################
 ;  Resets to the first page of card memory
 ;	In:	C = Port address of bank
+;	Out	B = Zeroed for other operations
 nc100_vdisk_card_page_map_reset:
 	ld	a, nc100_membank_CRAM|nc100_membank_0k			; Select page(0) memory card
 	out	(c), a							; Set new mapping
+	ld	b, 0x00
 	ret
 
 ; # nc100_vdisk_card_page_map_get_64k
