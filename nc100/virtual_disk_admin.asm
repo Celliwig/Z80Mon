@@ -38,7 +38,6 @@ nc100_vdisk_card_init_magic_loop:
 	ld	b, 0x00							; 64k block count
 nc100_vdisk_card_init_size_loop:
 	inc	b							; Increment block count
-	ld	d, b
 	in	a, (c)							; Get memory config
 	and	0x3f							; Filter address bits
 	add	0x04							; Increment by 64k
@@ -52,10 +51,12 @@ nc100_vdisk_card_init_size_loop:
 	call	nc100_vdisk_card_check_magic_loop
 	jr	nc, nc100_vdisk_card_init_size_loop
 nc100_vdisk_card_init_size_set:
+	push	bc							; Save disk size
 	call	nc100_vdisk_card_page_map_reset				; Select start of memory card
+	pop	af							; Restore disk size
 	pop	hl							; Reload start address
 	ld	l, nc100_vcard_header_vdisk_header_offset+nc100_vcard_header_size
-	ld	(hl), d							; Save card size
+	ld	(hl), a							; Save card size
 	; Initialise vdisk drive table
 	call	nc100_vdisk_drive_init
 
