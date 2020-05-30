@@ -88,7 +88,10 @@ vdisk_utils_command_prompt_loop:
 	jp	z, vdisk_utils_vdisk_eject
 	cp	vdisk_utils_key_vdisk_insert
 	jp	z, vdisk_utils_vdisk_insert
-
+	cp	vdisk_utils_key_vdisk_getsys
+	jp	z, vdisk_utils_vdisk_getsys
+	cp	vdisk_utils_key_vdisk_putsys
+	jp	z, vdisk_utils_vdisk_putsys
 	cp	vdisk_utils_key_quit					; Quit?
 	jr	nz, vdisk_utils_command_prompt_loop
 	call	monlib_console_out
@@ -124,6 +127,9 @@ vdisk_utils_cmd_help:
 	ld	b, vdisk_utils_key_vdisk_eject
 	;ld	hl, vdisk_utils_tag_vdisk_eject
 	call	command_help_line_print
+	ld	b, vdisk_utils_key_vdisk_getsys
+	;ld	hl, vdisk_utils_tag_vdisk_getsys
+	call	command_help_line_print
 	ld	b, vdisk_utils_key_vdisk_insert
 	;ld	hl, vdisk_utils_tag_vdisk_insert
 	call	command_help_line_print
@@ -135,6 +141,9 @@ vdisk_utils_cmd_help:
 	call	command_help_line_print
 	ld	b, vdisk_utils_key_vdisk_new
 	;ld	hl, vdisk_utils_tag_vdisk_new
+	call	command_help_line_print
+	ld	b, vdisk_utils_key_vdisk_putsys
+	;ld	hl, vdisk_utils_tag_vdisk_putsys
 	call	command_help_line_print
 	ld	b, vdisk_utils_key_quit
 	;ld	hl, vdisk_utils_tag_quit
@@ -274,8 +283,13 @@ vdisk_utils_vdisk_create_size_loop_512k:
 	jr	vdisk_utils_vdisk_create_continue
 vdisk_utils_vdisk_create_size_loop_1024k:
 	cp	0x34
-	jr	nz, vdisk_utils_vdisk_create_size_loop
+	jr	nz, vdisk_utils_vdisk_create_escape
 	ld	d, 0x10
+	jr	vdisk_utils_vdisk_create_continue
+vdisk_utils_vdisk_create_escape:
+	cp	character_code_escape
+	jr	z, vdisk_utils_vdisk_create_abort
+	jr	vdisk_utils_vdisk_create_size_loop
 vdisk_utils_vdisk_create_continue:
 	call	monlib_console_out
 	call	print_newline
@@ -287,6 +301,11 @@ vdisk_utils_vdisk_create_continue:
 	call	print_str_simple
 	call	print_newline
 vdisk_utils_vdisk_create_finish:
+	ret
+vdisk_utils_vdisk_create_abort:
+	call	print_newline
+	pop	af							; Pop extraneous values
+	pop	af
 	ret
 
 ; # vdisk_utils_vdisk_description_set
@@ -421,6 +440,90 @@ vdisk_utils_vdisk_insert:
 ;vdisk_utils_vdisk_insert_finish:
 	ret
 
+; # vdisk_utils_vdisk_getsys
+; #################################
+;  Read vdisk boot area in to memory
+;	In:	C = Port address of bank
+;		HL = Pointer to vdisk header
+vdisk_utils_vdisk_getsys:
+	push	hl
+	push	bc
+	ld	hl, vdisk_utils_tag_vdisk_getsys
+	call	print_str_simple
+	call	print_newline
+	ld	hl, str_vdisk_load_location
+	call	print_str_simple
+	call	input_hex16						; Get address to load boot area into
+	jp	nc, vdisk_utils_vdisk_getsys_abort
+	push	de
+	call	print_newline
+	pop	de
+	pop	bc
+	pop	hl
+	xor	a							; Clear A
+	call	nc100_vdisk_drive_get					; Get vdisk in 1st drive
+	jr	c, vdisk_utils_vdisk_getsys_continue
+	ld	hl, str_vdisk_no_disk
+	call	print_str_simple
+	call	print_newline
+	ret
+vdisk_utils_vdisk_getsys_continue:
+	; Boot sector read
+	ld	(var_vdisk_dma_addr), de				; Set DMA address
+;	ld	e, 0x01							; Load 1 track
+;	ld	l, nc100_vdisk_header_sectors_track_ptr			; Check whether to load 1 track or 2
+;	ld	a, (hl)							; Get sectors per track
+;	cp	0x20							; Check if 32 sectors per track
+;	jr	nz, vdisk_utils_vdisk_getsys_track_count
+;	ld	e, 0x02							; Load 2 tracks
+;vdisk_utils_vdisk_getsys_track_count:
+
+vdisk_utils_vdisk_getsys_setup_32spt:
+;	ld	e, 0x02							; Load 2 tracks
+;	ld	(var_vdisk_sys_track_count), e
+	ld	de, 0x0000						; Select track 0
+	ld	(var_vdisk_track), de
+	ld	de, 0x0001						; Select sector 1 (track 0/sector 0 is reserved)
+	ld	(var_vdisk_sector), de
+	ld	ix, nc100_vdisk_sector_read				; Read operation
+vdisk_utils_vdisk_getsys_loop_32spt:
+	push	hl							; Save vdisk pointer
+	call	nc100_vdisk_sector_seek_32spt
+	pop	hl							; Restore vdisk pointer
+
+	ld	(var_vdisk_dma_addr), de				; Save DMA address
+	ld	de, (var_vdisk_sector)					; Get current sector
+	inc	de							; Next sector
+	ld	a, e
+	cp	0x20							; Check sector number
+	jr	z, vdisk_utils_vdisk_getsys_loop_32spt_next_track
+	ld	(var_vdisk_sector), de					; Update sector
+	jr	vdisk_utils_vdisk_getsys_loop_32spt			; Read next sector
+vdisk_utils_vdisk_getsys_loop_32spt_next_track:
+	ld	de, (var_vdisk_track)					; Get current track
+	inc	de							; Next track
+	ld	a, e
+	cp	0x02							; Check track number
+	jr	z, vdisk_utils_vdisk_getsys_loop_32spt_finish
+	ld	(var_vdisk_track), de					; Update track
+	ld	de, 0x0000
+	ld	(var_vdisk_sector), de					; Reset sector
+	jr	vdisk_utils_vdisk_getsys_loop_32spt
+vdisk_utils_vdisk_getsys_loop_32spt_finish:
+	ret
+vdisk_utils_vdisk_getsys_abort:
+	pop	af							; Pop extraneous values
+	pop	af
+	jp	print_newline
+
+; # vdisk_utils_vdisk_putsys
+; #################################
+;  Write memory to vdisk boot area
+;	In:	C = Port address of bank
+;		HL = Pointer to vdisk header
+vdisk_utils_vdisk_putsys:
+	ret
+
 ;; # vdisk_card_putsys
 ;; #################################
 ;	ld	hl, str_vdisk_write
@@ -449,10 +552,11 @@ include	"nc100/virtual_disk_admin.asm"
 
 ; # Variables
 ; ##################################################
-var_vdisk_sector:				db		0x00
-var_vdisk_track:				db		0x00
+var_vdisk_sector:				dw		0x0000
+var_vdisk_track:				dw		0x0000
 var_vdisk_dma_addr:				dw		0x0000
-var_vdisk_description:				ds		0x20, ' '
+var_vdisk_description:				ds		0x20, 0x00
+var_vdisk_sys_track_count:			db		0x00
 
 ; # Defines
 ; ##################################################
@@ -465,10 +569,12 @@ vdisk_utils_key_help:				equ		'?'
 vdisk_utils_key_description_edit:		equ		'd'
 vdisk_utils_key_vdisk_delete:			equ		'D'
 vdisk_utils_key_vdisk_eject:			equ		'e'
+vdisk_utils_key_vdisk_getsys:			equ		'g'
 vdisk_utils_key_vdisk_insert:			equ		'i'
 vdisk_utils_key_list_disks:			equ		'l'
 vdisk_utils_key_list_drives:			equ		'L'
 vdisk_utils_key_vdisk_new:			equ		'n'
+vdisk_utils_key_vdisk_putsys:			equ		'p'
 vdisk_utils_key_quit:				equ		'q'
 
 ; Command help text
@@ -476,10 +582,12 @@ vdisk_utils_tag_help:				db		"Help list.",0
 vdisk_utils_tag_description_edit:		db		"Edit vdisk description.",0
 vdisk_utils_tag_vdisk_delete:			db		"Delete vdisk.",0
 vdisk_utils_tag_vdisk_eject:			db		"Eject vdisk from drive.", 0
+vdisk_utils_tag_vdisk_getsys:			db		"Vdisk getsys.",0
 vdisk_utils_tag_vdisk_insert:			db		"Insert vdisk into drive.", 0
 vdisk_utils_tag_list_disks:			db		"List vdisks.",0
 vdisk_utils_tag_list_drives:			db		"List drive assignments.",0
 vdisk_utils_tag_vdisk_new:			db		"New virtual disk.",0
+vdisk_utils_tag_vdisk_putsys:			db		"Vdisk putsys.",0
 vdisk_utils_tag_quit:				db		"Quit",0
 
 str_vdisk_prompt:				db		"vdisk> ",0
@@ -489,3 +597,5 @@ str_vdisk_label:				db		"Label: ",0
 ;str_vdisk_read:					db		"Read: ",0
 str_vdisk_address:				db		"Vdisk addr: ",0
 ;str_vdisk_write:				db		"Write: ",0
+str_vdisk_load_location:			db		"Load location: ",0
+str_vdisk_no_disk:				db		"No disk!",0
