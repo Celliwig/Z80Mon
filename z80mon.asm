@@ -1584,6 +1584,16 @@ command_hexdump_line_print_loop:
 	dec	d					; Decrement line count
 	jr	nz, command_hexdump_line_print
 
+	push	hl
+	ld	hl, str_prompt15
+	call	print_cstr
+	pop	hl
+	call	input_character_filter			; Next page or quit
+	cp	character_code_escape			; Check if quit
+	jr	z, command_hexdump_end
+	ld	de, 0x600				; Another 0x600 bytes
+	jr	command_hexdump_line_print
+command_hexdump_end:
 	ret
 
 ; # command_edit
@@ -2484,6 +2494,7 @@ str_prompt10:		db	") ",31,135,31,178,": ",0				; ) New Value:
 str_prompt11:		db	31,189,": ",0						; Port:
 str_prompt12:		db	31,178,": ",0						; Value:
 str_prompt14:		db	13,13,31,135,227,129,": ",0				; \n\nNew stack location:
+str_prompt15:		db	31,228,251," key",180,212," page,",149,140,128,200,14	; Press any key for next page, or esc to quit
 
 str_type1:		db	31,154,158,0						; External command
 str_type2:		db	31,130,0						; Program
