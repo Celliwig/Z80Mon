@@ -11,7 +11,7 @@ NC100_PROGRAMCARD_SIDELOAD:		equ	0			; If set, the monitor will be loaded
 ; # Version info
 ; ###########################################################################
 nc100_lib_version_major:		equ	0x00
-nc100_lib_version_minor:		equ	0x05
+nc100_lib_version_minor:		equ	0x07
 
 ; # Defines
 ; ###########################################################################
