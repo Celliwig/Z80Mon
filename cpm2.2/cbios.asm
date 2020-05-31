@@ -6,7 +6,7 @@
 
 iobyte:			equ	0003h			; intel i/o byte
 current_disk:		equ	0004h			; address of current disk number 0=a,... l5=p
-num_disks:		equ	08h			; number of disks in the system
+num_disks:		equ	04h			; number of disks in the system
 nsects:			equ	($-ccp_base)/128	; warm start sector count
 
 org	bios_base					; origin of this program
@@ -33,7 +33,7 @@ warmboot_entry:
 	jp	list_status				; Return list device status
 	jp	disk_sector_translate			; Translate disk sector from virtual to physical
 
-; 8 virtual drives
+; 4 virtual drives
 ;**************************************************************
 disk_param_header:
 ; disk Parameter header for disk 00
@@ -56,26 +56,6 @@ disk_param_header:
 	dw	0000h, 0000h
 	dw	directory_buffer, disk_param_block_128k
 	dw	directory_check03, storage_alloc03
-; disk parameter header for disk 04
-	dw	0000h, 0000h
-	dw	0000h, 0000h
-	dw	directory_buffer, disk_param_block_128k
-	dw	directory_check04, storage_alloc04
-; disk parameter header for disk 05
-	dw	0000h, 0000h
-	dw	0000h, 0000h
-	dw	directory_buffer, disk_param_block_128k
-	dw	directory_check05, storage_alloc05
-; disk parameter header for disk 06
-	dw	0000h, 0000h
-	dw	0000h, 0000h
-	dw	directory_buffer, disk_param_block_128k
-	dw	directory_check06, storage_alloc06
-; disk parameter header for disk 07
-	dw	0000h, 0000h
-	dw	0000h, 0000h
-	dw	directory_buffer, disk_param_block_128k
-	dw	directory_check07, storage_alloc07
 
 ;; Sector translate vector
 ;;**************************************************************
@@ -377,9 +357,9 @@ disk_dma_set:
 ;;  Read one CP/M sector from disk into DMA buffer.
 ;;	In:
 ;;		Disk number in 'diskno'
-;;		Track number in 'track'
-;;		Sector number in 'sector'
-;;		Dma address in 'dmaad' (0-65535)
+;;		Track number in 'var_vdisk_track'
+;;		Sector number in 'var_vdisk_sector'
+;;		Dma address in 'var_vdisk_dma_addr' (0-65535)
 ;;	Out:	A = 0x0 if operation completes, 0x1 if an error occurs
 ;disk_read:
 ;			ld	hl,hstbuf		;buffer to place disk sector (256 bytes)
@@ -431,9 +411,9 @@ disk_dma_set:
 ;;  Write one CP/M sector to disk from the DMA buffer.
 ;;	In:
 ;;		Disk number in 'diskno'
-;;		Track number in 'track'
-;;		Sector number in 'sector'
-;;		Dma address in 'dmaad' (0-65535)
+;;		Track number in 'var_vdisk_track'
+;;		Sector number in 'var_vdisk_sector'
+;;		Dma address in 'var_vdisk_dma_addr' (0-65535)
 ;;	Out:	A = 0x0 if operation completes, 0x1 if an error occurs
 ;disk_write:
 ;			ld	hl,(dmaad)		;memory location of data to write
@@ -491,22 +471,29 @@ include	"nc100/virtual_disk.asm"
 ;	however, between"begdat" and"enddat").
 ;
 
-nc100_vdisk_port_bank:				equ		nc100_io_membank_B
-nc100_vdisk_port_address:			equ		0x4000
-nc100_vdisk_dma_address:			equ		0x8000
+;nc100_vdisk_port_bank:		equ	nc100_io_membank_B
+;nc100_vdisk_port_address:	equ	0x4000
+;nc100_vdisk_dma_address:	equ	0x8000
 
-var_vdisk_sector:				dw		0x0000
-var_vdisk_track:				dw		0x0000
-var_vdisk_dma_addr:				dw		0x0000
-var_vdisk_drive_num:				db		0x00
-;var_vdisk_sectors_per_track:			db		0x00
+var_vdisk_sector:		dw	0x0000		; Sector number for next operation
+var_vdisk_track:		dw	0x0000		; Track number for next operation
+var_vdisk_dma_addr:		dw	0x0000		; DMA address to use for the next operation
+var_vdisk_drive_num:		db	0x00		;
+;var_vdisk_sectors_per_track:	db	0x00
 
-
-;track:			defs	2			; two bytes for expansion
-;sector:			defs	2			; two bytes for expansion
-;dmaad:			defs	2			; direct memory address
-;diskno:			defs	1			; disk number 0-15
-
+; Drive allocation table
+var_vdisk_drive0_type:		db	0x00		; Drive 0: Vdisk type
+var_vdisk_drive0_pointer:	db	0x00		; Drive 0: Vdisk pointer (64k blocks)
+var_vdisk_drive0_size:		db	0x00		; Drive 0: Vdisk size (64k blocks)
+var_vdisk_drive1_type:		db	0x00		; Drive 1: Vdisk type
+var_vdisk_drive1_pointer:	db	0x00		; Drive 1: Vdisk pointer (64k blocks)
+var_vdisk_drive1_size:		db	0x00		; Drive 1: Vdisk size (64k blocks)
+var_vdisk_drive2_type:		db	0x00		; Drive 2: Vdisk type
+var_vdisk_drive2_pointer:	db	0x00		; Drive 2: Vdisk pointer (64k blocks)
+var_vdisk_drive2_size:		db	0x00		; Drive 2: Vdisk size (64k blocks)
+var_vdisk_drive3_type:		db	0x00		; Drive 3: Vdisk type
+var_vdisk_drive3_pointer:	db	0x00		; Drive 3: Vdisk pointer (64k blocks)
+var_vdisk_drive3_size:		db	0x00		; Drive 3: Vdisk size (64k blocks)
 
 ; scratch ram area for bdos use
 begdat:			equ	$			; beginning of data area
@@ -515,18 +502,10 @@ storage_alloc00:	defs	31	 		; allocation vector 0
 storage_alloc01:	defs	31	 		; allocation vector 1
 storage_alloc02:	defs	31	 		; allocation vector 2
 storage_alloc03:	defs	31	 		; allocation vector 3
-storage_alloc04:	defs	31	 		; allocation vector 3
-storage_alloc05:	defs	31	 		; allocation vector 3
-storage_alloc06:	defs	31	 		; allocation vector 3
-storage_alloc07:	defs	31	 		; allocation vector 3
 directory_check00:	defs	16			; check vector 0
 directory_check01:	defs	16			; check vector 1
 directory_check02:	defs	16	 		; check vector 2
 directory_check03:	defs	16	 		; check vector 3
-directory_check04:	defs	16	 		; check vector 3
-directory_check05:	defs	16	 		; check vector 3
-directory_check06:	defs	16	 		; check vector 3
-directory_check07:	defs	16	 		; check vector 3
 
 enddat:			equ	$	 		; end of data area
 datsiz:			equ	$-begdat;		; size of data area
