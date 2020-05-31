@@ -7,7 +7,7 @@
 ; #                                                                         #
 ; ###########################################################################
 
-orgmem  extras_cmd_base+0x0000
+orgmem  extras_cmd_base+0x0a00
 	db	0xA5,0xE5,0xE0,0xA5					; signiture bytes
 	db	254,')',0,0						; id (254=cmd)
 	db	0,0,0,0							; prompt code vector
@@ -18,7 +18,7 @@ orgmem  extras_cmd_base+0x0000
 	db	255,255,255,255						; length and checksum (255=unused)
 	db	"Flash Tool",0
 
-orgmem  extras_cmd_base+0x0040
+orgmem  extras_cmd_base+0x0a40
 flash_tool:
 	ld	c, flash_tool_ROM_bank
 	call	nc100_memory_page_get
