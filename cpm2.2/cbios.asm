@@ -6,7 +6,7 @@
 
 iobyte:			equ	0003h			; intel i/o byte
 current_disk:		equ	0004h			; address of current disk number 0=a,... l5=p
-num_disks:		equ	04h			; number of disks in the system
+num_disks:		equ	08h			; number of disks in the system
 nsects:			equ	($-ccp_base)/128	; warm start sector count
 
 org	bios_base					; origin of this program
@@ -33,30 +33,49 @@ warmboot_entry:
 	jp	list_status				; Return list device status
 	jp	disk_sector_translate			; Translate disk sector from virtual to physical
 
-; Fixed data tables for four-drive standard ibm-compatible
-; 8" disks no translations
+; 8 virtual drives
 ;**************************************************************
 disk_param_header:
 ; disk Parameter header for disk 00
 	dw	0000h, 0000h
 	dw	0000h, 0000h
-	dw	directory_buffer, disk_param_block
+	dw	directory_buffer, disk_param_block_128k
 	dw	directory_check00, storage_alloc00
 ; disk parameter header for disk 01
 	dw	0000h, 0000h
 	dw	0000h, 0000h
-	dw	directory_buffer, disk_param_block
+	dw	directory_buffer, disk_param_block_128k
 	dw	directory_check01, storage_alloc01
 ; disk parameter header for disk 02
 	dw	0000h, 0000h
 	dw	0000h, 0000h
-	dw	directory_buffer, disk_param_block
+	dw	directory_buffer, disk_param_block_128k
 	dw	directory_check02, storage_alloc02
 ; disk parameter header for disk 03
 	dw	0000h, 0000h
 	dw	0000h, 0000h
-	dw	directory_buffer, disk_param_block
+	dw	directory_buffer, disk_param_block_128k
 	dw	directory_check03, storage_alloc03
+; disk parameter header for disk 04
+	dw	0000h, 0000h
+	dw	0000h, 0000h
+	dw	directory_buffer, disk_param_block_128k
+	dw	directory_check04, storage_alloc04
+; disk parameter header for disk 05
+	dw	0000h, 0000h
+	dw	0000h, 0000h
+	dw	directory_buffer, disk_param_block_128k
+	dw	directory_check05, storage_alloc05
+; disk parameter header for disk 06
+	dw	0000h, 0000h
+	dw	0000h, 0000h
+	dw	directory_buffer, disk_param_block_128k
+	dw	directory_check06, storage_alloc06
+; disk parameter header for disk 07
+	dw	0000h, 0000h
+	dw	0000h, 0000h
+	dw	directory_buffer, disk_param_block_128k
+	dw	directory_check07, storage_alloc07
 
 ;; Sector translate vector
 ;;**************************************************************
@@ -71,17 +90,50 @@ disk_param_header:
 
 ; Disk parameter block for all disks.
 ;**************************************************************
-disk_param_block:
-	dw	26					; sectors per track
-	db	3					; block shift factor
-	db	7					; block mask
-	db	0					; null mask
-	dw	242					; disk size-1
-	dw	63					; directory max
-	db	192					; alloc 0
-	db	0					; alloc 1
-	dw	0					; check size
-	dw	2					; track offset
+disk_param_block_128k:
+	dw	0x0020					; SPT: 32 sectors per track
+	db	0x03					; BSH: Block shift factor
+	db	0x07					; BLM: Block mask
+	db	0x00					; EXM: Extent mask
+	dw	0x007f					; DSM: Disk size (-1)
+	dw	0x003f					; DRM: Directory max
+	db	0xc0					; AL0: Alloc 0
+	db	0x00					; AL1: Alloc 1
+	dw	0x0010					; CKS: Check size
+	dw	0x0002					; OFF: Track offset (Reserved tracks)
+disk_param_block_256k:
+	dw	0x0020					; SPT: 32 sectors per track
+	db	0x03					; BSH: Block shift factor
+	db	0x07					; BLM: Block mask
+	db	0x00					; EXM: Extent mask
+	dw	0x00ff					; DSM: Disk size (-1)
+	dw	0x003f					; DRM: Directory max
+	db	0xc0					; AL0: Alloc 0
+	db	0x00					; AL1: Alloc 1
+	dw	0x0010					; CKS: Check size
+	dw	0x0002					; OFF: Track offset (Reserved tracks)
+disk_param_block_512k:
+	dw	0x0020					; SPT: 32 sectors per track
+	db	0x04					; BSH: Block shift factor
+	db	0x0f					; BLM: Block mask
+	db	0x01					; EXM: Extent mask
+	dw	0x00ff					; DSM: Disk size (-1)
+	dw	0x007f					; DRM: Directory max
+	db	0xc0					; AL0: Alloc 0
+	db	0x00					; AL1: Alloc 1
+	dw	0x0020					; CKS: Check size
+	dw	0x0002					; OFF: Track offset (Reserved tracks)
+disk_param_block_1024k:
+	dw	0x0040					; SPT: 64 sectors per track
+	db	0x04					; BSH: Block shift factor
+	db	0x0f					; BLM: Block mask
+	db	0x00					; EXM: Extent mask
+	dw	0x01ff					; DSM: Disk size (-1)
+	dw	0x00ff					; DRM: Directory max
+	db	0xf0					; AL0: Alloc 0
+	db	0x00					; AL1: Alloc 1
+	dw	0x0040					; CKS: Check size
+	dw	0x0001					; OFF: Track offset (Reserved tracks)
 
 ; end of fixed tables
 
@@ -135,7 +187,9 @@ warmboot_sector_load_next:				; Load one more sector
 
 	; more sectors remain to load, check for track change
 	inc	d
-; It's all on one track so disable track change
+;**************************************************************
+; Need to check for disk type!!!!!!!!!!!!!!!
+;**************************************************************
 ;	ld	a, d					; Sector = 27?, if so, change tracks
 ;	cp	27
 ;	jp	c, warmboot_sector_load_next		; Carry generated if sector<27
@@ -245,182 +299,183 @@ disk_home:
 	call	disk_track_set
 	ret						; we will move to 00 on first read/write
 
-; disk_select
-;**************************************************************
-;  Select disk drive
-;	In:	C = Drive to select
-disk_select:
-	ld	hl, 0000h				; error return code
-	ld 	a, c
-	ld	(diskno), a
-	cp	num_disks				; must be between 0 and 3
-	ret	nc					; no carry if 4, 5,...
-	; disk number is in the proper range
-	; defs	10					; space for disk select
-	; compute proper disk Parameter header address
-	ld	a, (diskno)
-	ld 	l, a					; l=disk number 0, 1, 2, 3
-	ld 	h, 0					; high order zero
-	add	hl, hl					; *2
-	add	hl, hl					; *4
-	add	hl, hl					; *8
-	add	hl, hl					; *16 (size of each header)
-	ld	de, disk_param_header
-	add	hl, de					; hl=,disk_param_header (diskno*16) Note typo here in original source.
-	ret
+;; disk_select
+;;**************************************************************
+;;  Select disk drive
+;;	In:	C = Drive to select
+;disk_select:
+;	ld	hl, 0000h				; error return code
+;	ld 	a, c
+;	ld	(diskno), a
+;	cp	num_disks				; must be between 0 and 3
+;	ret	nc					; no carry if 4, 5,...
+;	; disk number is in the proper range
+;	; defs	10					; space for disk select
+;	; compute proper disk Parameter header address
+;	ld	a, (diskno)
+;	ld 	l, a					; l=disk number 0, 1, 2, 3
+;	ld 	h, 0					; high order zero
+;	add	hl, hl					; *2
+;	add	hl, hl					; *4
+;	add	hl, hl					; *8
+;	add	hl, hl					; *16 (size of each header)
+;	ld	de, disk_param_header
+;	add	hl, de					; hl=,disk_param_header (diskno*16) Note typo here in original source.
+;	ret
 
-; disk_track_set
-;**************************************************************
-;  Set disk track for following operations
-;	In:	C = Disk track
-disk_track_set:
-	ld 	a, c
-	ld	(track), a
-	ret
+;; disk_track_set
+;;**************************************************************
+;;  Set disk track for following operations
+;;	In:	C = Disk track
+;disk_track_set:
+;	ld 	a, c
+;	ld	(track), a
+;	ret
 
-; disk_sector_set
-;**************************************************************
-;  Set disk sector for following operations
-;	In:	C = Disk sector
-disk_sector_set:
-	ld 	a, c
-	ld	(sector), a
-	ret
+;; disk_sector_set
+;;**************************************************************
+;;  Set disk sector for following operations
+;;	In:	C = Disk sector
+;disk_sector_set:
+;	ld 	a, c
+;	ld	(sector), a
+;	ret
 
-; disk_sector_translate
-;**************************************************************
-;  Translate a disk sector from virtual to physical
-;	In:	BC = Virtual sector
-;		DE = Sector translation table
-;	Out:	HL = Physical sector
-disk_sector_translate:
-	;translate the sector given by bc using the
-	;translate table given by de
-	ex	de, hl					; hl=.sector_translate
-	add	hl, bc					; hl=.sector_translate (sector)
-	ret						; debug no translation
-	ld	l, (hl)					; l=sector_translate (sector)
-	ld	h, 0					; hl=sector_translate (sector)
-	ret						; with value in hl
+;; disk_sector_translate
+;;**************************************************************
+;;  Translate a disk sector from virtual to physical
+;;	In:	BC = Virtual sector
+;;		DE = Sector translation table
+;;	Out:	HL = Physical sector
+;disk_sector_translate:
+;	;translate the sector given by bc using the
+;	;translate table given by de
+;	ex	de, hl					; hl=.sector_translate
+;	add	hl, bc					; hl=.sector_translate (sector)
+;	ret						; debug no translation
+;	ld	l, (hl)					; l=sector_translate (sector)
+;	ld	h, 0					; hl=sector_translate (sector)
+;	ret						; with value in hl
 
-; disk_dma_set
-;**************************************************************
-;  Set DMA address for following operations
-;	In:	BC = DMA buffer address
-disk_dma_set:
-	ld	l, c					; low order address
-	ld	h, b					; high order address
-	ld	(dmaad), hl				; save the address
-	ret
+;; disk_dma_set
+;;**************************************************************
+;;  Set DMA address for following operations
+;;	In:	BC = DMA buffer address
+;disk_dma_set:
+;	ld	l, c					; low order address
+;	ld	h, b					; high order address
+;	ld	(dmaad), hl				; save the address
+;	ret
 
-; disk_read
-;**************************************************************
-;  Read one CP/M sector from disk into DMA buffer.
-;	In:
-;		Disk number in 'diskno'
-;		Track number in 'track'
-;		Sector number in 'sector'
-;		Dma address in 'dmaad' (0-65535)
-;	Out:	A = 0x0 if operation completes, 0x1 if an error occurs
-disk_read:
-			ld	hl,hstbuf		;buffer to place disk sector (256 bytes)
-rd_status_loop_1:	in	a,(0fh)			;check status
-			and	80h			;check BSY bit
-			jp	nz,rd_status_loop_1	;loop until not busy
-rd_status_loop_2:	in	a,(0fh)			;check	status
-			and	40h			;check DRDY bit
-			jp	z,rd_status_loop_2	;loop until ready
-			ld	a,01h			;number of sectors = 1
-			out	(0ah),a			;sector count register
-			ld	a,(sector)		;sector
-			out	(0bh),a			;lba bits 0 - 7
-			ld	a,(track)		;track
-			out	(0ch),a			;lba bits 8 - 15
-			ld	a,(diskno)		;disk (only bits 
-			out	(0dh),a			;lba bits 16 - 23
-			ld	a,11100000b		;LBA mode, select host drive 0
-			out	(0eh),a			;drive/head register
-			ld	a,20h			;Read sector command
-			out	(0fh),a
-rd_wait_for_DRQ_set:	in	a,(0fh)			;read status
-			and	08h			;DRQ bit
-			jp	z,rd_wait_for_DRQ_set	;loop until bit set
-rd_wait_for_BSY_clear:	in	a,(0fh)
-			and	80h
-			jp	nz,rd_wait_for_BSY_clear
-			in	a,(0fh)			;clear INTRQ
-read_loop:		in	a,(08h)			;get data
-			ld	(hl),a
-			inc	hl
-			in	a,(0fh)			;check status
-			and	08h			;DRQ bit
-			jp	nz,read_loop		;loop until clear
-			ld	hl,(dmaad)		;memory location to place data read from disk
-			ld	de,hstbuf		;host buffer
-			ld	b,128			;size of CP/M sector
-rd_sector_loop:		ld	a,(de)			;get byte from host buffer
-			ld	(hl),a			;put in memory
-			inc	hl
-			inc	de
-			djnz	rd_sector_loop		;put 128 bytes into memory
-			in	a,(0fh)			;get status
-			and	01h			;error bit
-			ret
+;; disk_read
+;;**************************************************************
+;;  Read one CP/M sector from disk into DMA buffer.
+;;	In:
+;;		Disk number in 'diskno'
+;;		Track number in 'track'
+;;		Sector number in 'sector'
+;;		Dma address in 'dmaad' (0-65535)
+;;	Out:	A = 0x0 if operation completes, 0x1 if an error occurs
+;disk_read:
+;			ld	hl,hstbuf		;buffer to place disk sector (256 bytes)
+;rd_status_loop_1:	in	a,(0fh)			;check status
+;			and	80h			;check BSY bit
+;			jp	nz,rd_status_loop_1	;loop until not busy
+;rd_status_loop_2:	in	a,(0fh)			;check	status
+;			and	40h			;check DRDY bit
+;			jp	z,rd_status_loop_2	;loop until ready
+;			ld	a,01h			;number of sectors = 1
+;			out	(0ah),a			;sector count register
+;			ld	a,(sector)		;sector
+;			out	(0bh),a			;lba bits 0 - 7
+;			ld	a,(track)		;track
+;			out	(0ch),a			;lba bits 8 - 15
+;			ld	a,(diskno)		;disk (only bits 
+;			out	(0dh),a			;lba bits 16 - 23
+;			ld	a,11100000b		;LBA mode, select host drive 0
+;			out	(0eh),a			;drive/head register
+;			ld	a,20h			;Read sector command
+;			out	(0fh),a
+;rd_wait_for_DRQ_set:	in	a,(0fh)			;read status
+;			and	08h			;DRQ bit
+;			jp	z,rd_wait_for_DRQ_set	;loop until bit set
+;rd_wait_for_BSY_clear:	in	a,(0fh)
+;			and	80h
+;			jp	nz,rd_wait_for_BSY_clear
+;			in	a,(0fh)			;clear INTRQ
+;read_loop:		in	a,(08h)			;get data
+;			ld	(hl),a
+;			inc	hl
+;			in	a,(0fh)			;check status
+;			and	08h			;DRQ bit
+;			jp	nz,read_loop		;loop until clear
+;			ld	hl,(dmaad)		;memory location to place data read from disk
+;			ld	de,hstbuf		;host buffer
+;			ld	b,128			;size of CP/M sector
+;rd_sector_loop:		ld	a,(de)			;get byte from host buffer
+;			ld	(hl),a			;put in memory
+;			inc	hl
+;			inc	de
+;			djnz	rd_sector_loop		;put 128 bytes into memory
+;			in	a,(0fh)			;get status
+;			and	01h			;error bit
+;			ret
 
-; disk_write
-;**************************************************************
-;  Write one CP/M sector to disk from the DMA buffer.
-;	In:
-;		Disk number in 'diskno'
-;		Track number in 'track'
-;		Sector number in 'sector'
-;		Dma address in 'dmaad' (0-65535)
-;	Out:	A = 0x0 if operation completes, 0x1 if an error occurs
-disk_write:
-			ld	hl,(dmaad)		;memory location of data to write
-			ld	de,hstbuf		;host buffer
-			ld	b,128			;size of CP/M sector
-wr_sector_loop:		ld	a,(hl)			;get byte from memory
-			ld	(de),a			;put in host buffer
-			inc	hl
-			inc	de
-			djnz	wr_sector_loop		;put 128 bytes in host buffer
-			ld	hl,hstbuf		;location of data to write to disk
-wr_status_loop_1:	in	a,(0fh)			;check status
-			and	80h			;check BSY bit
-			jp	nz,wr_status_loop_1	;loop until not busy
-wr_status_loop_2:	in	a,(0fh)			;check	status
-			and	40h			;check DRDY bit
-			jp	z,wr_status_loop_2	;loop until ready
-			ld	a,01h			;number of sectors = 1
-			out	(0ah),a			;sector count register
-			ld	a,(sector)
-			out	(0bh),a			;lba bits 0 - 7 = "sector"
-			ld	a,(track)
-			out	(0ch),a			;lba bits 8 - 15 = "track"
-			ld	a,(diskno)
-			out	(0dh),a			;lba bits 16 - 23, use 16 to 20 for "disk"
-			ld	a,11100000b		;LBA mode, select drive 0
-			out	(0eh),a			;drive/head register
-			ld	a,30h			;Write sector command
-			out	(0fh),a
-wr_wait_for_DRQ_set:	in	a,(0fh)			;read status
-			and	08h			;DRQ bit
-			jp	z,wr_wait_for_DRQ_set	;loop until bit set
-write_loop:		ld	a,(hl)
-			out	(08h),a			;write data
-			inc	hl
-			in	a,(0fh)			;read status
-			and	08h			;check DRQ bit
-			jp	nz,write_loop		;write until bit cleared
-wr_wait_for_BSY_clear:	in	a,(0fh)
-			and	80h
-			jp	nz,wr_wait_for_BSY_clear
-			in	a,(0fh)			;clear INTRQ
-			and	01h			;check for error
-			ret
+;; disk_write
+;;**************************************************************
+;;  Write one CP/M sector to disk from the DMA buffer.
+;;	In:
+;;		Disk number in 'diskno'
+;;		Track number in 'track'
+;;		Sector number in 'sector'
+;;		Dma address in 'dmaad' (0-65535)
+;;	Out:	A = 0x0 if operation completes, 0x1 if an error occurs
+;disk_write:
+;			ld	hl,(dmaad)		;memory location of data to write
+;			ld	de,hstbuf		;host buffer
+;			ld	b,128			;size of CP/M sector
+;wr_sector_loop:		ld	a,(hl)			;get byte from memory
+;			ld	(de),a			;put in host buffer
+;			inc	hl
+;			inc	de
+;			djnz	wr_sector_loop		;put 128 bytes in host buffer
+;			ld	hl,hstbuf		;location of data to write to disk
+;wr_status_loop_1:	in	a,(0fh)			;check status
+;			and	80h			;check BSY bit
+;			jp	nz,wr_status_loop_1	;loop until not busy
+;wr_status_loop_2:	in	a,(0fh)			;check	status
+;			and	40h			;check DRDY bit
+;			jp	z,wr_status_loop_2	;loop until ready
+;			ld	a,01h			;number of sectors = 1
+;			out	(0ah),a			;sector count register
+;			ld	a,(sector)
+;			out	(0bh),a			;lba bits 0 - 7 = "sector"
+;			ld	a,(track)
+;			out	(0ch),a			;lba bits 8 - 15 = "track"
+;			ld	a,(diskno)
+;			out	(0dh),a			;lba bits 16 - 23, use 16 to 20 for "disk"
+;			ld	a,11100000b		;LBA mode, select drive 0
+;			out	(0eh),a			;drive/head register
+;			ld	a,30h			;Write sector command
+;			out	(0fh),a
+;wr_wait_for_DRQ_set:	in	a,(0fh)			;read status
+;			and	08h			;DRQ bit
+;			jp	z,wr_wait_for_DRQ_set	;loop until bit set
+;write_loop:		ld	a,(hl)
+;			out	(08h),a			;write data
+;			inc	hl
+;			in	a,(0fh)			;read status
+;			and	08h			;check DRQ bit
+;			jp	nz,write_loop		;write until bit cleared
+;wr_wait_for_BSY_clear:	in	a,(0fh)
+;			and	80h
+;			jp	nz,wr_wait_for_BSY_clear
+;			in	a,(0fh)			;clear INTRQ
+;			and	01h			;check for error
+;			ret
 
 include	"nc100/nc100_io.def"
+include	"nc100/memory.asm"
 include	"nc100/serial_io.asm"
 include	"nc100/virtual_disk.asm"
 
@@ -430,10 +485,23 @@ include	"nc100/virtual_disk.asm"
 ;	system	memory image (the space must be available,
 ;	however, between"begdat" and"enddat").
 ;
-track:			defs	2			; two bytes for expansion
-sector:			defs	2			; two bytes for expansion
-dmaad:			defs	2			; direct memory address
-diskno:			defs	1			; disk number 0-15
+
+nc100_vdisk_port_bank:				equ		nc100_io_membank_B
+nc100_vdisk_port_address:			equ		0x4000
+nc100_vdisk_dma_address:			equ		0x8000
+
+var_vdisk_sector:				dw		0x0000
+var_vdisk_track:				dw		0x0000
+var_vdisk_dma_addr:				dw		0x0000
+var_vdisk_drive_num:				db		0x00
+;var_vdisk_sectors_per_track:			db		0x00
+
+
+;track:			defs	2			; two bytes for expansion
+;sector:			defs	2			; two bytes for expansion
+;dmaad:			defs	2			; direct memory address
+;diskno:			defs	1			; disk number 0-15
+
 
 ; scratch ram area for bdos use
 begdat:			equ	$			; beginning of data area
@@ -442,17 +510,25 @@ storage_alloc00:	defs	31	 		; allocation vector 0
 storage_alloc01:	defs	31	 		; allocation vector 1
 storage_alloc02:	defs	31	 		; allocation vector 2
 storage_alloc03:	defs	31	 		; allocation vector 3
+storage_alloc04:	defs	31	 		; allocation vector 3
+storage_alloc05:	defs	31	 		; allocation vector 3
+storage_alloc06:	defs	31	 		; allocation vector 3
+storage_alloc07:	defs	31	 		; allocation vector 3
 directory_check00:	defs	16			; check vector 0
 directory_check01:	defs	16			; check vector 1
 directory_check02:	defs	16	 		; check vector 2
 directory_check03:	defs	16	 		; check vector 3
+directory_check04:	defs	16	 		; check vector 3
+directory_check05:	defs	16	 		; check vector 3
+directory_check06:	defs	16	 		; check vector 3
+directory_check07:	defs	16	 		; check vector 3
 
 enddat:			equ	$	 		; end of data area
 datsiz:			equ	$-begdat;		; size of data area
 hstbuf: 		ds	256			; buffer for host disk sector
 
 ; Check that the everything thing fits within the 0x600 bytes
-; allocated for the BiOS, otherwise throw an error
+; allocated for the BIOS, otherwise throw an error
 bios_end_addr:		equ	$
 if bios_end_addr>bios_base+0x600
 	ld	hl, bios_too_big
