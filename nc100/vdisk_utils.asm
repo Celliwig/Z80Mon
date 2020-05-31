@@ -92,6 +92,8 @@ vdisk_utils_command_prompt_loop:
 	jp	z, vdisk_utils_vdisk_getsys
 	cp	vdisk_utils_key_vdisk_putsys
 	jp	z, vdisk_utils_vdisk_putsys
+	cp	vdisk_utils_key_card_format
+	jp	z, vdisk_utils_card_format
 	cp	vdisk_utils_key_quit					; Quit?
 	jr	nz, vdisk_utils_command_prompt_loop
 	call	monlib_console_out
@@ -126,6 +128,9 @@ vdisk_utils_cmd_help:
 	call	command_help_line_print
 	ld	b, vdisk_utils_key_vdisk_eject
 	;ld	hl, vdisk_utils_tag_vdisk_eject
+	call	command_help_line_print
+	ld	b, vdisk_utils_key_card_format
+	;ld	hl, vdisk_utils_tag_card_format
 	call	command_help_line_print
 	ld	b, vdisk_utils_key_vdisk_getsys
 	;ld	hl, vdisk_utils_tag_vdisk_getsys
@@ -614,6 +619,40 @@ vdisk_utils_vdisk_putsys_abort:
 	pop	af
 	jp	print_newline
 
+; # vdisk_utils_card_format
+; #################################
+;  Initialise a memory card
+;       In:     C = Port address of bank
+;               HL = Pointer to vdisk header
+vdisk_utils_card_format:
+	push	hl
+	push	bc
+	ld	hl, vdisk_utils_tag_card_format
+	call	print_str_simple
+	call	print_newline
+	ld	hl, str_format
+	call	print_str_simple
+	ld	hl, str_ny
+	call	print_str_simple
+	call	input_character_filter					; Get character
+	call	char_2_upper						; Convert to uppercase
+	cp	'Y'							; Check response
+	jp	nz, vdisk_utils_card_format_abort
+	call	monlib_console_out					; Print character
+	pop	bc
+	pop	hl
+	call	nc100_vdisk_card_page_map_reset				; Page in memory card
+	call	nc100_vdisk_card_init
+vdisk_utils_card_format_finish:
+	call	print_newline
+	ret
+vdisk_utils_card_format_abort:
+	call	print_newline
+	pop	af							; Pop extraneous values
+	pop	af
+	ret
+
+
 include	"nc100/virtual_disk.asm"
 include	"nc100/virtual_disk_admin.asm"
 
@@ -637,6 +676,7 @@ vdisk_utils_key_help:				equ		'?'
 vdisk_utils_key_description_edit:		equ		'd'
 vdisk_utils_key_vdisk_delete:			equ		'D'
 vdisk_utils_key_vdisk_eject:			equ		'e'
+vdisk_utils_key_card_format:			equ		'f'
 vdisk_utils_key_vdisk_getsys:			equ		'g'
 vdisk_utils_key_vdisk_insert:			equ		'i'
 vdisk_utils_key_list_disks:			equ		'l'
@@ -650,6 +690,7 @@ vdisk_utils_tag_help:				db		"Help list.",0
 vdisk_utils_tag_description_edit:		db		"Edit vdisk description.",0
 vdisk_utils_tag_vdisk_delete:			db		"Delete vdisk.",0
 vdisk_utils_tag_vdisk_eject:			db		"Eject vdisk from drive.", 0
+vdisk_utils_tag_card_format:			db		"Format memory card.",0
 vdisk_utils_tag_vdisk_getsys:			db		"Vdisk getsys.",0
 vdisk_utils_tag_vdisk_insert:			db		"Insert vdisk into drive.", 0
 vdisk_utils_tag_list_disks:			db		"List vdisks.",0
