@@ -141,6 +141,8 @@ disk_param_block_1024k:
 ;**************************************************************
 ;  Cold boot routine
 boot:
+	di						; Disable interrupts (for now)
+
 	xor	a					; Clear A
 	ld	(iobyte), a				; Clear the iobyte
 	ld	(current_disk), a			; Select disk zero
@@ -303,6 +305,7 @@ disk_home:
 ;;**************************************************************
 ;;  Select disk drive
 ;;	In:	C = Drive to select
+;;	Out:	HL = Pointer to Disk Parameter Header of selected drive
 ;disk_select:
 ;	ld	hl, 0000h				; error return code
 ;	ld 	a, c
@@ -323,31 +326,35 @@ disk_home:
 ;	add	hl, de					; hl=,disk_param_header (diskno*16) Note typo here in original source.
 ;	ret
 
-;; disk_track_set
-;;**************************************************************
-;;  Set disk track for following operations
-;;	In:	C = Disk track
-;disk_track_set:
-;	ld 	a, c
-;	ld	(track), a
-;	ret
+; disk_track_set
+;**************************************************************
+;  Set disk track for following operations
+;	In:	C = Disk track
+disk_track_set:
+	ld 	a, c
+	ld	(var_vdisk_track), a
+	ret
 
-;; disk_sector_set
-;;**************************************************************
-;;  Set disk sector for following operations
-;;	In:	C = Disk sector
-;disk_sector_set:
-;	ld 	a, c
-;	ld	(sector), a
-;	ret
+; disk_sector_set
+;**************************************************************
+;  Set disk sector for following operations
+;	In:	C = Disk sector
+disk_sector_set:
+	ld 	a, c
+	ld	(var_vdisk_sector), a
+	ret
 
-;; disk_sector_translate
-;;**************************************************************
-;;  Translate a disk sector from virtual to physical
-;;	In:	BC = Virtual sector
-;;		DE = Sector translation table
-;;	Out:	HL = Physical sector
-;disk_sector_translate:
+; disk_sector_translate
+;**************************************************************
+;  Translate a disk sector from virtual to physical
+;	In:	BC = Logical sector
+;		DE = Sector translation table
+;	Out:	HL = Physical sector
+disk_sector_translate:
+	ld	h, b					; Logical sector is physical sector
+	ld	l, c
+	ret
+
 ;	;translate the sector given by bc using the
 ;	;translate table given by de
 ;	ex	de, hl					; hl=.sector_translate
@@ -357,15 +364,13 @@ disk_home:
 ;	ld	h, 0					; hl=sector_translate (sector)
 ;	ret						; with value in hl
 
-;; disk_dma_set
-;;**************************************************************
-;;  Set DMA address for following operations
-;;	In:	BC = DMA buffer address
-;disk_dma_set:
-;	ld	l, c					; low order address
-;	ld	h, b					; high order address
-;	ld	(dmaad), hl				; save the address
-;	ret
+; disk_dma_set
+;**************************************************************
+;  Set DMA address for following operations
+;	In:	BC = DMA buffer address
+disk_dma_set:
+	ld	(var_vdisk_dma_addr), bc		; Save the DMA address
+	ret
 
 ;; disk_read
 ;;**************************************************************
