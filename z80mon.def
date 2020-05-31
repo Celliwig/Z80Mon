@@ -4,7 +4,7 @@
 ; # Build info
 ; ###########################################################################
 z80mon_version_major:			equ	0x01
-z80mon_version_minor:			equ	0x01
+z80mon_version_minor:			equ	0x02
 build_image_offset:			equ	0x0000			; ROM image
 ;build_image_offset:			equ	0x4000			; Firmware flash image
 
