@@ -547,16 +547,16 @@ var_vdisk_dma_addr_actual:	dw	0x0000			; DMA address to use for the next operati
 ; Drive config table
 var_vdisk_drive0_type:		db	0x00		; Drive 0: Vdisk type
 var_vdisk_drive0_pointer:	db	0x00		; Drive 0: Vdisk pointer (64k blocks)
-var_vdisk_drive0_size:		db	0x00		; Drive 0: Vdisk size
+var_vdisk_drive0_size:		db	0x00		; Drive 0: Vdisk size (64k blocks)
 var_vdisk_drive1_type:		db	0x00		; Drive 1: Vdisk type
 var_vdisk_drive1_pointer:	db	0x00		; Drive 1: Vdisk pointer (64k blocks)
-var_vdisk_drive1_size:		db	0x00		; Drive 1: Vdisk size
+var_vdisk_drive1_size:		db	0x00		; Drive 1: Vdisk size (64k blocks)
 var_vdisk_drive2_type:		db	0x00		; Drive 2: Vdisk type
 var_vdisk_drive2_pointer:	db	0x00		; Drive 2: Vdisk pointer (64k blocks)
-var_vdisk_drive2_size:		db	0x00		; Drive 2: Vdisk size
+var_vdisk_drive2_size:		db	0x00		; Drive 2: Vdisk size (64k blocks)
 var_vdisk_drive3_type:		db	0x00		; Drive 3: Vdisk type
 var_vdisk_drive3_pointer:	db	0x00		; Drive 3: Vdisk pointer (64k blocks)
-var_vdisk_drive3_size:		db	0x00		; Drive 3: Vdisk size
+var_vdisk_drive3_size:		db	0x00		; Drive 3: Vdisk size (64k blocks)
 
 ; scratch ram area for bdos use
 begdat:				equ	$		; beginning of data area
