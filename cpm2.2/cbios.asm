@@ -4,13 +4,13 @@
 ;*
 ;**************************************************************
 
+org	bios_base					; origin of this program
+seek	bios_offset
+
 iobyte:			equ	0003h			; intel i/o byte
 current_disk:		equ	0004h			; address of current disk number 0=a,... l5=p
 num_disks:		equ	04h			; number of disks in the system
 nsects:			equ	($-ccp_base)/128	; warm start sector count
-
-org	bios_base					; origin of this program
-seek	bios_offset
 
 ; Jump vector for individual subroutines
 ;**************************************************************
@@ -37,24 +37,24 @@ warmboot_entry:
 ;**************************************************************
 disk_param_header:
 ; disk Parameter header for disk 00
-	dw	0000h, 0000h
-	dw	0000h, 0000h
-	dw	directory_buffer, disk_param_block_128k
+	dw	0x0000, 0x0000
+	dw	0x0000, 0x0000
+	dw	directory_buffer, 0x0000
 	dw	directory_check00, storage_alloc00
 ; disk parameter header for disk 01
-	dw	0000h, 0000h
-	dw	0000h, 0000h
-	dw	directory_buffer, disk_param_block_128k
+	dw	0x0000, 0x0000
+	dw	0x0000, 0x0000
+	dw	directory_buffer, 0x0000
 	dw	directory_check01, storage_alloc01
 ; disk parameter header for disk 02
-	dw	0000h, 0000h
-	dw	0000h, 0000h
-	dw	directory_buffer, disk_param_block_128k
+	dw	0x0000, 0x0000
+	dw	0x0000, 0x0000
+	dw	directory_buffer, 0x0000
 	dw	directory_check02, storage_alloc02
 ; disk parameter header for disk 03
-	dw	0000h, 0000h
-	dw	0000h, 0000h
-	dw	directory_buffer, disk_param_block_128k
+	dw	0x0000, 0x0000
+	dw	0x0000, 0x0000
+	dw	directory_buffer, 0x0000
 	dw	directory_check03, storage_alloc03
 
 ;; Sector translate vector
@@ -122,6 +122,7 @@ disk_param_block_1024k:
 ;  Cold boot routine
 boot:
 	di						; Disable interrupts (for now)
+	call	disk_configure				; Load in vdisk config
 
 	xor	a					; Clear A
 	ld	(iobyte), a				; Clear the iobyte
@@ -164,30 +165,27 @@ warmboot_sector_load_next:				; Load one more sector
 	add	hl, de					; New DMA address is in HL
 	pop	de					; Recall sector address
 	pop	bc					; Recall number of sectors remaining, and current track
-	dec	b					; Sectors = Sectors - 1
+	dec	b					; Read sectors = Read sectors - 1
 	jr	z, go_cpm				; Transfer to CP/M if all have been loaded
 
-	; more sectors remain to load, check for track change
-	inc	d
-;**************************************************************
-; Need to check for disk type!!!!!!!!!!!!!!!
-;**************************************************************
-;	ld	a, d					; Sector = 27?, if so, change tracks
-;	cp	27
-;	jp	c, warmboot_sector_load_next		; Carry generated if sector<27
-;
-;	; end of current track,	go to next track
-;	ld 	d, 1					; Begin with first sector of next track
-;	inc	c					; Track=track+1
-;
-;	; save register state, and change tracks
-;	push	bc
-;	push	de
-;	push	hl
-;	call	disk_track_set				; Track address set from register c
-;	pop	hl
-;	pop	de
-;	pop	bc
+	; More sectors remain to load, check for track change
+	inc	d					; Increment sector number
+	ld	a, (var_vdisk_sector_size)		; Get selected vdisk sector size
+	cp	d					; Check if greater than last sector
+	jp	c, warmboot_sector_load_next		; Carry generated if sector < (var_vdisk_sector_size)
+
+	; end of current track,	go to next track
+	ld 	d, nc100_vdisk_sector_1st		; Begin with first sector of next track
+	inc	c					; Track = Track + 1
+
+	; save register state, and change tracks
+	push	bc
+	push	de
+	push	hl
+	call	disk_track_set				; Track address set from register c
+	pop	hl
+	pop	de
+	pop	bc
 	jr	warmboot_sector_load_next		; for another sector
 
 ; end of load operation, set parameters and go to CP/M
@@ -272,6 +270,42 @@ reader_in:
 ; Disk device handler
 ;**************************************************************
 
+; disk_page_bank_in
+;**************************************************************
+;  Reconfigure memory page bank to select memory card
+disk_page_bank_in:
+	ld	c, nc100_io_membank_A			; Use the 1st page for this
+	call	nc100_memory_page_get
+	push	bc					; Save 1st page config
+	call	nc100_vdisk_card_page_map_reset		; Page in memory card
+	ret
+
+; disk_page_bank_reset
+;**************************************************************
+;  Reset memory page bank to original configuration
+disk_page_bank_reset:
+	pop	bc
+	call	nc100_memory_page_set			; Restore 1st page config
+	ret
+
+; disk_configure
+;**************************************************************
+;  Read drive configuration from memory card
+disk_configure:
+	call	disk_page_bank_in			; Configure memory bank to select memory card
+	ld	hl, nc100_vcard_header_vdisk_header_offset+nc100_vcard_header_vdrive0_type
+	ld	de, var_vdisk_drive0_type		; Pointer to drive config table
+disk_configure_loop:
+	ld	a, (hl)					; Get byte of drive config
+	ld	(de), a					; Save byte of drive config
+	inc	hl
+	inc	de
+	ld	a, l					; Check offset
+	cp	nc100_vcard_header_vdisk_header_offset+nc100_vcard_header_vdrive4_type
+	jr	nz, disk_configure_loop
+	call	disk_page_bank_reset			; Reset memory bank tp original configuration
+	ret
+
 ; disk_home
 ;**************************************************************
 ;  Move the head to the first track (00)
@@ -281,30 +315,88 @@ disk_home:
 	call	disk_track_set
 	ret						; we will move to 00 on first read/write
 
-;; disk_select
-;;**************************************************************
-;;  Select disk drive
-;;	In:	C = Drive to select
-;;	Out:	HL = Pointer to Disk Parameter Header of selected drive
-;disk_select:
-;	ld	hl, 0000h				; error return code
-;	ld 	a, c
-;	ld	(diskno), a
-;	cp	num_disks				; must be between 0 and 3
-;	ret	nc					; no carry if 4, 5,...
-;	; disk number is in the proper range
-;	; defs	10					; space for disk select
-;	; compute proper disk Parameter header address
-;	ld	a, (diskno)
-;	ld 	l, a					; l=disk number 0, 1, 2, 3
-;	ld 	h, 0					; high order zero
-;	add	hl, hl					; *2
-;	add	hl, hl					; *4
-;	add	hl, hl					; *8
-;	add	hl, hl					; *16 (size of each header)
-;	ld	de, disk_param_header
-;	add	hl, de					; hl=,disk_param_header (diskno*16) Note typo here in original source.
-;	ret
+; disk_select
+;**************************************************************
+;  Select disk drive
+;	In:	C = Drive to select
+;	Out:	HL = Pointer to Disk Parameter Header of selected drive
+disk_select:
+	ld 	a, c
+	cp	num_disks				; Must be between 0 and 3
+	jr	nc, disk_select_error
+	ld	(var_vdisk_drive_num), a		; Save selected drive
+	ld	l, a
+	ld	h, 0x00					; HL = Drive number
+	push	hl					; Save drive number
+	ld	l,0x00					; Clear HL
+	ld	de, 0x0003				; Drive config table offset
+	and	a					; Check if selected drive is zero
+disk_select_size_loop:
+	jr	z, disk_select_size			; If zero continue
+	add	hl, de					; Add drive config table offset
+	dec	a					; Decrement selected drive
+	jr	disk_select_size_loop
+disk_select_size:
+	ld	de, var_vdisk_drive0_type		; Pointer to drive config table
+	add	hl, de					; Add offset to pointer to drive config table
+	ld	a, (hl)					; Check drive type
+	cp	nc100_vdisk_type_none			; Check if disk inserted
+	jr	z, disk_select_error			; If no disk, error
+	inc	hl
+	inc	hl
+	ld	a, (hl)					; Get disk size
+disk_select_size_128k:
+	cp	0x02					; Is it 128k?
+	jr	nz, disk_select_size_256k
+	ld	bc, nc100_vdisk_sector_seek_32spt	; Use seek sector 32k
+	ld	(var_vdisk_sector_seek), bc
+	ld	a, 0x20					; Vdisk sector size: 32
+	ld	bc, disk_param_block_128k		; Disk Parameter Block: 128k
+	jr	disk_select_get_dph
+disk_select_size_256k:
+	cp	0x04					; Is it 256k?
+	jr	nz, disk_select_size_512k
+	ld	bc, nc100_vdisk_sector_seek_32spt	; Use seek sector 32k
+	ld	(var_vdisk_sector_seek), bc
+	ld	a, 0x20					; Vdisk sector size: 32
+	ld	bc, disk_param_block_256k		; Disk Parameter Block: 256k
+	jr	disk_select_get_dph
+disk_select_size_512k:
+	cp	0x08					; Is it 512k?
+	jr	nz, disk_select_size_1024k
+	ld	bc, nc100_vdisk_sector_seek_32spt	; Use seek sector 32k
+	ld	(var_vdisk_sector_seek), bc
+	ld	a, 0x20					; Vdisk sector size: 32
+	ld	bc, disk_param_block_512k		; Disk Parameter Block: 512k
+	jr	disk_select_get_dph
+disk_select_size_1024k:
+	cp	0x10					; Is it 1024k?
+	jr	nz, disk_select_error
+	ld	bc, nc100_vdisk_sector_seek_64spt	; Use seek sector 64k
+	ld	(var_vdisk_sector_seek), bc
+	ld	a, 0x40					; Vdisk sector size: 64
+	ld	bc, disk_param_block_1024k		; Disk Parameter Block: 1024k
+	;jr	disk_select_get_dph
+disk_select_get_dph:
+	ld	(var_vdisk_sector_size), a		; Save selected vdisk sector size
+	pop	hl					; Restore drive number
+	add	hl, hl					; HL*2
+	add	hl, hl					; HL*4
+	add	hl, hl					; HL*8
+	add	hl, hl					; HL*16 (size of disk parameter header)
+	ld	de, disk_param_header
+	add	hl, de					; HL = Disk Parameter Header + (disknum*16)
+	push	hl					; Save DPH
+	ld	de, 0x000a				; Offset to DPB
+	add	hl, de					; Add offset to DPB to pointer to DPH
+	ld	(hl), c					; Set DPB
+	inc	hl					; Increment pointer
+	ld	(hl), b					; Set DPB
+	pop	hl					; Restore DPH
+	ret
+disk_select_error:
+	ld	hl, 0x0000				; error return code
+	ret
 
 ; disk_track_set
 ;**************************************************************
@@ -349,115 +441,82 @@ disk_sector_translate:
 ;  Set DMA address for following operations
 ;	In:	BC = DMA buffer address
 disk_dma_set:
-	ld	(var_vdisk_dma_addr), bc		; Save the DMA address
+	ld	(var_vdisk_dma_addr_actual), bc		; Save the DMA address
 	ret
 
-;; disk_read
-;;**************************************************************
-;;  Read one CP/M sector from disk into DMA buffer.
-;;	In:
-;;		Disk number in 'diskno'
-;;		Track number in 'var_vdisk_track'
-;;		Sector number in 'var_vdisk_sector'
-;;		Dma address in 'var_vdisk_dma_addr' (0-65535)
-;;	Out:	A = 0x0 if operation completes, 0x1 if an error occurs
-;disk_read:
-;			ld	hl,hstbuf		;buffer to place disk sector (256 bytes)
-;rd_status_loop_1:	in	a,(0fh)			;check status
-;			and	80h			;check BSY bit
-;			jp	nz,rd_status_loop_1	;loop until not busy
-;rd_status_loop_2:	in	a,(0fh)			;check	status
-;			and	40h			;check DRDY bit
-;			jp	z,rd_status_loop_2	;loop until ready
-;			ld	a,01h			;number of sectors = 1
-;			out	(0ah),a			;sector count register
-;			ld	a,(sector)		;sector
-;			out	(0bh),a			;lba bits 0 - 7
-;			ld	a,(track)		;track
-;			out	(0ch),a			;lba bits 8 - 15
-;			ld	a,(diskno)		;disk (only bits 
-;			out	(0dh),a			;lba bits 16 - 23
-;			ld	a,11100000b		;LBA mode, select host drive 0
-;			out	(0eh),a			;drive/head register
-;			ld	a,20h			;Read sector command
-;			out	(0fh),a
-;rd_wait_for_DRQ_set:	in	a,(0fh)			;read status
-;			and	08h			;DRQ bit
-;			jp	z,rd_wait_for_DRQ_set	;loop until bit set
-;rd_wait_for_BSY_clear:	in	a,(0fh)
-;			and	80h
-;			jp	nz,rd_wait_for_BSY_clear
-;			in	a,(0fh)			;clear INTRQ
-;read_loop:		in	a,(08h)			;get data
-;			ld	(hl),a
-;			inc	hl
-;			in	a,(0fh)			;check status
-;			and	08h			;DRQ bit
-;			jp	nz,read_loop		;loop until clear
-;			ld	hl,(dmaad)		;memory location to place data read from disk
-;			ld	de,hstbuf		;host buffer
-;			ld	b,128			;size of CP/M sector
-;rd_sector_loop:		ld	a,(de)			;get byte from host buffer
-;			ld	(hl),a			;put in memory
-;			inc	hl
-;			inc	de
-;			djnz	rd_sector_loop		;put 128 bytes into memory
-;			in	a,(0fh)			;get status
-;			and	01h			;error bit
-;			ret
+; disk_read
+;**************************************************************
+;  Read one CP/M sector from disk into DMA buffer.
+;	In:
+;		Disk number in 'diskno'
+;		Track number in 'var_vdisk_track'
+;		Sector number in 'var_vdisk_sector'
+;		Dma address in 'var_vdisk_dma_addr' (0-65535)
+;	Out:	A = 0x0 if operation completes, 0x1 if an error occurs
+disk_read:
+	ld	ix, nc100_vdisk_sector_read		; It's a read operation
+	ld	iy, (var_vdisk_sector_seek)		; Get selected sector seek operation
+	ld	de, disk_read_error_check		; Push return address
+	push	de
+	call	disk_page_bank_in			; Configure memory bank to select memory card
+	ld	hl, 0x0000				; Reset pointer of vdisk operation
+	jp	(iy)					; Jump to sector seek routine
+disk_read_error_check:
+	call	disk_page_bank_reset			; Reset memory bank tp original configuration
+	jr	nc, disk_read_error_check_failed	; Check if an error occured
+disk_read_copy:
+	; Copy from BIOS buffer to DMA address
+	ld	de, (var_vdisk_bios_buffer)		; Address of BIOS buffer
+	ld	hl, (var_vdisk_dma_addr_actual)		; Address to read data from
+	ld	b, 0x80					; Byte count
+disk_read_copy_loop:
+	ld	a, (de)					; Copy byte from BIOS buffer to DMA address
+	ld	(hl), a
+	inc	de					; Increment pointers
+	inc	hl
+	djnz	disk_read_copy_loop			; Copy 128 bytes
+	xor	a					; Set no error code
+	ret
+disk_read_error_check_failed:
+	ld	a, 0x01					; Set error code
+	ret
 
-;; disk_write
-;;**************************************************************
-;;  Write one CP/M sector to disk from the DMA buffer.
-;;	In:
-;;		Disk number in 'diskno'
-;;		Track number in 'var_vdisk_track'
-;;		Sector number in 'var_vdisk_sector'
-;;		Dma address in 'var_vdisk_dma_addr' (0-65535)
-;;	Out:	A = 0x0 if operation completes, 0x1 if an error occurs
-;disk_write:
-;			ld	hl,(dmaad)		;memory location of data to write
-;			ld	de,hstbuf		;host buffer
-;			ld	b,128			;size of CP/M sector
-;wr_sector_loop:		ld	a,(hl)			;get byte from memory
-;			ld	(de),a			;put in host buffer
-;			inc	hl
-;			inc	de
-;			djnz	wr_sector_loop		;put 128 bytes in host buffer
-;			ld	hl,hstbuf		;location of data to write to disk
-;wr_status_loop_1:	in	a,(0fh)			;check status
-;			and	80h			;check BSY bit
-;			jp	nz,wr_status_loop_1	;loop until not busy
-;wr_status_loop_2:	in	a,(0fh)			;check	status
-;			and	40h			;check DRDY bit
-;			jp	z,wr_status_loop_2	;loop until ready
-;			ld	a,01h			;number of sectors = 1
-;			out	(0ah),a			;sector count register
-;			ld	a,(sector)
-;			out	(0bh),a			;lba bits 0 - 7 = "sector"
-;			ld	a,(track)
-;			out	(0ch),a			;lba bits 8 - 15 = "track"
-;			ld	a,(diskno)
-;			out	(0dh),a			;lba bits 16 - 23, use 16 to 20 for "disk"
-;			ld	a,11100000b		;LBA mode, select drive 0
-;			out	(0eh),a			;drive/head register
-;			ld	a,30h			;Write sector command
-;			out	(0fh),a
-;wr_wait_for_DRQ_set:	in	a,(0fh)			;read status
-;			and	08h			;DRQ bit
-;			jp	z,wr_wait_for_DRQ_set	;loop until bit set
-;write_loop:		ld	a,(hl)
-;			out	(08h),a			;write data
-;			inc	hl
-;			in	a,(0fh)			;read status
-;			and	08h			;check DRQ bit
-;			jp	nz,write_loop		;write until bit cleared
-;wr_wait_for_BSY_clear:	in	a,(0fh)
-;			and	80h
-;			jp	nz,wr_wait_for_BSY_clear
-;			in	a,(0fh)			;clear INTRQ
-;			and	01h			;check for error
-;			ret
+; disk_write
+;**************************************************************
+;  Write one CP/M sector to disk from the DMA buffer.
+;	In:
+;		Disk number in 'diskno'
+;		Track number in 'var_vdisk_track'
+;		Sector number in 'var_vdisk_sector'
+;		Dma address in 'var_vdisk_dma_addr' (0-65535)
+;	Out:	A = 0x0 if operation completes, 0x1 if an error occurs
+disk_write:
+disk_write_copy:
+	; Copy from DMA address to BIOS buffer
+	ld	de, (var_vdisk_dma_addr_actual)		; Address to read data from
+	ld	hl, (var_vdisk_bios_buffer)		; Address of BIOS buffer
+	ld	b, 0x80					; Byte count
+disk_write_copy_loop:
+	ld	a, (de)					; Copy byte from DMA address to BIOS buffer
+	ld	(hl), a
+	inc	de					; Increment pointers
+	inc	hl
+	djnz	disk_write_copy_loop			; Copy 128 bytes
+	ld	ix, nc100_vdisk_sector_write		; It's a write operation
+	ld	iy, (var_vdisk_sector_seek)		; Get selected sector seek routine
+	ld	de, disk_write_error_check		; Push return address
+	push	de
+	call	disk_page_bank_in			; Configure memory bank to select memory card
+	ld	hl, 0x0000				; Reset pointer of vdisk operation
+	jp	(iy)					; Jump to sector seek routine
+disk_write_error_check:
+	call	disk_page_bank_reset			; Reset memory bank to original configuration
+	jr	nc, disk_write_error_check_failed	; Check if an error occured
+	xor	a					; Set no error code
+	ret
+disk_write_error_check_failed:
+	ld	a, 0x01					; Set error code
+	ret
 
 include	"nc100/nc100_io.def"
 include	"nc100/memory.asm"
@@ -475,41 +534,44 @@ include	"nc100/virtual_disk.asm"
 ;nc100_vdisk_port_address:	equ	0x4000
 ;nc100_vdisk_dma_address:	equ	0x8000
 
-var_vdisk_sector:		dw	0x0000		; Sector number for next operation
-var_vdisk_track:		dw	0x0000		; Track number for next operation
-var_vdisk_dma_addr:		dw	0x0000		; DMA address to use for the next operation
-var_vdisk_drive_num:		db	0x00		;
-;var_vdisk_sectors_per_track:	db	0x00
+var_vdisk_sector:		dw	0x0000			; Sector number for next operation
+var_vdisk_track:		dw	0x0000			; Track number for next operation
+var_vdisk_dma_addr:		dw	var_vdisk_bios_buffer	; DMA address of the local (to the BIOS) buffer
+var_vdisk_sector_seek:		dw	0x0000			; Routine to use for seek sector
+var_vdisk_sector_size:		db	0x00			; Selected vdisk sector size
+var_vdisk_drive_num:		db	0x00			; Selected disk drive
 
-; Drive allocation table
+var_vdisk_bios_buffer:		ds	128, 0x00		; Buffer read/writes beween memory card and DMA address
+var_vdisk_dma_addr_actual:	dw	0x0000			; DMA address to use for the next operation
+
+; Drive config table
 var_vdisk_drive0_type:		db	0x00		; Drive 0: Vdisk type
 var_vdisk_drive0_pointer:	db	0x00		; Drive 0: Vdisk pointer (64k blocks)
-var_vdisk_drive0_size:		db	0x00		; Drive 0: Vdisk size (64k blocks)
+var_vdisk_drive0_size:		db	0x00		; Drive 0: Vdisk size
 var_vdisk_drive1_type:		db	0x00		; Drive 1: Vdisk type
 var_vdisk_drive1_pointer:	db	0x00		; Drive 1: Vdisk pointer (64k blocks)
-var_vdisk_drive1_size:		db	0x00		; Drive 1: Vdisk size (64k blocks)
+var_vdisk_drive1_size:		db	0x00		; Drive 1: Vdisk size
 var_vdisk_drive2_type:		db	0x00		; Drive 2: Vdisk type
 var_vdisk_drive2_pointer:	db	0x00		; Drive 2: Vdisk pointer (64k blocks)
-var_vdisk_drive2_size:		db	0x00		; Drive 2: Vdisk size (64k blocks)
+var_vdisk_drive2_size:		db	0x00		; Drive 2: Vdisk size
 var_vdisk_drive3_type:		db	0x00		; Drive 3: Vdisk type
 var_vdisk_drive3_pointer:	db	0x00		; Drive 3: Vdisk pointer (64k blocks)
-var_vdisk_drive3_size:		db	0x00		; Drive 3: Vdisk size (64k blocks)
+var_vdisk_drive3_size:		db	0x00		; Drive 3: Vdisk size
 
 ; scratch ram area for bdos use
-begdat:			equ	$			; beginning of data area
-directory_buffer:	defs	128	 		; scratch directory area
-storage_alloc00:	defs	31	 		; allocation vector 0
-storage_alloc01:	defs	31	 		; allocation vector 1
-storage_alloc02:	defs	31	 		; allocation vector 2
-storage_alloc03:	defs	31	 		; allocation vector 3
-directory_check00:	defs	16			; check vector 0
-directory_check01:	defs	16			; check vector 1
-directory_check02:	defs	16	 		; check vector 2
-directory_check03:	defs	16	 		; check vector 3
+begdat:				equ	$		; beginning of data area
+directory_buffer:		defs	128	 	; scratch directory area
+storage_alloc00:		defs	31	 	; allocation vector 0
+storage_alloc01:		defs	31	 	; allocation vector 1
+storage_alloc02:		defs	31	 	; allocation vector 2
+storage_alloc03:		defs	31	 	; allocation vector 3
+directory_check00:		defs	16		; check vector 0
+directory_check01:		defs	16		; check vector 1
+directory_check02:		defs	16	 	; check vector 2
+directory_check03:		defs	16	 	; check vector 3
 
-enddat:			equ	$	 		; end of data area
-datsiz:			equ	$-begdat;		; size of data area
-hstbuf: 		ds	256			; buffer for host disk sector
+enddat:				equ	$	 	; end of data area
+datsiz:				equ	$-begdat;	; size of data area
 
 ; Check that the everything thing fits within the 0x600 bytes
 ; allocated for the BIOS, otherwise throw an error
