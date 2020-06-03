@@ -153,11 +153,6 @@ nc100_vdisk_max_drives:			equ		0x10
 nc100_vdisk_format_char:		equ		0xe5
 
 nc100_vdisk_magic_header:		db		"####CPMVDISK####"
-nc100_vdisk_parameters_table:		db		0x02, 0x20, 0x20, 0x80		; 128k
-					db		0x04, 0x40, 0x20, 0x80		; 256k
-					db		0x08, 0x80, 0x20, 0x80		; 512k
-					db		0x10, 0x80, 0x40, 0x80		; 1024k
-					db		0xff				; Table end byte
 
 ; # nc100_vdisk_card_check
 ; #################################

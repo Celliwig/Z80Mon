@@ -9,6 +9,12 @@ str_disk:				db		"Disk",0
 str_size:				db		"Size",0
 str_virtual:				db		"Virtual",0
 
+nc100_vdisk_parameters_table:		db		0x02, 0x20, 0x20, 0x80		; 128k
+					db		0x04, 0x40, 0x20, 0x80		; 256k
+					db		0x08, 0x80, 0x20, 0x80		; 512k
+					db		0x10, 0x80, 0x40, 0x80		; 1024k
+					db		0xff				; Table end byte
+
 ; ###########################################################################
 ; # Card operations
 ; ###########################################################################
