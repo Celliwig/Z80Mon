@@ -139,6 +139,8 @@ nc100_console_set_serial:
 ;	In:	A = ASCII character
 nc100_console_local_char_out:
 	exx								; Swap out registers
+	push	ix
+	push	iy
 	ld	de, (nc100_lcd_pos_xy)					; Load cursor X/Y position
 	ld	hl, (nc100_raster_cursor_addr)				; Load cursor address
 nc100_console_local_char_out_check_bs:
@@ -164,6 +166,8 @@ nc100_console_local_char_out_check_cr:
 nc100_console_local_char_out_print_glyph:
 	call	nc100_lcd_print_glyph_8x8
 nc100_console_local_char_out_exit:
+	pop	iy
+	pop	ix
 	exx								; Swap back registers
 	ret
 
