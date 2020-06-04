@@ -293,7 +293,7 @@ disk_page_bank_reset:
 ;  Read drive configuration from memory card
 disk_configure:
 	call	disk_page_bank_in			; Configure memory bank to select memory card
-	ld	hl, nc100_vcard_header_vdisk_header_offset+nc100_vcard_header_vdrive0_type
+	ld	hl, nc100_vcard_header_vdisk_header_offset+nc100_vcard_header_drive0_type
 	ld	de, var_vdisk_drive0_type		; Pointer to drive config table
 disk_configure_loop:
 	ld	a, (hl)					; Get byte of drive config
@@ -301,7 +301,7 @@ disk_configure_loop:
 	inc	hl
 	inc	de
 	ld	a, l					; Check offset
-	cp	nc100_vcard_header_vdisk_header_offset+nc100_vcard_header_vdrive4_type
+	cp	nc100_vcard_header_vdisk_header_offset+nc100_vcard_header_drive4_type
 	jr	nz, disk_configure_loop
 	call	disk_page_bank_reset			; Reset memory bank tp original configuration
 	ret
