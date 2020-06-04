@@ -2505,7 +2505,7 @@ str_type5:		db	"???",0							; ???
 str_tag_help2:		db	31,215,0						; Help
 str_tag_help1: 		db	31,142,215,209,0					; This help list (these 11 _cmd string must be in order)
 str_tag_listm:  	db	31,209,130,"s",0					; List Programs
-str_tag_run:  		db	31,134,130,0						; Run Program
+;str_tag_run:  		db	31,134,130,0						; Run Program
 str_tag_dnld: 		db	31,138,0						; Download
 str_tag_upld: 		db	31,147,0						; Upload
 str_tag_nloc: 		db	31,135,129,0						; New Location
