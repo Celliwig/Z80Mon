@@ -220,6 +220,8 @@ nm_interrupt_handler:
 
 ; Is this sideloaded, so need to switch back to original ROM
 if NC100_PROGRAMCARD_SIDELOAD == 0
+	jp	nc100_power_off						; Turn off system
+	halt								; Shouldn't get here
 else
 	; Switch bank 0 RAM into the last page
 	ld	a, nc100_membank_RAM|nc100_membank_0k
