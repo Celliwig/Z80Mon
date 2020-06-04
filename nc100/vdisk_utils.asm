@@ -473,6 +473,8 @@ vdisk_utils_vdisk_getsys:
 	call	print_newline
 	ret
 vdisk_utils_vdisk_getsys_continue:
+	ld	a, nc100_vdisk_sys_sectors				; Total number of sectors to write
+	ld	(var_vdisk_sys_sector_count), a
 	; Boot sector read
 	ld	(var_vdisk_dma_addr), de				; Set DMA address
 	ld	de, 0x0000						; Select track 0
@@ -495,6 +497,11 @@ vdisk_utils_vdisk_getsys_setup_32spt:
 	ld	(var_vdisk_sys_track_count), a
 	ld	iy, nc100_vdisk_sector_seek_32spt			; Seek operation
 vdisk_utils_vdisk_getsys_loop:
+	ld	a, (var_vdisk_sys_sector_count)				; Get number of sectors remaining
+	dec	a							; Decrement number of sectors remaining
+	jr	z, vdisk_utils_vdisk_getsys_finish			; If zero, finish
+	ld	(var_vdisk_sys_sector_count), a				; Store sectors remaining
+
 	push	hl							; Save vdisk pointer
 	push	bc							; Save vdisk address/port
 	ld	de, vdisk_utils_vdisk_getsys_loop_cont
@@ -562,7 +569,9 @@ vdisk_utils_vdisk_putsys:
 	call	print_newline
 	ret
 vdisk_utils_vdisk_putsys_continue:
-	; Boot sector read
+	ld	a, nc100_vdisk_sys_sectors				; Total number of sectors to write
+	ld	(var_vdisk_sys_sector_count), a
+	; Boot sector write
 	ld	(var_vdisk_dma_addr), de				; Set DMA address
 	ld	de, 0x0000						; Select track 0
 	ld	(var_vdisk_track), de
@@ -584,6 +593,11 @@ vdisk_utils_vdisk_putsys_setup_32spt:
 	ld	(var_vdisk_sys_track_count), a
 	ld	iy, nc100_vdisk_sector_seek_32spt			; Seek operation
 vdisk_utils_vdisk_putsys_loop:
+	ld	a, (var_vdisk_sys_sector_count)				; Get number of sectors remaining
+	dec	a							; Decrement number of sectors remaining
+	jr	z, vdisk_utils_vdisk_putsys_finish			; If zero, finish
+	ld	(var_vdisk_sys_sector_count), a				; Store sectors remaining
+
 	push	hl							; Save vdisk pointer
 	push	bc							; Save vdisk address/port
 	ld	de, vdisk_utils_vdisk_putsys_loop_cont
@@ -668,6 +682,7 @@ var_vdisk_dma_addr:				dw		0x0000
 var_vdisk_description:				ds		0x20, 0x00
 var_vdisk_sectors_per_track:			db		0x00
 var_vdisk_sys_track_count:			db		0x00
+var_vdisk_sys_sector_count:			db		0x00
 
 ; # Defines
 ; ##################################################

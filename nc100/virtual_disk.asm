@@ -183,6 +183,7 @@ nc100_vdisk_version_number:		equ		0x01
 nc100_vdisk_sector_1st:			equ		0x00
 nc100_vdisk_max_drives:			equ		0x10
 nc100_vdisk_format_char:		equ		0xe5
+nc100_vdisk_sys_sectors:		equ		7168/128			; Total SYS bytes loadable/bytes per sector
 
 nc100_vdisk_magic_header:		db		"####CPMVDISK####"
 
