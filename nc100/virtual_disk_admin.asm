@@ -217,7 +217,13 @@ nc100_vdisk_drive_remove_finish:
 ;		HL = Pointer to start of virtual disk
 nc100_vdisk_drive_assign:
 	ex	af, af'							; Swap out drive index
+	push	bc							; Store vdisk address/port
 	call	nc100_vdisk_drive_remove				; Remove all current references to the disk
+	call	nc100_vdisk_card_page_map_set_64k			; Select vdisk
+	ld	l, nc100_vdisk_header_disk_size				; Set offset to vdisk size
+	ld	d, (hl)							; Get vdisk size
+	call	nc100_vdisk_card_page_map_reset				; Reset to 1st card header
+	pop	bc							; Restore vdisk address/port
 	ex	af, af'							; Swap drive index back
 	and	0x0f							; Filter value
 	jr	z, nc100_vdisk_drive_assign_continue			; If zero, skip calculating offset
@@ -235,6 +241,8 @@ nc100_vdisk_drive_assign_continue:
 	ld	(hl), a							; Save drive type
 	inc	hl							; Increment drive config pointer
 	ld	(hl), b							; Save vdisk address pointer to drive
+	inc	hl							; Increment drive config pointer
+	ld	(hl), d							; Store vdisk size
 	ret
 
 ; ###########################################################################
