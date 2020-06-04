@@ -496,10 +496,12 @@ vdisk_utils_vdisk_getsys_setup_32spt:
 	ld	iy, nc100_vdisk_sector_seek_32spt			; Seek operation
 vdisk_utils_vdisk_getsys_loop:
 	push	hl							; Save vdisk pointer
+	push	bc							; Save vdisk address/port
 	ld	de, vdisk_utils_vdisk_getsys_loop_cont
 	push	de							; Push return address
 	jp	(iy)							; Sector seek
 vdisk_utils_vdisk_getsys_loop_cont:
+	pop	bc							; Restore vdisk address/port
 	pop	hl							; Restore vdisk pointer
 
 	ld	(var_vdisk_dma_addr), de				; Save DMA address
@@ -564,7 +566,7 @@ vdisk_utils_vdisk_putsys_continue:
 	ld	(var_vdisk_dma_addr), de				; Set DMA address
 	ld	de, 0x0000						; Select track 0
 	ld	(var_vdisk_track), de
-	ld	de, 0x0001						; Select sector 1 (track 0/sector 0 is reserved)
+	ld	de, nc100_vdisk_sector_1st+1				; Select sector 1 (track 0/sector 0 is reserved)
 	ld	(var_vdisk_sector), de
 	ld	ix, nc100_vdisk_sector_write				; Write operation
 	ld	l, nc100_vdisk_header_sectors_track_ptr
@@ -583,10 +585,12 @@ vdisk_utils_vdisk_putsys_setup_32spt:
 	ld	iy, nc100_vdisk_sector_seek_32spt			; Seek operation
 vdisk_utils_vdisk_putsys_loop:
 	push	hl							; Save vdisk pointer
+	push	bc							; Save vdisk address/port
 	ld	de, vdisk_utils_vdisk_putsys_loop_cont
 	push	de							; Push return address
 	jp	(iy)							; Sector seek
 vdisk_utils_vdisk_putsys_loop_cont:
+	pop	bc							; Restore vdisk address/port
 	pop	hl							; Restore vdisk pointer
 
 	ld	(var_vdisk_dma_addr), de				; Save DMA address
