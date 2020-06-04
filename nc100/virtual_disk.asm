@@ -63,74 +63,106 @@
 ;  Card Size		|   1   | Total memory size in 64k blocks
 ;  VDisk0 Type		|   1	| Virtual disk type in CP/M drive 0
 ;  VDisk0 Pointer	|   1   | MSB pointer to disk image in CP/M drive 0
+;  VDisk0 Size		|   1	| Virtual disk size
 ;  VDisk1 Type		|   1	| Virtual disk type in CP/M drive 1
 ;  VDisk1 Pointer	|   1   | MSB pointer to disk image in CP/M drive 1
+;  VDisk1 Size		|   1	| Virtual disk size
 ;  VDisk2 Type		|   1	| Virtual disk type in CP/M drive 2
 ;  VDisk2 Pointer	|   1   | MSB pointer to disk image in CP/M drive 2
+;  VDisk2 Size		|   1	| Virtual disk size
 ;  VDisk3 Type		|   1	| Virtual disk type in CP/M drive 3
 ;  VDisk3 Pointer	|   1   | MSB pointer to disk image in CP/M drive 3
+;  VDisk3 Size		|   1	| Virtual disk size
 ;  VDisk4 Type		|   1	| Virtual disk type in CP/M drive 4
 ;  VDisk4 Pointer	|   1   | MSB pointer to disk image in CP/M drive 4
+;  VDisk4 Size		|   1	| Virtual disk size
 ;  VDisk5 Type		|   1	| Virtual disk type in CP/M drive 5
 ;  VDisk5 Pointer	|   1   | MSB pointer to disk image in CP/M drive 5
+;  VDisk5 Size		|   1	| Virtual disk size
 ;  VDisk6 Type		|   1	| Virtual disk type in CP/M drive 6
 ;  VDisk6 Pointer	|   1   | MSB pointer to disk image in CP/M drive 6
+;  VDisk6 Size		|   1	| Virtual disk size
 ;  VDisk7 Type		|   1	| Virtual disk type in CP/M drive 7
 ;  VDisk7 Pointer	|   1   | MSB pointer to disk image in CP/M drive 7
+;  VDisk7 Size		|   1	| Virtual disk size
 ;  VDisk8 Type		|   1	| Virtual disk type in CP/M drive 8
 ;  VDisk8 Pointer	|   1   | MSB pointer to disk image in CP/M drive 8
+;  VDisk8 Size		|   1	| Virtual disk size
 ;  VDisk9 Type		|   1	| Virtual disk type in CP/M drive 9
 ;  VDisk9 Pointer	|   1   | MSB pointer to disk image in CP/M drive 9
+;  VDisk9 Size		|   1	| Virtual disk size
 ;  VDisk10 Type		|   1	| Virtual disk type in CP/M drive 10
 ;  VDisk10 Pointer	|   1   | MSB pointer to disk image in CP/M drive 10
+;  VDisk10 Size		|   1	| Virtual disk size
 ;  VDisk11 Type		|   1	| Virtual disk type in CP/M drive 11
 ;  VDisk11 Pointer	|   1   | MSB pointer to disk image in CP/M drive 11
+;  VDisk11 Size		|   1	| Virtual disk size
 ;  VDisk12 Type		|   1	| Virtual disk type in CP/M drive 12
 ;  VDisk12 Pointer	|   1   | MSB pointer to disk image in CP/M drive 12
+;  VDisk12 Size		|   1	| Virtual disk size
 ;  VDisk13 Type		|   1	| Virtual disk type in CP/M drive 13
 ;  VDisk13 Pointer	|   1   | MSB pointer to disk image in CP/M drive 13
+;  VDisk13 Size		|   1	| Virtual disk size
 ;  VDisk14 Type		|   1	| Virtual disk type in CP/M drive 14
 ;  VDisk14 Pointer	|   1   | MSB pointer to disk image in CP/M drive 14
+;  VDisk14 Size		|   1	| Virtual disk size
 ;  VDisk15 Type		|   1	| Virtual disk type in CP/M drive 15
 ;  VDisk15 Pointer	|   1   | MSB pointer to disk image in CP/M drive 15
+;  VDisk15 Size		|   1	| Virtual disk size
 ; ###########################################################################
 
 ; # Defines
 ; ##################################################
 nc100_vcard_header_vdisk_header_offset:	equ		0x40
 nc100_vcard_header_size:		equ		0x00
-nc100_vcard_header_vdrive0_type:	equ		0x01
-nc100_vcard_header_vdrive0_pointer:	equ		0x02
-nc100_vcard_header_vdrive1_type:	equ		0x03
-nc100_vcard_header_vdrive1_pointer:	equ		0x04
-nc100_vcard_header_vdrive2_type:	equ		0x05
-nc100_vcard_header_vdrive2_pointer:	equ		0x06
-nc100_vcard_header_vdrive3_type:	equ		0x07
-nc100_vcard_header_vdrive3_pointer:	equ		0x08
-nc100_vcard_header_vdrive4_type:	equ		0x09
-nc100_vcard_header_vdrive4_pointer:	equ		0x0a
-nc100_vcard_header_vdrive5_type:	equ		0x0b
-nc100_vcard_header_vdrive5_pointer:	equ		0x0c
-nc100_vcard_header_vdrive6_type:	equ		0x0d
-nc100_vcard_header_vdrive6_pointer:	equ		0x0e
-nc100_vcard_header_vdrive7_type:	equ		0x0f
-nc100_vcard_header_vdrive7_pointer:	equ		0x10
-nc100_vcard_header_vdrive8_type:	equ		0x11
-nc100_vcard_header_vdrive8_pointer:	equ		0x12
-nc100_vcard_header_vdrive9_type:	equ		0x13
-nc100_vcard_header_vdrive9_pointer:	equ		0x14
-nc100_vcard_header_vdrive10_type:	equ		0x15
-nc100_vcard_header_vdrive10_pointer:	equ		0x16
-nc100_vcard_header_vdrive11_type:	equ		0x17
-nc100_vcard_header_vdrive11_pointer:	equ		0x18
-nc100_vcard_header_vdrive12_type:	equ		0x19
-nc100_vcard_header_vdrive12_pointer:	equ		0x1a
-nc100_vcard_header_vdrive13_type:	equ		0x1b
-nc100_vcard_header_vdrive13_pointer:	equ		0x1c
-nc100_vcard_header_vdrive14_type:	equ		0x1d
-nc100_vcard_header_vdrive14_pointer:	equ		0x1e
-nc100_vcard_header_vdrive15_type:	equ		0x1f
-nc100_vcard_header_vdrive15_pointer:	equ		0x20
+nc100_vcard_header_drive0_type:		equ		0x01
+nc100_vcard_header_drive0_pointer:	equ		0x02
+nc100_vcard_header_drive0_size:		equ		0x03
+nc100_vcard_header_drive1_type:		equ		0x04
+nc100_vcard_header_drive1_pointer:	equ		0x05
+nc100_vcard_header_drive1_size:		equ		0x06
+nc100_vcard_header_drive2_type:		equ		0x07
+nc100_vcard_header_drive2_pointer:	equ		0x08
+nc100_vcard_header_drive2_size:		equ		0x09
+nc100_vcard_header_drive3_type:		equ		0x0a
+nc100_vcard_header_drive3_pointer:	equ		0x0b
+nc100_vcard_header_drive3_size:		equ		0x0c
+nc100_vcard_header_drive4_type:		equ		0x0d
+nc100_vcard_header_drive4_pointer:	equ		0x0e
+nc100_vcard_header_drive4_size:		equ		0x0f
+nc100_vcard_header_drive5_type:		equ		0x10
+nc100_vcard_header_drive5_pointer:	equ		0x11
+nc100_vcard_header_drive5_size:		equ		0x12
+nc100_vcard_header_drive6_type:		equ		0x13
+nc100_vcard_header_drive6_pointer:	equ		0x14
+nc100_vcard_header_drive6_size:		equ		0x15
+nc100_vcard_header_drive7_type:		equ		0x16
+nc100_vcard_header_drive7_pointer:	equ		0x17
+nc100_vcard_header_drive7_size:		equ		0x18
+nc100_vcard_header_drive8_type:		equ		0x19
+nc100_vcard_header_drive8_pointer:	equ		0x1a
+nc100_vcard_header_drive8_size:		equ		0x1b
+nc100_vcard_header_drive9_type:		equ		0x1c
+nc100_vcard_header_drive9_pointer:	equ		0x1d
+nc100_vcard_header_drive9_size:		equ		0x1e
+nc100_vcard_header_drive10_type:	equ		0x1f
+nc100_vcard_header_drive10_pointer:	equ		0x20
+nc100_vcard_header_drive10_size:	equ		0x21
+nc100_vcard_header_drive11_type:	equ		0x22
+nc100_vcard_header_drive11_pointer:	equ		0x23
+nc100_vcard_header_drive11_size:	equ		0x24
+nc100_vcard_header_drive12_type:	equ		0x25
+nc100_vcard_header_drive12_pointer:	equ		0x26
+nc100_vcard_header_drive12_size:	equ		0x27
+nc100_vcard_header_drive13_type:	equ		0x28
+nc100_vcard_header_drive13_pointer:	equ		0x29
+nc100_vcard_header_drive13_size:	equ		0x2a
+nc100_vcard_header_drive14_type:	equ		0x2b
+nc100_vcard_header_drive14_pointer:	equ		0x2c
+nc100_vcard_header_drive14_size:	equ		0x2d
+nc100_vcard_header_drive15_type:	equ		0x2e
+nc100_vcard_header_drive15_pointer:	equ		0x2f
+nc100_vcard_header_drive15_size:	equ		0x30
 
 nc100_vdisk_type_none:			equ		0x00
 nc100_vdisk_type_ram:			equ		0x01
@@ -257,8 +289,16 @@ nc100_vdisk_drive_get:
 	call	nc100_vdisk_card_page_map_reset				; Select start of memory card
 	ex	af, af'							; Swap drive index back in
 	and	0x0f							; Filter value
-	rlca								; x2 (as top nibble stripped)
-	add	nc100_vcard_header_vdisk_header_offset+nc100_vcard_header_vdrive0_type
+	jr	z, nc100_vdisk_drive_get_continue			; If zero, skip calculating offset
+	push	bc							; Save vdisk address/port
+	ld	b, a							; Copy disk index
+	xor	a							; Clear A
+nc100_vdisk_drive_get_loop:
+	add	0x03							; Drive config table offset
+	djnz	nc100_vdisk_drive_get_loop
+	pop	bc							; Restore vdisk address/port
+nc100_vdisk_drive_get_continue:
+	add	nc100_vcard_header_vdisk_header_offset+nc100_vcard_header_drive0_type
 	ld	l, a
 	ld	a, (hl)							; Get vdisk type
 	cp	nc100_vdisk_type_none					; Check if the drive is assigned

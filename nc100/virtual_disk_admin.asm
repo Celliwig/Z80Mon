@@ -165,8 +165,8 @@ nc100_vdisk_card_free_space_remaining:
 nc100_vdisk_drive_init:
 	call	nc100_vdisk_card_page_map_reset				; Select start of memory card
 	; Clear disk selection table
-	ld	l, nc100_vcard_header_vdisk_header_offset+nc100_vcard_header_vdrive0_type
-	ld	b, 0x20							; 16 disks of 2 bytes
+	ld	l, nc100_vcard_header_vdisk_header_offset+nc100_vcard_header_drive0_type
+	ld	b, 0x30							; 16 disks of 3 bytes
 	xor	a							; Clear A
 nc100_vdisk_drive_init_loop:
 	ld	(hl), a							; Clear byte
@@ -184,7 +184,7 @@ nc100_vdisk_drive_remove:
 	push	bc							; Save disk address
 	call	nc100_vdisk_card_page_map_reset				; Select start of memory card
 	pop	bc							; Restore disk address
-	ld	l, nc100_vcard_header_vdisk_header_offset+nc100_vcard_header_vdrive0_pointer
+	ld	l, nc100_vcard_header_vdisk_header_offset+nc100_vcard_header_drive0_pointer
 nc100_vdisk_drive_remove_loop:
 	ld	a, b
 	cp	(hl)							; Check if addresses match
@@ -194,11 +194,15 @@ nc100_vdisk_drive_remove_loop:
 	ld	(hl), a							; Clear drive's type
 	inc	hl
 	ld	(hl), a							; Clear drive's pointer
+	inc	hl
+	ld	(hl), a							; Clear drive's size
+	dec	hl
 nc100_vdisk_drive_remove_continue:
 	ld	a, l
-	cp	nc100_vcard_header_vdisk_header_offset+nc100_vcard_header_vdrive15_pointer
+	cp	nc100_vcard_header_vdisk_header_offset+nc100_vcard_header_drive15_pointer
 	jr	z, nc100_vdisk_drive_remove_finish			; Finish if last pointer
 	inc	hl							; Increment pointer to next drive pointer
+	inc	hl
 	inc	hl
 	jr	nc100_vdisk_drive_remove_loop				; Loop
 nc100_vdisk_drive_remove_finish:
@@ -216,13 +220,21 @@ nc100_vdisk_drive_assign:
 	call	nc100_vdisk_drive_remove				; Remove all current references to the disk
 	ex	af, af'							; Swap drive index back
 	and	0x0f							; Filter value
-	rlca								; x2 (as top nibble stripped)
-	add	nc100_vcard_header_vdisk_header_offset+nc100_vcard_header_vdrive0_pointer
+	jr	z, nc100_vdisk_drive_assign_continue			; If zero, skip calculating offset
+	push	bc							; Save vdisk address/port
+	ld	b, a							; Copy disk index
+	xor	a							; Clear A
+nc100_vdisk_drive_assign_loop:
+	add	0x03							; Drive config table offset
+	djnz	nc100_vdisk_drive_assign_loop
+	pop	bc							; Restore vdisk address/port
+nc100_vdisk_drive_assign_continue:
+	add	nc100_vcard_header_vdisk_header_offset+nc100_vcard_header_drive0_type
 	ld	l, a
-	ld	(hl), b							; Save vdisk address pointer to drive
 	ld	a, nc100_vdisk_type_ram					; Get drive type
-	dec	hl							; Decrement to drive type
 	ld	(hl), a							; Save drive type
+	inc	hl							; Increment drive config pointer
+	ld	(hl), b							; Save vdisk address pointer to drive
 	ret
 
 ; ###########################################################################
