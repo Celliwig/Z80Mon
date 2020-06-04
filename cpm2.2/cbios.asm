@@ -342,9 +342,11 @@ disk_select_size:
 	ld	a, (hl)					; Check drive type
 	cp	nc100_vdisk_type_none			; Check if disk inserted
 	jr	z, disk_select_error			; If no disk, error
-	inc	hl
-	inc	hl
-	ld	a, (hl)					; Get disk size
+	inc	hl					; Increment drive configuration pointer
+	ld	a, (hl)					; Get vdisk address (64k blocks)
+	ld	(var_vdisk_addr), a			; Save vdisk address
+	inc	hl					; Increment drive configuration pointer
+	ld	a, (hl)					; Get vdisk size
 disk_select_size_128k:
 	cp	0x02					; Is it 128k?
 	jr	nz, disk_select_size_256k
@@ -460,6 +462,8 @@ disk_read:
 	push	de
 	call	disk_page_bank_in			; Configure memory bank to select memory card
 	ld	hl, 0x0000				; Reset pointer of vdisk operation
+	ld	a, (var_vdisk_addr)			; Get vdisk address (64k blocks)
+	ld	b, a
 	jp	(iy)					; Jump to sector seek routine
 disk_read_error_check:
 	call	disk_page_bank_reset			; Reset memory bank tp original configuration
@@ -508,6 +512,8 @@ disk_write_copy_loop:
 	push	de
 	call	disk_page_bank_in			; Configure memory bank to select memory card
 	ld	hl, 0x0000				; Reset pointer of vdisk operation
+	ld	a, (var_vdisk_addr)			; Get vdisk address (64k blocks)
+	ld	b, a
 	jp	(iy)					; Jump to sector seek routine
 disk_write_error_check:
 	call	disk_page_bank_reset			; Reset memory bank to original configuration
@@ -530,16 +536,16 @@ include	"nc100/virtual_disk.asm"
 ;	however, between"begdat" and"enddat").
 ;
 
-;nc100_vdisk_port_bank:		equ	nc100_io_membank_B
-;nc100_vdisk_port_address:	equ	0x4000
-;nc100_vdisk_dma_address:	equ	0x8000
-
+; Variables for virtual disk operations
 var_vdisk_sector:		dw	0x0000			; Sector number for next operation
 var_vdisk_track:		dw	0x0000			; Track number for next operation
 var_vdisk_dma_addr:		dw	var_vdisk_bios_buffer	; DMA address of the local (to the BIOS) buffer
-var_vdisk_sector_seek:		dw	0x0000			; Routine to use for seek sector
-var_vdisk_sector_size:		db	0x00			; Selected vdisk sector size
+
+; Variables for selected vdisk
 var_vdisk_drive_num:		db	0x00			; Selected disk drive
+var_vdisk_addr:			db	0x00			; Selected vdisk address (64k block)
+var_vdisk_sector_size:		db	0x00			; Selected vdisk sector size
+var_vdisk_sector_seek:		dw	0x0000			; Address of routine to use for seek sector
 
 var_vdisk_bios_buffer:		ds	128, 0x00		; Buffer read/writes beween memory card and DMA address
 var_vdisk_dma_addr_actual:	dw	0x0000			; DMA address to use for the next operation
