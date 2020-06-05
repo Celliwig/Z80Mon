@@ -172,7 +172,7 @@ warmboot_sector_load_next:				; Load one more sector
 	inc	d					; Increment sector number
 	ld	a, (var_vdisk_sector_size)		; Get selected vdisk sector size
 	cp	d					; Check if greater than last sector
-	jp	c, warmboot_sector_load_next		; Carry generated if sector < (var_vdisk_sector_size)
+	jp	nz, warmboot_sector_load_next		; Carry generated if sector < (var_vdisk_sector_size)
 
 	; end of current track,	go to next track
 	ld 	d, nc100_vdisk_sector_1st		; Begin with first sector of next track
@@ -191,9 +191,9 @@ warmboot_sector_load_next:				; Load one more sector
 ; end of load operation, set parameters and go to CP/M
 go_cpm:
 	ld 	a, 0xc3					; C3 is a jmp instruction
-	ld	(0), a					; For jmp to warmboot
+	ld	(0x0000), a				; For jmp to warmboot
 	ld	hl, warmboot_entry			; Warmboot entry point
-	ld	(1), hl					; Set address field for jmp at 0
+	ld	(0x0001), hl				; Set address field for jmp at 0
 
 	ld	(5), a					; For jmp to bdos
 	ld	hl, bdos_base				; BDOS entry point
