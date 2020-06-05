@@ -122,10 +122,5 @@ nc100_serial_polling_char_in:
 	in	a, (nc100_uart_control_register)			; Read status register
 	bit	uPD71051_reg_status_RxRdy, a				; Test RxRDY
 	jr	z, nc100_serial_polling_char_in
-; # nc100_serial_polling_char_in_cpm
-; #################################
-;  Returns a character from the serial port (CP/M interface)
-;       Out:    A = ASCII character code
-nc100_serial_polling_char_in_cpm:
 	in	a, (nc100_uart_data_register)				; Get data from UART
 	ret
