@@ -202,7 +202,7 @@ go_cpm:
 	ld	bc, 0x80				; Default DMA address is 0x80
 	call	disk_dma_set
 
-	ei						; Enable the interrupt system
+	;ei						; Enable the interrupt system
 	ld	a, (current_disk)			; Get current disk number
 	cp	num_disks				; See if valid disk number
 	jp	c, go_cpm_disk_ok			; Disk valid, go to CCP
@@ -273,26 +273,29 @@ reader_in:
 ; disk_page_bank_in
 ;**************************************************************
 ;  Reconfigure memory page bank to select memory card
-disk_page_bank_in:
+disk_page_bank_in:	macro
+	ld	(var_vdisk_stack_ptr_old), sp		; Save stack pointer
+	ld	sp, var_vdisk_stack_tmp_top		; Use temporary stack while memory card paged in
 	ld	c, nc100_io_membank_A			; Use the 1st page for this
 	call	nc100_memory_page_get
 	push	bc					; Save 1st page config
 	call	nc100_vdisk_card_page_map_reset		; Page in memory card
-	ret
+endm
 
 ; disk_page_bank_reset
 ;**************************************************************
 ;  Reset memory page bank to original configuration
-disk_page_bank_reset:
+disk_page_bank_reset:	macro
 	pop	bc
 	call	nc100_memory_page_set			; Restore 1st page config
-	ret
+	ld	sp, (var_vdisk_stack_ptr_old)		; Restore old stack pointer
+endm
 
 ; disk_configure
 ;**************************************************************
 ;  Read drive configuration from memory card
 disk_configure:
-	call	disk_page_bank_in			; Configure memory bank to select memory card
+	disk_page_bank_in				; Configure memory bank to select memory card
 	ld	hl, nc100_vcard_header_vdisk_header_offset+nc100_vcard_header_drive0_type
 	ld	de, var_vdisk_drive0_type		; Pointer to drive config table
 disk_configure_loop:
@@ -303,7 +306,7 @@ disk_configure_loop:
 	ld	a, l					; Check offset
 	cp	nc100_vcard_header_vdisk_header_offset+nc100_vcard_header_drive4_type
 	jr	nz, disk_configure_loop
-	call	disk_page_bank_reset			; Reset memory bank tp original configuration
+	disk_page_bank_reset				; Reset memory bank tp original configuration
 	ret
 
 ; disk_home
@@ -456,21 +459,21 @@ disk_dma_set:
 ;		Dma address in 'var_vdisk_dma_addr' (0-65535)
 ;	Out:	A = 0x0 if operation completes, 0x1 if an error occurs
 disk_read:
+	disk_page_bank_in				; Configure memory bank to select memory card
 	ld	ix, nc100_vdisk_sector_read		; It's a read operation
 	ld	iy, (var_vdisk_sector_seek)		; Get selected sector seek operation
 	ld	de, disk_read_error_check		; Push return address
 	push	de
-	call	disk_page_bank_in			; Configure memory bank to select memory card
 	ld	hl, 0x0000				; Reset pointer of vdisk operation
 	ld	a, (var_vdisk_addr)			; Get vdisk address (64k blocks)
 	ld	b, a
 	jp	(iy)					; Jump to sector seek routine
 disk_read_error_check:
-	call	disk_page_bank_reset			; Reset memory bank tp original configuration
+	disk_page_bank_reset				; Reset memory bank to original configuration
 	jr	nc, disk_read_error_check_failed	; Check if an error occured
 disk_read_copy:
 	; Copy from BIOS buffer to DMA address
-	ld	de, (var_vdisk_bios_buffer)		; Address of BIOS buffer
+	ld	de, var_vdisk_bios_buffer		; Address of BIOS buffer
 	ld	hl, (var_vdisk_dma_addr_actual)		; Address to read data from
 	ld	b, 0x80					; Byte count
 disk_read_copy_loop:
@@ -498,7 +501,7 @@ disk_write:
 disk_write_copy:
 	; Copy from DMA address to BIOS buffer
 	ld	de, (var_vdisk_dma_addr_actual)		; Address to read data from
-	ld	hl, (var_vdisk_bios_buffer)		; Address of BIOS buffer
+	ld	hl, var_vdisk_bios_buffer		; Address of BIOS buffer
 	ld	b, 0x80					; Byte count
 disk_write_copy_loop:
 	ld	a, (de)					; Copy byte from DMA address to BIOS buffer
@@ -506,17 +509,17 @@ disk_write_copy_loop:
 	inc	de					; Increment pointers
 	inc	hl
 	djnz	disk_write_copy_loop			; Copy 128 bytes
+	disk_page_bank_in				; Configure memory bank to select memory card
 	ld	ix, nc100_vdisk_sector_write		; It's a write operation
 	ld	iy, (var_vdisk_sector_seek)		; Get selected sector seek routine
 	ld	de, disk_write_error_check		; Push return address
 	push	de
-	call	disk_page_bank_in			; Configure memory bank to select memory card
 	ld	hl, 0x0000				; Reset pointer of vdisk operation
 	ld	a, (var_vdisk_addr)			; Get vdisk address (64k blocks)
 	ld	b, a
 	jp	(iy)					; Jump to sector seek routine
 disk_write_error_check:
-	call	disk_page_bank_reset			; Reset memory bank to original configuration
+	disk_page_bank_reset				; Reset memory bank to original configuration
 	jr	nc, disk_write_error_check_failed	; Check if an error occured
 	xor	a					; Set no error code
 	ret
@@ -575,6 +578,10 @@ directory_check00:		defs	16		; check vector 0
 directory_check01:		defs	16		; check vector 1
 directory_check02:		defs	16	 	; check vector 2
 directory_check03:		defs	16	 	; check vector 3
+
+var_vdisk_stack_ptr_old:	dw	0x0000		; Store for previous stack pointer
+var_vdisk_stack_tmp:		ds	32,0x00		; Temporary stack for vdisk operations
+var_vdisk_stack_tmp_top:	equ	$		; Pointer to top of the temporary stack
 
 enddat:				equ	$	 	; end of data area
 datsiz:				equ	$-begdat;	; size of data area
