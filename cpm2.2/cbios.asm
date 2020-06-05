@@ -18,7 +18,7 @@ nsects:			equ	($-ccp_base)/128	; warm start sector count
 warmboot_entry:
 	jp	warmboot				; Warm start
 	jp	nc100_serial_status_char_in		; Get console status
-	jp	nc100_serial_polling_char_in_cpm	; Read character from console in
+	jp	nc100_serial_polling_char_in		; Read character from console in
 	jp	nc100_serial_polling_char_out_cpm	; Write character to console out
 	jp	list_out				; Write character to list device
 	jp	punch_out				; Write character to punch device
