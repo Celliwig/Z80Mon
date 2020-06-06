@@ -140,7 +140,7 @@ receive_file_loop:
 ;	CALL	RCVSECT
 ;	JP	C, RCVEOT
 ;	CALL	file_write_sector
-;	CALL	INCRSNO
+;	CALL	xmodem_local_packet_number_inc
 ;	CALL	send_acknowledge
 	jp	receive_file_loop
 
@@ -172,7 +172,7 @@ RCVSERR:
 ;	CALL	receive_byte
 ;	JP	NC, RCVSERR
 ;	LD	A, character_code_nak
-;	CALL	SEND
+;	CALL	send
 ;	LD	A, (error_count)
 ;	INC	A
 ;	LD	(error_count), A
@@ -222,7 +222,7 @@ receive_xmodem_data_loop:
 	jp	z, receive_xmodem_packet_ack			; No errors, so acknowledge
 	inc	a						; Check for mismatched (by 1) packet numbers
 	cp	b						; Compare packet numbers
-	jp	nz, ABORT					; If the packet number numbers don't match, abort
+	jp	nz, abort					; If the packet number numbers don't match, abort
 	ret
 receive_xmodem_packet_ack:
 	call	send_acknowledge
@@ -243,30 +243,28 @@ send_loop_UART_ready:
 	out	(uart_data), a					; Write byte out
 	ret
 
-ABORT:
-;	LD	SP, stack_mboot_ptr
+abort:
+	ld	sp, stack_mboot_ptr				; Reset stack pointer
+abort_existing:							; Drain current packet bytes
+	ld	b, CPU_CLK					; Timeout 1s
+	call	receive_byte					; Get byte
+	jp	nc, abort_existing				; Loop until there's a timeout
+	ld	a, character_code_can
+	call	send						; Send cancel command
+abort_wait:
+	ld	b, 1						; Timeout 1/Clk seconds
+	call	receive_byte					; Get byte
+	jp	nc, abort_wait					; Loop until there's a timeout
+	ld	a, ' '
+	call	send						; Send command
+	call	exit_on_error					; Print message, and exit
+	db	"MBOOT PROGRAM CANCELLED$"
 
-ABORTL:
-;	LD	B, CPU_CLK
-;	CALL	receive_byte
-;	JP	NC, ABORTL
-;	LD	A, character_code_can
-;	CALL	SEND
-
-ABORTW:
-;	LD	B, 1
-;	CALL	receive_byte
-;	JP	NC, ABORTW
-;	LD	A, ' '
-;	CALL	SEND
-;	CALL	exit_on_error
-;	DB	'MBOOT PROGRAM CANCELLED$'
-
-INCRSNO:
-;	LD	A, (xmodem_local_number)
-;	INC	A
-;	LD	(xmodem_local_number), A
-;	RET
+xmodem_local_packet_number_inc:
+	ld	a, (xmodem_local_number)
+	inc	a
+	ld	(xmodem_local_number), a
+	ret
 
 ; file_erase
 ;**************************************************************
@@ -376,7 +374,7 @@ file_write_sector_error:
 	call	file_write_sector_reset_DMA_addr		; Reset disk DMA address
 	call	inline_print					; Print message
 	db	"++ERROR WRITING FILE",CR,LF,0
-	jp	ABORT
+	jp	abort
 
 ; receive_byte
 ;**************************************************************
