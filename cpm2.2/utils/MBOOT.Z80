@@ -143,13 +143,13 @@ receive_file_loop:
 RCVEOT:
 ;	CALL	WRBLOCK
 ;	CALL	SENDACK
-;	CALL	CLOSFIL
+;	CALL	file_close
 ;	CALL	exit_on_error
 ;	DB	CR,LF,'TRANSFER COMPLETE$' 
 
 RCVSECT:
 ;	XOR	A
-;	LD	(ERRCT),A
+;	LD	(error_count),A
 
 RCVRPT:
 ;	LD	B, SPEED*10
@@ -169,14 +169,14 @@ RCVSERR:
 ;	JP	NC,RCVSERR
 ;	LD	A, character_code_nak
 ;	CALL	SEND
-;	LD	A, (ERRCT)
+;	LD	A, (error_count)
 ;	INC	A
-;	LD	(ERRCT), A
+;	LD	(error_count), A
 ;	CP	ERRLIM
 ;	JP	C,RCVRPT
 
 RCVSABT:
-;	CALL	CLOSFIL
+;	CALL	file_close
 ;	CALL	exit_on_error
 ;	DB	'++UNABLE TO RECEIVE BLOCK'
 ;	DB	CR,LF,'++ABORTING++$'
@@ -305,14 +305,16 @@ file_create:
 	db	"++ERROR - CAN''T MAKE FILE",CR,LF
 	db	"++DIRECTORY MUST BE FULL$"
 
-CLOSFIL:
-;	LD	DE,FCB
-;	LD	C, 16
-;	CALL	BDOS
-;	INC	A
-;	RNZ
-;	CALL	exit_on_error
-;	DB	'++CAN''T CLOSE FILE$'
+; file_close
+;**************************************************************
+file_close:
+	ld	de, FCB
+	ld	c, 16						; BDOS function #16: Close file
+	call	BDOS						; On error, returns A=255
+	inc	a						; Check if an error occurred
+	ret	nz						; No errors, so return
+	call	exit_on_error					; An error occured, print error and exit
+	db	"++CAN''T CLOSE FILE$"
 
 WRSECT:
 ;	LD	HL, (SECPTR)
@@ -338,36 +340,41 @@ DKWRLP:
 ;	PUSH	HL
 ;	PUSH	DE
 ;	PUSH	BC
-;	LD 	C,26
+;	LD	C, 26						; BDOS function #26: Set DMA address
 ;	CALL	BDOS
-;	LD	DE,FCB
-;	LD 	C,21
+;	LD	DE, FCB
+;	LD	C, 21						; BDOS function #21: Write next record
 ;	CALL	BDOS
 ;	POP	BC
 ;	POP	DE
 ;	POP	HL
 ;	OR	A
-;	JP NZ,WRERR
-;	LD	HL,80H
-;	ADD HL,DE
-;	EX DE,HL
+;	JP	NZ, file_write_error
+;	LD	HL, 80H
+;	ADD	HL, DE
+;	EX	DE, HL
 ;	DEC	C
-;	JP NZ,DKWRLP
+;	JP	NZ, DKWRLP
 ;	XOR	A
-;	LD	(SECINBF),A
-;	LD	HL,DBUF
-;	LD	(SECPTR),HL
+;	LD	(SECINBF), A
+;	LD	HL, DBUF
+;	LD	(SECPTR), HL
 
-RSDMA:
-;	LD	DE,BASE+80H
-;	LD 	C,26
-;	JP	BDOS
+; bdos_set_DMA_addr
+;**************************************************************
+;  Call BDOS function: Set DMA Address
+bdos_set_DMA_addr:
+	ld	de, BASE+0x80
+	ld	c, 26						; BDOS function #26: Set DMA address
+	jp	BDOS
 
-WRERR:
-;	CALL	RSDMA
-;	CALL	inline_print
-;	DB	'++ERROR WRITING FILE',CR,LF,0
-;	JP	ABORT
+; file_write_error
+;**************************************************************
+file_write_error:
+	call	bdos_set_DMA_addr				; Reset disk DMA address
+	call	inline_print					; Print message
+	db	"++ERROR WRITING FILE",CR,LF,0
+	jp	ABORT
 
 ; receive_byte
 ;**************************************************************
@@ -396,10 +403,10 @@ receive_byte_loop:
 receive_byte_get:
 	in	a, (uart_data)					; Get byte from UART buffer
 	pop	de						; Restore register
-	push	af						; Save character
+	push	af						; Save byte
 	add	a, c						; Calculate checksum?
 	ld	c, a
-	pop	af						; Restore character
+	pop	af						; Restore byte
 	or	a						; Set flags
 	ret
 
@@ -534,7 +541,7 @@ memcopy:
 
 RCVSNO:			db		0x00
 SECTNO:			db		0x00
-ERRCT:			db		0x00
+error_count:		db		0x00
 EOFLG:			db		0x00
 SECPTR:			dw		DBUF
 SECINBF:		db		0x00
