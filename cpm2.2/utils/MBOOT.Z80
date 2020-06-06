@@ -53,82 +53,84 @@ if ALTCPM == TRUE
 BASE:			EQU		4200H
 endif
 
-EXITCHR:		EQU		05H			; CTL-E TO EXIT TERM MODE TO CP/M
-ESC:			EQU		1BH			; ESCAPE TO EXIT TERM MODE TO FILE RCVE
-
 SPEED:			EQU		2			; CPU speed in Mhz (to nearest Mhz)
 
 ; CHANGE THESE EQUATES FOR YOUR MODEM PORT REQUIREMENTS
-INITREQ:		EQU		FALSE			; TRUE, IF MODEM PORT INITIALISATION REQUIRED
-MODSTAT:		EQU		0EAH			; PUT YOUR  UART STATUS PORT HERE
-MODSNDB:		EQU		40H			; YOUR BIT TO TEST FOR SEND
-MODSNDR:		EQU		40H			; YOUR VALUE WHEN READY
-MODRCVB:		EQU		80H			; YOUR BIT TO TEST FOR RECEIVE
-MODRCVR:		EQU		80H			; YOUR VALUE WHEN READY
-MODDATA:		EQU		0EBH			; YOUR MODEM DATA PORT
+INITREQ:		equ	FALSE				; TRUE, IF MODEM PORT INITIALISATION REQUIRED
+uart_status:		equ	nc100_uart_control_register	; PUT YOUR  UART STATUS PORT HERE
+MODSNDB:		equ	40H				; YOUR BIT TO TEST FOR SEND
+MODSNDR:		equ	40H				; YOUR VALUE WHEN READY
+uart_rx_bit:		equ	1<<uPD71051_reg_status_RxRdy	; YOUR BIT TO TEST FOR RECEIVE
+uart_rx_ready:		equ	uart_rx_bit			; YOUR VALUE WHEN READY
+uart_data:		equ	nc100_uart_data_register	; YOUR MODEM DATA PORT
 
 ERRLIM:			EQU		10
 
-SOH:			EQU		1
-EOT:			EQU		4
-ACK:			EQU		6
-NAK:			EQU		15H
-CAN:			EQU		18H
-LF:			EQU		10
-CR:			EQU		13
- 
-BDOS:			EQU		BASE+5
-FCB:			EQU		BASE+5CH
+character_code_soh:	equ	0x01				; Start Of Header
+character_code_eot:	equ	0x04				; End Of Transmission
+character_code_ack:	equ	0x06				; Acknowledge 
+character_code_nak:	equ	0x15				; Negative Acknowledge
+character_code_can:	equ	0x18				; Cancel
+LF:			equ	0x0a				; Line Feed
+CR:			equ	0x0d				; Carriage Return
+character_code_enq:	equ	0x05				; Enquiry: CTL-E TO EXIT TERM MODE TO CP/M
+character_code_esc:	equ	0x1B				; Escape: ESCAPE TO EXIT TERM MODE TO FILE RCVE
+
+BDOS:			equ	BASE+0x0005			; Address of BDOS call
+FCB:			equ	BASE+0x005C
 
 org	BASE+100H
+;**************************************************************
 mboot_start:
 	ld	(stack_old_ptr), sp				; Store current stack pointer
 	ld	sp, stack_mboot_ptr				; Set mboot stack pointer
-	call	bios_calls_init
-;	CALL	inline_print
-;	DB	'MBOOT 3.1 as of '
-;	DB	'08/Jun/82',CR,LF,0
-;	LD	FCB+1
-;	CP	' '
-;	JP	NZ,TERMI
-;	CALL	inline_print
-;	DB	'++NO FILE NAME SPECIFIED++',CR,LF,0
-;	JP	exit
+	call	bios_calls_init					; Patch BIOS calls
+	call	inline_print
+	db	"MBOOT 3.1 as of "
+	db	"08/Jun/82",CR,LF,0
+	ld	a, FCB+1					; Check if filename argmunet given
+	cp	' '
+	jp	nz, terminal_init
+	call	inline_print					; No filename, so print
+	db	"++NO FILE NAME SPECIFIED++",CR,LF,0		; Message
+	jp	exit						; And exit
 
-TERMI:
-;	CALL	uart_init
-;	IN	A,(MODDATA)
-;	IN	A,(MODDATA)
-;	CALL	inline_print
-;	DB	CR,LF,'TERMINAL MODE',CR,LF
-;	DB	'CTL-E exits to CP/M, ESC starts file transfer'
-;	DB	CR,LF,0
+;**************************************************************
+;  Basic terminal interface
+terminal_init:
+	call	uart_init					; Init UART
+	in	a, (uart_data)					; Drain excess charactes
+	in	a, (uart_data)
+	call	inline_print					; Print message
+	db	CR,LF,"TERMINAL MODE",CR,LF
+	db	"CTL-E exits to CP/M, ESC starts file transfer"
+	db	CR,LF,0
+terminal_loop:
+	call	bios_const					; Check console status
+	jp	z, terminal_loop_UART_receive			; If nothing pending, check UART receive buffer
+	call	bios_conin					; Console in (Blocking)
+	cp	character_code_enq				; Check key (MBoot exit)
+	jp	z, exit						; exit MBoot
+	cp	character_code_esc				; Check key (File transfer)
+	jp	z, receive_file
+	out	(uart_data), a					; Character out
+terminal_loop_UART_receive:
+	in	a, (uart_status)				; Get UART status
+	and	uart_rx_bit					; Check receive buffer status
+	cp	uart_rx_ready
+	jp	nz, terminal_loop				; If nothing pending, loop
+	in	a, (uart_data)					; Get character from UART buffer
+	and	0x7F						; Strip parity bit
+	call	bios_conout					; Character out
+	jp	terminal_loop					; Loop
 
-TERM:
-;	CALL	bios_const
-;	JP	Z,TERML
-;	CALL	bios_conin
-;	CP	EXITCHR
-;	JP	Z, exit
-;	CP	ESC
-;	JP Z,RCVFIL
-;	OUT	(MODDATA),A
-
-TERML:
-;	IN	A,(MODSTAT)
-;	AND	MODRCVB
-;	CP	MODRCVR
-;	JP NZ,TERM
-;	IN	A,(MODDATA)
-;	AND	7FH
-;	CALL	bios_conout
-;	JP	TERM
-
-RCVFIL:
-;	CALL	ERASFIL
-;	CALL	MAKEFIL
-;	CALL	inline_print
-;	DB	'FILE OPEN, READY TO RECEIVE',CR,LF,0
+;**************************************************************
+;  Receive a file
+receive_file:
+	call	file_erase					; Erase file if it exits
+	call	file_create
+	call	inline_print
+	db	"FILE OPEN, READY TO RECEIVE",CR,LF,0
 
 RCVLP:
 ;	CALL	RCVSECT
@@ -153,11 +155,11 @@ RCVRPT:
 ;	LD 	B,SPEED*10
 ;	CALL	RECV
 ;	JP C,RCVSERR
-;	CP	SOH
+;	CP	character_code_soh
 ;	JP Z,RCVSOH
 ;	OR	A
 ;	JP Z,RCVRPT
-;	CP	EOT
+;	CP	character_code_eot
 ;	SCF
 ;	RZ
 
@@ -165,7 +167,7 @@ RCVSERR:
 ;	LD 	B,SPEED
 ;	CALL	RECV
 ;	JP NC,RCVSERR
-;	LD 	A,NAK
+;	LD 	A,character_code_nak
 ;	CALL	SEND
 ;	LD	A,(ERRCT)
 ;	INC	A
@@ -226,7 +228,7 @@ RECVACK:
 ;	JP	RCVSECT
 
 SENDACK:
-;	 LD 	A,ACK
+;	 LD 	A,character_code_ack
 
 SEND:
 ;	PUSH	AF
@@ -234,12 +236,12 @@ SEND:
 ;	LD 	C,A
 
 SENDW:
-;	IN	A,(MODSTAT)
+;	IN	A,(uart_status)
 ;	AND	MODSNDB
 ;	CP	MODSNDR
 ;	JP NZ,SENDW
 ;	POP	AF
-;	OUT	(MODDATA),A
+;	OUT	(uart_data),A
 ;	RET
 
 ABORT:
@@ -249,7 +251,7 @@ ABORTL:
 ;	LD 	B,SPEED
 ;	CALL	RECV
 ;	JP NC,ABORTL
-;	LD 	A,CAN
+;	LD 	A,character_code_can
 ;	CALL	SEND
 
 ABORTW:
@@ -267,35 +269,41 @@ INCRSNO:
 ;	LD	(SECTNO),A
 ;	RET
 
-ERASFIL:
-;	LD	DE,FCB
-;	LD 	C,17
-;	CALL	BDOS
-;	INC	A
-;	RZ
-;	CALL	inline_print
-;	DB	'++FILE EXISTS, TYPE Y TO ERASE: ',0
-;	CALL	bios_conin
-;	PUSH	AF
-;	CALL	bios_conout
-;	CALL	bios_conout_crlf
-;	POP	AF
-;	AND	5FH
-;	CP	'Y'
-;	JP NZ,exit_with_message
-;	LD	DE,FCB
-;	LD 	C,19
-;	JP	BDOS
+; file_erase
+;**************************************************************
+;  Erase file, if it exists
+file_erase:
+	ld	de, FCB
+	ld	c, 17						; BDOS function #17: Search for first
+	call	BDOS						; On error, returns A=255
+	inc	a						; Check if an error occurred
+	ret	z						; Return on error
+	call	inline_print					; Print message
+	db	"++FILE EXISTS, TYPE Y TO ERASE: ",0
+	call	bios_conin					; Get response
+	push	af						; Store response
+	call	bios_conout					; Print response
+	call	bios_conout_crlf				; Carriage return
+	pop	af						; Restore response
+	and	0x5F						; Convert lowercase to uppercase
+	cp	'Y'
+	JP	NZ,exit_with_message				; File exists, so just exit
+	ld	de, FCB
+	ld	c, 19						; BDOS function #19: Delete file
+	jp	BDOS
 
-MAKEFIL:
-;	LD	DE,FCB
-;	LD 	C,22
-;	CALL	BDOS
-;	INC	A
-;	RNZ
-;	CALL	exit_on_error
-;	DB	'++ERROR - CAN''T MAKE FILE',CR,LF
-;	DB	'++DIRECTORY MUST BE FULL$'
+; file_create
+;**************************************************************
+;  Create file
+file_create:
+	ld	de, FCB
+	ld	c, 22						; BDOS function #22: Create file
+	call	BDOS						; On error, returns A=255
+	inc	a						; Check if an error occurred
+	ret	nz						; No errors, so return
+	call	exit_on_error					; An error occured, print error and exit
+	db	"++ERROR - CAN''T MAKE FILE",CR,LF
+	db	"++DIRECTORY MUST BE FULL$"
 
 CLOSFIL:
 ;	LD	DE,FCB
@@ -367,9 +375,9 @@ MSEC:
 ;	LD	DE,12500
 
 MWTI:
-;	IN	A,(MODSTAT)
-;	AND	MODRCVB
-;	CP	MODRCVR
+;	IN	A,(uart_status)
+;	AND	uart_rx_bit
+;	CP	uart_rx_ready
 ;	JP Z,MCHAR
 ;	DEC	E
 ;	JP NZ,MWTI
@@ -382,7 +390,7 @@ MWTI:
 ;	RET
 
 MCHAR:
-;	IN	A,(MODDATA)
+;	IN	A,(uart_data)
 ;	POP	DE
 ;	PUSH	AF
 ;	ADD	A,C
