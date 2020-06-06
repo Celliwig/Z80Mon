@@ -68,7 +68,7 @@ uart_rx_bit:		equ	1<<uPD71051_reg_status_RxRdy	; YOUR BIT TO TEST FOR RECEIVE
 uart_rx_ready:		equ	uart_rx_bit			; YOUR VALUE WHEN READY
 uart_data:		equ	nc100_uart_data_register	; YOUR MODEM DATA PORT
 
-ERRLIM:			EQU		10
+error_max:		equ	0x0a				; Max errors to handle
 
 character_code_soh:	equ	0x01				; Start Of Header
 character_code_eot:	equ	0x04				; End Of Transmission
@@ -135,68 +135,63 @@ receive_file:
 	call	file_create					; Create a new file
 	call	inline_print					; Print message
 	db	"FILE OPEN, READY TO RECEIVE",CR,LF,0
-
 receive_file_loop:
-;	CALL	RCVSECT
-;	JP	C, RCVEOT
-;	CALL	file_write_sector
-;	CALL	xmodem_local_packet_number_inc
-;	CALL	send_acknowledge
+	call	receive_xmodem_packet
+	jp	c, receive_file_cleanup				; Received EOT, so finish
+	call	file_write_sector				; Write serial buffer to file
+	call	xmodem_local_packet_number_inc			; Increment local packet number
+	call	send_acknowledge				; Send ACK
 	jp	receive_file_loop
+receive_file_cleanup:
+	call	file_write_sector_block				; Write any remaining sectors
+	call	send_acknowledge				; Send ACK
+	call	file_close					; Close file
+	call	exit_on_error					; Print message, and exit
+	db	CR,LF,"TRANSFER COMPLETE$"
 
-RCVEOT:
-;	CALL	file_write_sector_block
-;	CALL	send_acknowledge
-;	CALL	file_close
-;	CALL	exit_on_error
-;	DB	CR,LF,'TRANSFER COMPLETE$' 
-
-RCVSECT:
-;	XOR	A
-;	LD	(error_count),A
-
-RCVRPT:
-;	LD	B, CPU_CLK*10
-;	CALL	receive_byte
-;	JP	C, RCVSERR
-;	CP	character_code_soh
-;	JP	Z, receive_xmodem_soh
-;	OR	A
-;	JP	Z, RCVRPT
-;	CP	character_code_eot
-;	SCF
-;	RZ
-
-RCVSERR:
-;	LD	B, CPU_CLK
-;	CALL	receive_byte
-;	JP	NC, RCVSERR
-;	LD	A, character_code_nak
-;	CALL	send
-;	LD	A, (error_count)
-;	INC	A
-;	LD	(error_count), A
-;	CP	ERRLIM
-;	JP	C, RCVRPT
-
-RCVSABT:
-;	CALL	file_close
-;	CALL	exit_on_error
-;	DB	'++UNABLE TO RECEIVE BLOCK'
-;	DB	CR,LF,'++ABORTING++$'
+receive_xmodem_packet:
+	xor	a						; Clear A
+	ld	(error_count), a				; Clear error count
+receive_xmodem_packet_loop:
+	ld	b, CPU_CLK*10					; Timeout 10s
+	call	receive_byte					; Get byte
+	jp	c, receive_xmodem_packet_error_handler		; Handle error
+	cp	character_code_soh				; Check for Start Of Header
+	jp	z, receive_xmodem_soh				; Handle packet
+	or	a						; Check for null byte
+	jp	z, receive_xmodem_packet_loop			; If so, just loop
+	cp	character_code_eot				; Check for End Of Transmission
+	scf							; Set Carry flag
+	ret	z						; EOT, so finish
+receive_xmodem_packet_error_handler:
+	ld	b, CPU_CLK					; Timeout 1s
+	call	receive_byte					; Get byte
+	jp	nc, receive_xmodem_packet_error_handler		; Loop until there's a timeout
+	ld	a, character_code_nak
+	call	send						; Send NACK
+	ld	a, (error_count)				; Increment error count
+	inc	a
+	ld	(error_count), a
+	cp	error_max					; Exceeded max errors?
+	jp	c, receive_xmodem_packet_loop			; No, loop
+receive_xmodem_packet_abort:
+	call	file_close					; Close file
+	call	exit_on_error					; Print message, and exit
+	db	"++UNABLE TO RECEIVE BLOCK"
+	db	CR,LF,"++ABORTING++$"
 
 receive_xmodem_soh:
 	ld	b, CPU_CLK					; Timeout 1s
 	call	receive_byte					; Get byte (Packet number)
-	jp	c, RCVSERR					; Handle error
+	jp	c, receive_xmodem_packet_error_handler		; Handle error
 	ld	d, a						; Save packet number
 	ld	b, CPU_CLK					; Timeout 1s
 	call	receive_byte					; Get byte (Alt packet number)
-	jp	c, RCVSERR					; Handle error
+	jp	c, receive_xmodem_packet_error_handler		; Handle error
 	cpl							; Complement alternate packet number
 	cp	d						; Compare with saved value
 	jp	z, receive_xmodem_data				; If there are no errors, get xmodem packet data
-	jp	RCVSERR
+	jp	receive_xmodem_packet_error_handler
 receive_xmodem_data:
 	ld	a, d						; Get packet number
 	ld	(xmodem_packet_number), A			; Save Xmodem packet number
@@ -205,16 +200,16 @@ receive_xmodem_data:
 receive_xmodem_data_loop:
 	ld	b, CPU_CLK					; Timeout 1s
 	call	receive_byte					; Get byte (data)
-	jp	c, RCVSERR					; Handle error
+	jp	c, receive_xmodem_packet_error_handler		; Handle error
 	ld	(hl), a						; Save byte in buffer
 	inc	l						; Increment buffer pointer
 	jp	nz, receive_xmodem_data_loop			; Keep getting bytes until pointer overflows
 	ld	d, c						; Save checksum
 	ld	b, CPU_CLK					; Timeout 1s
 	call	receive_byte					; Get byte (Checksum)
-	jp	c, RCVSERR					; Handle error
+	jp	c, receive_xmodem_packet_error_handler		; Handle error
 	cp	d						; Compare calculated checksum, with the transmited value
-	jp	nz, RCVSERR					; Handle error
+	jp	nz, receive_xmodem_packet_error_handler		; Handle error
 	ld	a, (xmodem_packet_number)			; Get sent packet number
 	ld	b, a						; Save sent packet number
 	ld	a, (xmodem_local_number)			; Get local packet number
@@ -226,7 +221,7 @@ receive_xmodem_data_loop:
 	ret
 receive_xmodem_packet_ack:
 	call	send_acknowledge
-	jp	RCVSECT
+	jp	receive_xmodem_packet
 
 send_acknowledge:
 	ld	a, character_code_ack				; Acknowledge character
