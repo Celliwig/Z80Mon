@@ -55,6 +55,10 @@ endif
 
 SPEED:			EQU		2			; CPU speed in Mhz (to nearest Mhz)
 
+; Status register bits
+uPD71051_reg_status_TxRdy:	equ		0		; Transmit Data Buffer: 1 = Empty, 0 = Full
+uPD71051_reg_status_RxRdy:	equ		1		; Receive Data Buffer: 1 = Full, 0 = Not Ready
+
 ; CHANGE THESE EQUATES FOR YOUR MODEM PORT REQUIREMENTS
 INITREQ:		equ	FALSE				; TRUE, IF MODEM PORT INITIALISATION REQUIRED
 uart_status:		equ	nc100_uart_control_register	; PUT YOUR  UART STATUS PORT HERE
@@ -135,13 +139,13 @@ receive_file:
 receive_file_loop:
 ;	CALL	RCVSECT
 ;	JP	C, RCVEOT
-;	CALL	WRSECT
+;	CALL	file_write_sector
 ;	CALL	INCRSNO
 ;	CALL	SENDACK
 	jp	receive_file_loop
 
 RCVEOT:
-;	CALL	WRBLOCK
+;	CALL	file_write_sector_block
 ;	CALL	SENDACK
 ;	CALL	file_close
 ;	CALL	exit_on_error
@@ -307,6 +311,7 @@ file_create:
 
 ; file_close
 ;**************************************************************
+;  Close file
 file_close:
 	ld	de, FCB
 	ld	c, 16						; BDOS function #16: Close file
@@ -316,62 +321,64 @@ file_close:
 	call	exit_on_error					; An error occured, print error and exit
 	db	"++CAN''T CLOSE FILE$"
 
-WRSECT:
-;	LD	HL, (SECPTR)
-;	EX	DE, HL
-;	LD	HL, BASE+80H
-;	CALL	memcopy_128
-;	EX	DE, HL
-;	LD	(SECPTR), HL
-;	LD	A, (SECINBF)
-;	INC	A
-;	LD	(SECINBF), A
-;	CP	16
-;	RNZ
-
-WRBLOCK:
-;	LD	A, (SECINBF)
-;	OR	A
-;	RZ
-;	LD	C, A
-;	LD	DE, DBUF
-
-DKWRLP:
-;	PUSH	HL
-;	PUSH	DE
-;	PUSH	BC
-;	LD	C, 26						; BDOS function #26: Set DMA address
-;	CALL	BDOS
-;	LD	DE, FCB
-;	LD	C, 21						; BDOS function #21: Write next record
-;	CALL	BDOS
-;	POP	BC
-;	POP	DE
-;	POP	HL
-;	OR	A
-;	JP	NZ, file_write_error
-;	LD	HL, 80H
-;	ADD	HL, DE
-;	EX	DE, HL
-;	DEC	C
-;	JP	NZ, DKWRLP
-;	XOR	A
-;	LD	(SECINBF), A
-;	LD	HL, DBUF
-;	LD	(SECPTR), HL
-
-; bdos_set_DMA_addr
+; file_write_sector
+;**************************************************************
+;  Write a sector to the file.
+;  An actual disk write only occurs for every 16 sectors written.
+file_write_sector:
+	ld	de, (sector_buffer_pointer)			; Sector buffer pointer
+	ld	hl, BASE+0x80					; Serial buffer pointer
+	call	memcopy_128					; Copy 128 bytes from serial buffer to sector buffer
+	ld	(sector_buffer_pointer), de			; Save sector buffer pointer
+	ld	a, (sector_buffer_count)			; Get number of sectors stored in buffer
+	inc	a						; Increment number of sectors stored in buffer
+	ld	(sector_buffer_count), a			; Store number of sectors stored in buffer
+	cp	16						; Are there 16 sectors stored?
+	ret	nz						; <16 so return
+; file_write_sector_block
+;**************************************************************
+;  Write a block of sectors to the file
+file_write_sector_block:
+	ld	a, (sector_buffer_count)			; Get number of sectors stored in buffer
+	or	a						; Set flags
+	ret	z						; If the number of sectors in the buffer is zero, return
+	ld	c, a						; Set number of sectors to write
+	ld	de, sector_buffer				; Set pointer to sector to write
+file_write_sector_block_loop:
+	push	hl						; Save registers
+	push	de
+	push	bc
+	ld	c, 26						; BDOS function #26: Set DMA address
+	call	BDOS
+	ld	de, FCB
+	ld	c, 21						; BDOS function #21: Write next record
+	call	BDOS
+	pop	bc						; Restore registers
+	pop	de
+	pop	hl
+	or	a						; Set flags
+	jp	nz, file_write_sector_error			; An error occured, so exit
+	ld	hl, 0x0080					; Offset to next sector
+	add	hl, de						; Calculate next sector
+	ex	de, hl
+	dec	c						; Decrement number of stored sectors
+	jp	nz, file_write_sector_block_loop		; More sectors left, so loop
+	xor	a						; Clear A
+	ld	(sector_buffer_count), a			; Clear number of stored sectors
+	ld	hl, sector_buffer
+	ld	(sector_buffer_pointer), hl			; Reset sector buffer pointer
+; file_write_sector_reset_DMA_addr
 ;**************************************************************
 ;  Call BDOS function: Set DMA Address
-bdos_set_DMA_addr:
+file_write_sector_reset_DMA_addr:
 	ld	de, BASE+0x80
 	ld	c, 26						; BDOS function #26: Set DMA address
 	jp	BDOS
 
-; file_write_error
+; file_write_sector_error
 ;**************************************************************
-file_write_error:
-	call	bdos_set_DMA_addr				; Reset disk DMA address
+file_write_sector_error:
+	call	file_write_sector_reset_DMA_addr		; Reset disk DMA address
 	call	inline_print					; Print message
 	db	"++ERROR WRITING FILE",CR,LF,0
 	jp	ABORT
@@ -541,13 +548,14 @@ memcopy:
 
 RCVSNO:			db		0x00
 SECTNO:			db		0x00
-error_count:		db		0x00
+error_count:		db		0x00			; Number of errors that have occured
 EOFLG:			db		0x00
-SECPTR:			dw		DBUF
-SECINBF:		db		0x00
-stack_mboot:		ds		60, 0x00
-stack_mboot_ptr:	equ		$
-stack_old_ptr:		dw		0x0000
-DBUF:			equ		$
+sector_buffer_pointer:	dw		sector_buffer		; Pointer to the current location in the sector buffer
+sector_buffer_count:	db		0x00			; Number of sectors stored in sector buffer
+stack_mboot:		ds		60, 0x00		; MBoot's stack
+stack_mboot_ptr:	equ		$			; MBoot stack pointer top
+stack_old_ptr:		dw		0x0000			; Store for old stack pointer
+sector_buffer:		equ		$			; The rest of the memory for sector buffering
+								; Actually just need 16*128=2k
 
 END             
