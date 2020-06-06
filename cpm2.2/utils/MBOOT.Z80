@@ -39,21 +39,21 @@
 ; system to another. It may look strange but will assemble
 ; OK (KBP)
 
-FALSE:			EQU		0
-TRUE:			EQU		1
+FALSE:			equ		0
+TRUE:			equ		1
 
-STDCPM:			EQU		TRUE			; TRUE, IS STANDARD CP/M
-ALTCPM:			EQU		FALSE			; TRUE, IS ALTERNATE CP/M FOR H8 OR TRS80
+STDCPM:			equ		TRUE			; TRUE, IS STANDARD CP/M
+ALTCPM:			equ		FALSE			; TRUE, IS ALTERNATE CP/M FOR H8 OR TRS80
 
 if STDCPM == TRUE
-BASE:			EQU		0
+BASE:			equ		0x0000
 endif
 
 if ALTCPM == TRUE
-BASE:			EQU		4200H
+BASE:			equ		0x4200
 endif
 
-SPEED:			EQU		2			; CPU speed in Mhz (to nearest Mhz)
+CPU_CLK:		equ	4				; CPU speed in Mhz (to nearest Mhz)
 
 ; Status register bits
 uPD71051_reg_status_TxRdy:	equ		0		; Transmit Data Buffer: 1 = Empty, 0 = Full
@@ -62,8 +62,8 @@ uPD71051_reg_status_RxRdy:	equ		1		; Receive Data Buffer: 1 = Full, 0 = Not Read
 ; CHANGE THESE EQUATES FOR YOUR MODEM PORT REQUIREMENTS
 INITREQ:		equ	FALSE				; TRUE, IF MODEM PORT INITIALISATION REQUIRED
 uart_status:		equ	nc100_uart_control_register	; PUT YOUR  UART STATUS PORT HERE
-MODSNDB:		equ	40H				; YOUR BIT TO TEST FOR SEND
-MODSNDR:		equ	40H				; YOUR VALUE WHEN READY
+uart_tx_bit:		equ	1<<uPD71051_reg_status_TxRdy	; YOUR BIT TO TEST FOR SEND
+uart_tx_ready:		equ	uart_tx_bit			; YOUR VALUE WHEN READY
 uart_rx_bit:		equ	1<<uPD71051_reg_status_RxRdy	; YOUR BIT TO TEST FOR RECEIVE
 uart_rx_ready:		equ	uart_rx_bit			; YOUR VALUE WHEN READY
 uart_data:		equ	nc100_uart_data_register	; YOUR MODEM DATA PORT
@@ -132,8 +132,8 @@ terminal_loop_UART_receive:
 ;  Receive a file
 receive_file:
 	call	file_erase					; Erase file if it exits
-	call	file_create
-	call	inline_print
+	call	file_create					; Create a new file
+	call	inline_print					; Print message
 	db	"FILE OPEN, READY TO RECEIVE",CR,LF,0
 
 receive_file_loop:
@@ -141,12 +141,12 @@ receive_file_loop:
 ;	JP	C, RCVEOT
 ;	CALL	file_write_sector
 ;	CALL	INCRSNO
-;	CALL	SENDACK
+;	CALL	send_acknowledge
 	jp	receive_file_loop
 
 RCVEOT:
 ;	CALL	file_write_sector_block
-;	CALL	SENDACK
+;	CALL	send_acknowledge
 ;	CALL	file_close
 ;	CALL	exit_on_error
 ;	DB	CR,LF,'TRANSFER COMPLETE$' 
@@ -156,11 +156,11 @@ RCVSECT:
 ;	LD	(error_count),A
 
 RCVRPT:
-;	LD	B, SPEED*10
+;	LD	B, CPU_CLK*10
 ;	CALL	receive_byte
 ;	JP	C, RCVSERR
 ;	CP	character_code_soh
-;	JP	Z, RCVSOH
+;	JP	Z, receive_xmodem_soh
 ;	OR	A
 ;	JP	Z, RCVRPT
 ;	CP	character_code_eot
@@ -168,16 +168,16 @@ RCVRPT:
 ;	RZ
 
 RCVSERR:
-;	LD	B,SPEED
+;	LD	B, CPU_CLK
 ;	CALL	receive_byte
-;	JP	NC,RCVSERR
+;	JP	NC, RCVSERR
 ;	LD	A, character_code_nak
 ;	CALL	SEND
 ;	LD	A, (error_count)
 ;	INC	A
 ;	LD	(error_count), A
 ;	CP	ERRLIM
-;	JP	C,RCVRPT
+;	JP	C, RCVRPT
 
 RCVSABT:
 ;	CALL	file_close
@@ -185,74 +185,69 @@ RCVSABT:
 ;	DB	'++UNABLE TO RECEIVE BLOCK'
 ;	DB	CR,LF,'++ABORTING++$'
 
-RCVSOH:
-;	LD	B, SPEED
-;	CALL	receive_byte
-;	JP	C, RCVSERR
-;	LD	D, A
-;	LD	B, SPEED
-;	CALL	receive_byte
-;	JP	C, RCVSERR
-;	CPL
-;	CP	D
-;	JP	Z, RCVDATA
-;	JP	RCVSERR
+receive_xmodem_soh:
+	ld	b, CPU_CLK					; Timeout 1s
+	call	receive_byte					; Get byte (Packet number)
+	jp	c, RCVSERR					; Handle error
+	ld	d, a						; Save packet number
+	ld	b, CPU_CLK					; Timeout 1s
+	call	receive_byte					; Get byte (Alt packet number)
+	jp	c, RCVSERR					; Handle error
+	cpl							; Complement alternate packet number
+	cp	d						; Compare with saved value
+	jp	z, receive_xmodem_data				; If there are no errors, get xmodem packet data
+	jp	RCVSERR
+receive_xmodem_data:
+	ld	a, d						; Get packet number
+	ld	(xmodem_packet_number), A			; Save Xmodem packet number
+	ld	c, 0x00						; Reset checksum value
+	ld	hl, BASE+0x80					; Set serial buffer pointer
+receive_xmodem_data_loop:
+	ld	b, CPU_CLK					; Timeout 1s
+	call	receive_byte					; Get byte (data)
+	jp	c, RCVSERR					; Handle error
+	ld	(hl), a						; Save byte in buffer
+	inc	l						; Increment buffer pointer
+	jp	nz, receive_xmodem_data_loop			; Keep getting bytes until pointer overflows
+	ld	d, c						; Save checksum
+	ld	b, CPU_CLK					; Timeout 1s
+	call	receive_byte					; Get byte (Checksum)
+	jp	c, RCVSERR					; Handle error
+	cp	d						; Compare calculated checksum, with the transmited value
+	jp	nz, RCVSERR					; Handle error
+	ld	a, (xmodem_packet_number)			; Get sent packet number
+	ld	b, a						; Save sent packet number
+	ld	a, (xmodem_local_number)			; Get local packet number
+	cp	b						; Compare packet numbers
+	jp	z, receive_xmodem_packet_ack			; No errors, so acknowledge
+	inc	a						; Check for mismatched (by 1) packet numbers
+	cp	b						; Compare packet numbers
+	jp	nz, ABORT					; If the packet number numbers don't match, abort
+	ret
+receive_xmodem_packet_ack:
+	call	send_acknowledge
+	jp	RCVSECT
 
-RCVDATA:
-;	LD	A, D
-;	LD	(RCVSNO), A
-;	LD	C, 0
-;	LD	HL, BASE+80H
-
-RCVCHR:
-;	LD	B, SPEED
-;	CALL	receive_byte
-;	JP	C, RCVSERR
-;	LD	(HL), A
-;	INC	L
-;	JP	NZ, RCVCHR
-;	LD	D, C
-;	LD	B, SPEED
-;	CALL	receive_byte
-;	JP	C, RCVSERR
-;	CP	D
-;	JP	NZ, RCVSERR
-;	LD	A, (RCVSNO)
-;	LD	B, A
-;	LD	A, (SECTNO)
-;	CP	B
-;	JP	Z, RECVACK
-;	INC	A
-;	CP	B
-;	JP	NZ, ABORT
-;	RET
-
-RECVACK:
-;	CALL	SENDACK
-;	JP	RCVSECT
-
-SENDACK:
-;	 LD	A, character_code_ack
-
-SEND:
-;	PUSH	AF
-;	ADD	A, C
-;	LD	C, A
-
-SENDW:
-;	IN	A, (uart_status)
-;	AND	MODSNDB
-;	CP	MODSNDR
-;	JP	NZ, SENDW
-;	POP	AF
-;	OUT	(uart_data), A
-;	RET
+send_acknowledge:
+	ld	a, character_code_ack				; Acknowledge character
+send:
+	push	af						; Save byte to send
+	add	a, c						; Save checksum
+	ld	c, a
+send_loop_UART_ready:
+	in	a, (uart_status)				; Get UART status
+	and	uart_tx_bit					; Check transmit buffer status
+	cp	uart_tx_ready
+	jp	nz, send_loop_UART_ready			; If Tx buffer unavailable, loop
+	pop	af						; Restore byte to send
+	out	(uart_data), a					; Write byte out
+	ret
 
 ABORT:
 ;	LD	SP, stack_mboot_ptr
 
 ABORTL:
-;	LD	B, SPEED
+;	LD	B, CPU_CLK
 ;	CALL	receive_byte
 ;	JP	NC, ABORTL
 ;	LD	A, character_code_can
@@ -268,9 +263,9 @@ ABORTW:
 ;	DB	'MBOOT PROGRAM CANCELLED$'
 
 INCRSNO:
-;	LD	A, (SECTNO)
+;	LD	A, (xmodem_local_number)
 ;	INC	A
-;	LD	(SECTNO), A
+;	LD	(xmodem_local_number), A
 ;	RET
 
 ; file_erase
@@ -546,8 +541,8 @@ memcopy:
 	djnz	memcopy						; Loop until zero
 	ret
 
-RCVSNO:			db		0x00
-SECTNO:			db		0x00
+xmodem_packet_number:	db		0x00			; Xmodem packet number sent by server
+xmodem_local_number:	db		0x00			; Xmodem local number (local packet count)
 error_count:		db		0x00			; Number of errors that have occured
 EOFLG:			db		0x00
 sector_buffer_pointer:	dw		sector_buffer		; Pointer to the current location in the sector buffer
