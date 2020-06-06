@@ -132,13 +132,13 @@ receive_file:
 	call	inline_print
 	db	"FILE OPEN, READY TO RECEIVE",CR,LF,0
 
-RCVLP:
+receive_file_loop:
 ;	CALL	RCVSECT
-;	JP C,RCVEOT
+;	JP	C, RCVEOT
 ;	CALL	WRSECT
 ;	CALL	INCRSNO
 ;	CALL	SENDACK
-;	JP	RCVLP
+	jp	receive_file_loop
 
 RCVEOT:
 ;	CALL	WRBLOCK
@@ -152,28 +152,28 @@ RCVSECT:
 ;	LD	(ERRCT),A
 
 RCVRPT:
-;	LD 	B,SPEED*10
-;	CALL	RECV
-;	JP C,RCVSERR
+;	LD	B, SPEED*10
+;	CALL	receive_byte
+;	JP	C, RCVSERR
 ;	CP	character_code_soh
-;	JP Z,RCVSOH
+;	JP	Z, RCVSOH
 ;	OR	A
-;	JP Z,RCVRPT
+;	JP	Z, RCVRPT
 ;	CP	character_code_eot
 ;	SCF
 ;	RZ
 
 RCVSERR:
-;	LD 	B,SPEED
-;	CALL	RECV
-;	JP NC,RCVSERR
-;	LD 	A,character_code_nak
+;	LD	B,SPEED
+;	CALL	receive_byte
+;	JP	NC,RCVSERR
+;	LD	A, character_code_nak
 ;	CALL	SEND
-;	LD	A,(ERRCT)
+;	LD	A, (ERRCT)
 ;	INC	A
-;	LD	(ERRCT),A
+;	LD	(ERRCT), A
 ;	CP	ERRLIM
-;	JP C,RCVRPT
+;	JP	C,RCVRPT
 
 RCVSABT:
 ;	CALL	CLOSFIL
@@ -182,45 +182,45 @@ RCVSABT:
 ;	DB	CR,LF,'++ABORTING++$'
 
 RCVSOH:
-;	LD 	B,SPEED
-;	CALL	RECV
-;	JP C,RCVSERR
-;	LD 	D,A
-;	LD 	B,SPEED
-;	CALL	RECV
-;	JP C,RCVSERR
+;	LD	B, SPEED
+;	CALL	receive_byte
+;	JP	C, RCVSERR
+;	LD	D, A
+;	LD	B, SPEED
+;	CALL	receive_byte
+;	JP	C, RCVSERR
 ;	CPL
 ;	CP	D
-;	JP Z,RCVDATA
+;	JP	Z, RCVDATA
 ;	JP	RCVSERR
 
 RCVDATA:
-;	LD 	A,D
-;	LD	(RCVSNO),A
-;	LD 	C,0
-;	LD	HL,BASE+80H
+;	LD	A, D
+;	LD	(RCVSNO), A
+;	LD	C, 0
+;	LD	HL, BASE+80H
 
 RCVCHR:
-;	LD 	B,SPEED
-;	CALL	RECV
-;	JP C,RCVSERR
-;	LD 	(HL),A
+;	LD	B, SPEED
+;	CALL	receive_byte
+;	JP	C, RCVSERR
+;	LD	(HL), A
 ;	INC	L
-;	JP NZ,RCVCHR
-;	LD 	D,C
-;	LD 	B,SPEED
-;	CALL	RECV
-;	JP C,RCVSERR
+;	JP	NZ, RCVCHR
+;	LD	D, C
+;	LD	B, SPEED
+;	CALL	receive_byte
+;	JP	C, RCVSERR
 ;	CP	D
-;	JP NZ,RCVSERR
-;	LD	A,(RCVSNO)
-;	LD 	B,A
-;	LD	A,(SECTNO)
+;	JP	NZ, RCVSERR
+;	LD	A, (RCVSNO)
+;	LD	B, A
+;	LD	A, (SECTNO)
 ;	CP	B
-;	JP Z,RECVACK
+;	JP	Z, RECVACK
 ;	INC	A
 ;	CP	B
-;	JP NZ,ABORT
+;	JP	NZ, ABORT
 ;	RET
 
 RECVACK:
@@ -228,45 +228,45 @@ RECVACK:
 ;	JP	RCVSECT
 
 SENDACK:
-;	 LD 	A,character_code_ack
+;	 LD	A, character_code_ack
 
 SEND:
 ;	PUSH	AF
-;	ADD	A,C
-;	LD 	C,A
+;	ADD	A, C
+;	LD	C, A
 
 SENDW:
-;	IN	A,(uart_status)
+;	IN	A, (uart_status)
 ;	AND	MODSNDB
 ;	CP	MODSNDR
-;	JP NZ,SENDW
+;	JP	NZ, SENDW
 ;	POP	AF
-;	OUT	(uart_data),A
+;	OUT	(uart_data), A
 ;	RET
 
 ABORT:
 ;	LD	SP, stack_mboot_ptr
 
 ABORTL:
-;	LD 	B,SPEED
-;	CALL	RECV
-;	JP NC,ABORTL
-;	LD 	A,character_code_can
+;	LD	B, SPEED
+;	CALL	receive_byte
+;	JP	NC, ABORTL
+;	LD	A, character_code_can
 ;	CALL	SEND
 
 ABORTW:
-;	LD  B,1
-;	CALL	RECV
-;	JP NC,ABORTW
-;	LD 	A,' '
+;	LD	B, 1
+;	CALL	receive_byte
+;	JP	NC, ABORTW
+;	LD	A, ' '
 ;	CALL	SEND
 ;	CALL	exit_on_error
 ;	DB	'MBOOT PROGRAM CANCELLED$'
 
 INCRSNO:
-;	LD	A,(SECTNO)
+;	LD	A, (SECTNO)
 ;	INC	A
-;	LD	(SECTNO),A
+;	LD	(SECTNO), A
 ;	RET
 
 ; file_erase
@@ -307,7 +307,7 @@ file_create:
 
 CLOSFIL:
 ;	LD	DE,FCB
-;	LD 	C,16
+;	LD	C, 16
 ;	CALL	BDOS
 ;	INC	A
 ;	RNZ
@@ -315,24 +315,24 @@ CLOSFIL:
 ;	DB	'++CAN''T CLOSE FILE$'
 
 WRSECT:
-;	LD	HL,(SECPTR)
-;	EX DE,HL
-;	LD	HL,BASE+80H
+;	LD	HL, (SECPTR)
+;	EX	DE, HL
+;	LD	HL, BASE+80H
 ;	CALL	memcopy_128
-;	EX DE,HL
-;	LD	(SECPTR),HL
-;	LD	A,(SECINBF)
+;	EX	DE, HL
+;	LD	(SECPTR), HL
+;	LD	A, (SECINBF)
 ;	INC	A
-;	LD	(SECINBF),A
+;	LD	(SECINBF), A
 ;	CP	16
 ;	RNZ
 
 WRBLOCK:
-;	LD A,(SECINBF)
+;	LD	A, (SECINBF)
 ;	OR	A
 ;	RZ
-;	LD 	C,A
-;	LD	DE,DBUF
+;	LD	C, A
+;	LD	DE, DBUF
 
 DKWRLP:
 ;	PUSH	HL
@@ -369,35 +369,39 @@ WRERR:
 ;	DB	'++ERROR WRITING FILE',CR,LF,0
 ;	JP	ABORT
 
-RECV:
-;	PUSH	DE
-MSEC:
-;	LD	DE,12500
-
-MWTI:
-;	IN	A,(uart_status)
-;	AND	uart_rx_bit
-;	CP	uart_rx_ready
-;	JP Z,MCHAR
-;	DEC	E
-;	JP NZ,MWTI
-;	DEC	D
-;	JP NZ,MWTI
-;	DEC	B
-;	JP NZ,MSEC
-;	POP	DE
-;	SCF
-;	RET
-
-MCHAR:
-;	IN	A,(uart_data)
-;	POP	DE
-;	PUSH	AF
-;	ADD	A,C
-;	LD 	C,A
-;	POP	AF
-;	OR	A
-;	RET
+; receive_byte
+;**************************************************************
+;  Receive a byte of data, or timeout after a number of seconds
+;	In:	B = Clock frequency in MHz (= 1s timeout)
+;	Out:	A = Character in (If there is one)
+;		Carry flag set on timeout, clear if character read
+receive_byte:
+	push	de						; Save register
+receive_byte_loop_clock_adjust:
+	ld	de, 12500					; Delay loop * Clock frequency (MHz) = 1 sec
+receive_byte_loop:
+	in	a, (uart_status)				; Get UART status
+	and	uart_rx_bit					; Check if byte available in UART buffer
+	cp	uart_rx_ready
+	jp	z, receive_byte_get				; Get byte from UART
+	dec	e						; Decrement delay loop
+	jp	nz, receive_byte_loop				; Loop if not zero
+	dec	d						; Decrement delay loop
+	jp	nz, receive_byte_loop				; Loop if not zero
+	dec	b						; Decrement CPU clock adjust
+	jp	nz, receive_byte_loop_clock_adjust		; Loop if not zero
+	pop	de
+	scf							; Set Carry flag
+	ret
+receive_byte_get:
+	in	a, (uart_data)					; Get byte from UART buffer
+	pop	de						; Restore register
+	push	af						; Save character
+	add	a, c						; Calculate checksum?
+	ld	c, a
+	pop	af						; Restore character
+	or	a						; Set flags
+	ret
 
 ; bios_calls_init
 ;**************************************************************
