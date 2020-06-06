@@ -82,11 +82,9 @@ FCB:			EQU		BASE+5CH
 
 org	BASE+100H
 mboot_start:
-;	LD	HL,0
-;	ADD	HL,SP
-;	LD	(stack_old_ptr),HL
-;	LD	SP, stack_mboot_ptr
-;	CALL	INITADR
+	ld	(stack_old_ptr), sp				; Store current stack pointer
+	ld	sp, stack_mboot_ptr				; Set mboot stack pointer
+	call	bios_calls_init
 ;	CALL	inline_print
 ;	DB	'MBOOT 3.1 as of '
 ;	DB	'08/Jun/82',CR,LF,0
@@ -98,7 +96,7 @@ mboot_start:
 ;	JP	exit
 
 TERMI:
-;	CALL	INITMOD
+;	CALL	uart_init
 ;	IN	A,(MODDATA)
 ;	IN	A,(MODDATA)
 ;	CALL	inline_print
@@ -107,9 +105,9 @@ TERMI:
 ;	DB	CR,LF,0
 
 TERM:
-;	CALL	STAT
+;	CALL	bios_const
 ;	JP	Z,TERML
-;	CALL	KEYIN
+;	CALL	bios_conin
 ;	CP	EXITCHR
 ;	JP	Z, exit
 ;	CP	ESC
@@ -123,7 +121,7 @@ TERML:
 ;	JP NZ,TERM
 ;	IN	A,(MODDATA)
 ;	AND	7FH
-;	CALL	TYPE
+;	CALL	bios_conout
 ;	JP	TERM
 
 RCVFIL:
@@ -277,10 +275,10 @@ ERASFIL:
 ;	RZ
 ;	CALL	inline_print
 ;	DB	'++FILE EXISTS, TYPE Y TO ERASE: ',0
-;	CALL	KEYIN
+;	CALL	bios_conin
 ;	PUSH	AF
-;	CALL	TYPE
-;	CALL	CRLF
+;	CALL	bios_conout
+;	CALL	bios_conout_crlf
 ;	POP	AF
 ;	AND	5FH
 ;	CP	'Y'
@@ -393,64 +391,80 @@ MCHAR:
 ;	OR	A
 ;	RET
 
-INITADR:
-;	LD BASE+1
-;	LD	DE,3
-;	ADD HL,DE
-;	LD	VSTAT+1
-;	ADD HL,DE
-;	LD	VKEYIN+1
-;	ADD HL,DE
-;	LD	VTYPE+1
-;	RET
+; bios_calls_init
+;**************************************************************
+;  BIOS routines need call addresses patching
+bios_calls_init:
+	ld	hl, (BASE+1)					; HL=BIOS WarmBoot routine
+	ld	de, 0x0003					; BIOS jump table increment value
+	add	hl, de						; HL=BIOS Console Status
+	ld	(bios_const_cptr+1), hl				; Update bios_const routine
+	add	hl, de						; HL=BIOS Console In
+	ld	(bios_conin_cptr+1), hl				; Update bios_conin routine
+	add	hl, de						; HL=BIOS Console Out
+	ld	(bios_conout_cptr+1), hl			; Update bios_conout routine
+	ret
 
-INITMOD:	 EQU	$
+; uart_init
+;**************************************************************
+;  UART initialisation code lives here
+uart_init:
 if INITREQ							; Insert any UART initialisation code here
 endif
-	RET							; <--THIS RET MUST BE HERE
+	ret							; <--THIS RET MUST BE HERE
 
-CRLF:
-;	LD 	A,CR
-;	CALL	TYPE
-;	LD 	A,LF
+; bios_conout_crlf
+;**************************************************************
+bios_conout_crlf:
+	ld	a, CR
+	call	bios_conout
+	ld	a, LF
+; bios_conout
+;**************************************************************
+;  Call BIOS console out routine
+bios_conout:
+	push	af						; Store registers
+	push	bc
+	push	de
+	push	hl
+	ld	c, a						; Move character into position
+bios_conout_cptr:
+	call	0x0000						; Address is patched by bios_calls_init
+	pop	hl						; Restore registers
+	pop	de
+	pop	bc
+	pop	af
+	ret
 
-TYPE:
-;	PUSH	AF
-;	PUSH	BC
-;	PUSH	DE
-;	PUSH	HL
-;	LD 	C,A
-VTYPE:
-;	CALL	$-$
-;	POP	HL
-;	POP	DE
-;	POP	BC
-;	POP	AF
-;	RET
+; bios_const
+;**************************************************************
+;  Call BIOS console status routine
+bios_const:
+	push	bc						; Store registers
+	push	de
+	push	hl
+bios_const_cptr:
+	call	0x0000						; Address is patched by bios_calls_init
+	pop	hl						; Restore registers
+	pop	de
+	pop	bc
+	or	a						; Set flags
+	ret
 
-STAT:
-;	PUSH	BC
-;	PUSH	DE
-;	PUSH	HL
-VSTAT:
-;	CALL	$-$
-;	POP	HL
-;	POP	DE
-;	POP	BC
-;	OR	A
-;	RET
-
-KEYIN:
-;	PUSH	BC
-;	PUSH	DE
-;	PUSH	HL
-VKEYIN:
-;	CALL	$-$
-;	POP	HL
-;	POP	DE
-;	POP	BC
-;	AND	7FH
-;	RET
+; bios_conin
+;**************************************************************
+;  Call BIOS console in routine
+bios_conin:
+	push	bc						; Store registers
+	push	de
+	push	hl
+bios_conin_cptr:
+	call	0x0000						; Address is patched by bios_calls_init
+	pop	hl						; Restore registers
+	pop	de
+	pop	bc
+	and	0x7f						; Filter parity bit
+	ret
 
 ; inline_print
 ;**************************************************************
@@ -462,7 +476,7 @@ inline_print_loop:
 	ld	a, (hl)						; Get character
 	or	a						; Check if zero
 	jp	z, inline_print_finish				; If zero, finish
-	call	type						; Print character
+	call	bios_conout					; Print character
 	inc	hl						; Increment string pointer
 	jp	inline_print_loop				; Loop
 inline_print_finish:
