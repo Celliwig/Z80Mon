@@ -19,7 +19,7 @@ One of the reasons why I selected the NC100 is that it's hardware is quiet well 
 
 Overall impressions? Nice machine for the age (released in 1992), my only particular irk is that the LCD is in a fixed position, would have been nicer if you could pitch the screen towards you. As it is, you end up hunching over it or proping the entire thing at an angle. The Dreamwriter 100 is basically the same machine, there they have slanted the LCD but at the expense of it being fixed as a wedge of plastic at the back. Not sure which solution I prefer to be honest...
 
-## Monitor
+## Development
 So the point of all this (or at least part of it) was to reacquaint myself with Z80 assembler. I could jump right in and use one of the many Z80 monitors available, or write my own. Now I always think the best way to learn is to do, so writing my own was the way forward. However, even with a project that is as simple (in theory) as a monitor there are countless decisions to make which can bog you down when all you want to do is write code. So I decided to port, in as much as was applicable, an excellent monitor that I'd used before [2] in a previous project [3]. 
 
 A suitable assembler was needed with preferably macro and conditional support, so z80asm was chosen as it includes both and is in the Debian/Ubuntu repositories. Next, some method of loading test binaries was required because constantly removing/burning/inserting a ROM is both tiresome and can soon mangle both the socket, and the ROM. Thankfully binary images can be transfered [4] easily over a serial link (I used minicom on linux), then saved and run from a SRAM PCMCIA card. [Note, the serial port on NC100 is full spec. RS232, not TTL level, using a TTL level serial adapter would probably destroy the serial adapter.] Unfortunately trying to find a suitable PCMCIA card can be hit and miss as they aren't readily available on Ebay, and they're generally not cheap. Thankfully I had a spare which I had acquired many years previous and had been lanquashing at the bottom of a drawer (for once hoarding old dross pays off!). To run code from the memory card it has to be prepended with a header [4], so having fashioned a suitable code stub (nc100_memcard_sideload.asm), and a test payload, attempts were made to run the code from the SRAM card. It didn't work! After spending sometime trying to debug the problem, made more interesting by the machine having obviously no debugging tools apart from BASIC, I found that removing the "NC100PRG" from the header made it work, obviously firmware differences there. So with the ability to sideload code, I could start coding in earnest. Not much to comment about the development itself, start with the I/O routines and then add features as required. One interesting feature of the monitor design is that it supports modules, this allows the monitor to be ported to different platforms and additional commands to be added (at compile time and run time), without altering the monitor source itself. Two in particular are important, the system init and startup modules. System init, as the name implies is there to initialise the system. In this case the Z80 is executing from ROM with no RAM available, so the first job is to page in some RAM and configure the stack. Up to this point any associated subroutines have to be able to execute without a stack (this required using IX as a store for the return pointer, see 'module_find' subroutine). After that the rest of the system is initialised and then it executes a 'rst 8' which is used to classify a warm boot. It's at that point that the startup module (if it's there) is called, which in this case restores the configuration from the RTC RAM. 
@@ -32,6 +32,9 @@ And crosslinking a set of pads, A18 can be routed to pin 1.
 Now write enable is needed for pin 31 and, obviously, this is not available in the original configuration. It can be sourced from the RTC which is close by, so running a wire from RTC pin 11, to socket pin 31 the mod is complete.
 
 After that it was time to write some code to the ROM, and here is where things get a little weird. While trying to burn the ROM, the programming software exited with an error. On further examination it turned out the manufacture/device ids didn't match the expected values. To start with I was expecting this to be a problem with the device programmer or it's software (it's a fairly expensive device, but errors can happen), hoping the device wasn't a dud. Having checked the values listed in the AMD datasheet and the ROM in a second device, both sides were right and both sides were wrong. So a little more investigation revealed that the manufacturer/device code was for a Spansion part of the same size but with a different product code. Spansion and AMD are related, so is this a case of a manufacturing error? Or is it that somebody has faked the markings (for the more popular/recognisable AMD component) on the I.C. which does happen?  Who know's? Programming it as a Spansion part proceeded without error, so after plugging it in and powering on the device I was reward with the monitor interface. Excellent!
+
+## Monitor
+<img src="https://github.com/Celliwig/Z80Mon/blob/master/pics/NC100_monitor.jpg?raw=true" height="50%" width="50%" align="right">
 
 So what features are available in the monitor?
 
@@ -47,11 +50,11 @@ The implementation on the NC100 provides support for:
 * Serial
 * RTC
 * Setup command which includes
- * RTC date/time/alarm
- * LCD invert & console redirection (to serial port)
- * Memory page selection 
- * Serial port configuration (baud, etc)
- * Status information (including battery)
+  * RTC date/time/alarm
+  * LCD invert & console redirection (to serial port)
+  * Memory page selection 
+  * Serial port configuration (baud, etc)
+  * Status information (including batteries)
 * Flash programmer
 
 ## CP/M
