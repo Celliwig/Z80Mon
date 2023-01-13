@@ -2,7 +2,7 @@
 A generic Z80 monitor developed as a replacement for the Amstrad NC100 ROM with the goal being, among others, to be able run CP/M.
 
 ## Introduction
-Growing up my first computing experiences was on a Sinclair Spectrum 48K. I have fond memories of sitting in front of the machine typing in strange alphanumerics (hex machine code) from a magazine (YS) to produce a program that could be saved off, and hopefully run (it had a parity byte for each line, but that didn't always save you from a mistake ;) ). Fast forward several decades, a Comp. Sci. degree, and many years spent as a programmer, I have'd a hankering to revisit my technological roots. While I've no wish to restart the schoolyard wars of which computer (and by association which CPU) is best, I've found over the years that the Z80 is pretty sensible, at least compartively, to it's contemporaries. Comparing Z80 assembler with 8080 assembler, which are machine code compatible (8080->Z80, not the other way round necessarily), the Z80 I find is more readable. While I still have my old machine, I wanted to experiment with something a little more portable and not reliant on external equipment (monitor and PSU). There are several projects available to those that wish to relive the 8 bit age, ranging from quite basic single board computers to rack systems having potentially every possible interface available. For this first foray into the past I wanted to keep the expenditure as low as possible, at least in monetary terms if not time. So looking around on Ebay it was apparent that the cheapest available option was the Amstrad NC100 (approx. £15 with postage), note that while their are excellent SBC PCBs available which will cost you less than a NC100 you also have to factor in sourcing additional parts. One reason the NC100 was so cheap was that it was listed as 'spares/repair' as it wouldn't power on. A little research revealed that the device is a little weird in that it's barrel power connector is centre negative, while most PSUs are center positive. If you were to connect one of these PSUs, there's no diode protection/rectification and it'd almost certainly do a lot of damage (possibly terminal)  to the machine. There is however a fuse in the power circuitry which blows before there's a chance to do critical damage, but it is also inline with the battery feed so the device will appear dead to the world. Thankfully having received my machine, a quick inspection reveal that said fuse had indeed blown, so one wire link later and it's back up and running :). Let the fun begin. :grin:
+Growing up my first computing experience was on a Sinclair Spectrum 48K. I have fond memories of sitting in front of the machine typing in strange alphanumerics (hex machine code) from a magazine (YS) to produce a program that could be saved off, and hopefully run (it had a parity byte for each line, but that didn't always save you from a mistake ;) ). Fast forward several decades, a Comp. Sci. degree, and many years spent as a programmer, I have'd a hankering to revisit my technological roots. While I've no wish to restart the schoolyard wars of which computer (and by association which CPU) is best, I've found over the years that the Z80 is pretty sensible, at least compartively, to it's contemporaries. Comparing Z80 assembler with 8080 assembler, which are machine code compatible (8080->Z80, not the other way round necessarily), the Z80 I find is more readable. While I still have my old machine, I wanted to experiment with something a little more portable and not reliant on external equipment (monitor and PSU). There are several projects available to those that wish to relive the 8 bit age, ranging from quite basic single board computers to rack systems having potentially every possible interface available. For this first foray into the past I wanted to keep the expenditure as low as possible, at least in monetary terms if not time. So looking around on Ebay it was apparent that the cheapest available option was the Amstrad NC100 (approx. £15 with postage), note that while their are excellent SBC PCBs available which will cost you less than a NC100 you also have to factor in sourcing additional parts. One reason the NC100 was so cheap was that it was listed as 'spares/repair' as it wouldn't power on. A little research revealed that the device is a little weird in that it's barrel power connector is centre negative, while most PSUs are center positive. If you were to connect one of these PSUs, there's no diode protection/rectification and it'd almost certainly do a lot of damage (possibly terminal)  to the machine. There is however a fuse in the power circuitry which blows before there's a chance to do critical damage, but it is also inline with the battery feed so the device will appear dead to the world. Thankfully having received my machine, a quick inspection reveal that said fuse had indeed blown, so one wire link later and it's back up and running :). Let the fun begin. :grin:
 
 ## Amstrad NC100
 One of the reasons why I selected the NC100 is that it's hardware is quiet well known [1]. While it was developed as a tool for people on the move who were expected to be complete computer novices, it has been taken up (and apart) by people with a passion for machines. So what do you get?
@@ -25,13 +25,49 @@ So the point of all this (or at least part of it) was to reacquaint myself with 
 A suitable assembler was needed with preferably macro and conditional support, so z80asm was chosen as it includes both and is in the Debian/Ubuntu repositories. Next, some method of loading test binaries was required because constantly removing/burning/inserting a ROM is both tiresome and can soon mangle both the socket, and the ROM. Thankfully binary images can be transfered [4] easily over a serial link (I used minicom on linux), then saved and run from a SRAM PCMCIA card. [Note, the serial port on NC100 is full spec. RS232, not TTL level, using a TTL level serial adapter would probably destroy the serial adapter.] Unfortunately trying to find a suitable PCMCIA card can be hit and miss as they aren't readily available on Ebay, and they're generally not cheap. Thankfully I had a spare which I had acquired many years previous and had been lanquashing at the bottom of a drawer (for once hoarding old dross pays off!). To run code from the memory card it has to be prepended with a header [4], so having fashioned a suitable code stub (nc100_memcard_sideload.asm), and a test payload, attempts were made to run the code from the SRAM card. It didn't work! After spending sometime trying to debug the problem, made more interesting by the machine having obviously no debugging tools apart from BASIC, I found that removing the "NC100PRG" from the header made it work, obviously firmware differences there. So with the ability to sideload code, I could start coding in earnest. Not much to comment about the development itself, start with the I/O routines and then add features as required. One interesting feature of the monitor design is that it supports modules, this allows the monitor to be ported to different platforms and additional commands to be added (at compile time and run time), without altering the monitor source itself. Two in particular are important, the system init and startup modules. System init, as the name implies is there to initialise the system. In this case the Z80 is executing from ROM with no RAM available, so the first job is to page in some RAM and configure the stack. Up to this point any associated subroutines have to be able to execute without a stack (this required using IX as a store for the return pointer, see 'module_find' subroutine). After that the rest of the system is initialised and then it executes a 'rst 8' which is used to classify a warm boot. It's at that point that the startup module (if it's there) is called, which in this case restores the configuration from the RTC RAM. 
 
 ## Flash ROM mod
-During the development of the monitor, it matured to stage where it could be self hosting, so the next stage was to source a programmble ROM. An EPROM would be the obvious choice, but having used flash ROM DIP parts previously this was the preferable route having the potential to allow for in system programming. So back to Ebay and an AMD AM29F040 [5] was sourced (this is a 5V 512K x 8 flash ROM). The pin configuration of the ROM socket needs to altered to accommodate the flash device, namely A18 needs to be moved from pin 31 to pin 1 and !WE (write enable) is needed on pin 31. Thankfully the machine was built to accomdate a number of different ROM devices, so these particular pins are assignable, just not in the way the designers envisaged (original configurations of J301,J302,J303,J304 [1]). So by removing the existing configuration:
+During the development of the monitor, it matured to stage where it could be self hosting, so the next stage was to source a programmble ROM. An EPROM would be the obvious choice, but having used flash ROM DIP parts previously this was the preferable route having the potential to allow for in system programming. So back to Ebay and an AMD AM29F040 [5] was sourced (this is a 5V 512K x 8 flash ROM). The pin configuration of the ROM socket needs to be altered to accommodate the flash device, namely A18 needs to be moved from pin 31 to pin 1 and !WE (write enable) is needed on pin 31.
 
+<table>
+ <tr>
+  <td width="60%">
+Thankfully the machine was built to accomdate a number of different ROM devices, so these particular pins are assignable, just not in the way the designers envisaged (original configurations of J301,J302,J303,J304 [1]).
+  </td>
+  <td align="center">
+<img src="https://github.com/Celliwig/Z80Mon/blob/master/pics/NC100_FlashMod_Jumpers1.jpg?raw=true" height="60%" width="60%">
+  </td>
+ </tr>
+ <tr>
+  <td width="60%">
+So by removing the existing configuration:
+  </td>
+  <td align="center">
+<img src="https://github.com/Celliwig/Z80Mon/blob/master/pics/NC100_FlashMod_Jumpers2.jpg?raw=true" height="60%" width="60%">
+  </td>
+ </tr>
+ <tr>
+  <td width="60%">
 And crosslinking a set of pads, A18 can be routed to pin 1. 
-
+  </td>
+  <td align="center">
+<img src="https://github.com/Celliwig/Z80Mon/blob/master/pics/NC100_FlashMod_Jumpers3.jpg?raw=true" height="60%" width="60%">
+  </td>
+ </tr>
+ <tr>
+  <td>
 Now write enable is needed for pin 31 and, obviously, this is not available in the original configuration. It can be sourced from the RTC which is close by, so running a wire from RTC pin 11, to socket pin 31 the mod is complete.
+  </td>
+  <td align="center">
+<img src="https://github.com/Celliwig/Z80Mon/blob/master/pics/NC100_FlashMod_WriteEnable.jpg?raw=true" height="60%" width="60%">
+  </td>
+ </tr>
+</table>
 
-After that it was time to write some code to the ROM, and here is where things get a little weird. While trying to burn the ROM, the programming software exited with an error. On further examination it turned out the manufacture/device ids didn't match the expected values. To start with I was expecting this to be a problem with the device programmer or it's software (it's a fairly expensive device, but errors can happen), hoping the device wasn't a dud. Having checked the values listed in the AMD datasheet and the ROM in a second device, both sides were right and both sides were wrong. So a little more investigation revealed that the manufacturer/device code was for a Spansion part of the same size but with a different product code. Spansion and AMD are related, so is this a case of a manufacturing error? Or is it that somebody has faked the markings (for the more popular/recognisable AMD component) on the I.C. which does happen?  Who know's? Programming it as a Spansion part proceeded without error, so after plugging it in and powering on the device I was reward with the monitor interface. Excellent!
+## Fake ROM
+<p align="center">
+<img src="https://github.com/Celliwig/Z80Mon/blob/master/pics/NC100_FlashMod_FlashROM.jpg?raw=true" height="50%" width="50%">
+</p>
+
+After that it was time to burn the flash, and here is where things get a little weird. While trying to burn the ROM, the programming software exited with an error. On further examination it turned out the JEDEC manufacture/device ids didn't match the expected values. To start with I was hoping this to be a problem with the device programmer or it's software, I didn't want a dud device. Having checked the values listed in the AMD datasheet and the ROM in a second device, both sides were right and yet the values didn't match. So a little more investigation revealed that the manufacturer/device code was for a Spansion part of the same size but with a different product code. Spansion and AMD are related, so is this a case of a manufacturing error? Or is it that somebody has faked the markings (for the more popular/recognisable AMD component) on the I.C. which does happen?  Who know's? Programming it as a Spansion part proceeded without error, so after plugging it in and powering on the device I was reward with the monitor interface. :thumbsup:
 
 ## Monitor
 <img src="https://github.com/Celliwig/Z80Mon/blob/master/pics/NC100_monitor.jpg?raw=true" height="50%" width="50%" align="right">
@@ -49,7 +85,7 @@ The implementation on the NC100 provides support for:
 * ROM/RAM/SRAM PCMCIA
 * Serial
 * RTC
-* Setup command which includes
+* Setup command which includes:
   * RTC date/time/alarm
   * LCD invert & console redirection (to serial port)
   * Memory page selection 
